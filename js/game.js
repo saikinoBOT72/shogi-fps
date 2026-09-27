@@ -26,11 +26,14 @@ function resetMatch() {
   bot = makeEntity('P', true);
   player.pos.set(rand(-4, 4), 0, H - 3);
   bot.pos.set(rand(-4, 4), 0, -(H - 3));
-  Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, fireDelay: 0, jumpT: 2, wp: null, wpT: 0 });
+  Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
+    persona: Object.values(PERSONAS)[Math.floor(Math.random() * 3)] });
   stats = { shots: 0, hits: 0, heads: 0, dealt: 0, taken: 0, time: 0 };
   view.yaw = Math.atan2(-(bot.pos.x - player.pos.x), -(bot.pos.z - player.pos.z));
   view.pitch = 0; view.shake = 0; view.roll = 0; view.dip = 0; view.dipV = 0;
-  botActor.body.rotation.set(0, 0, 0); botActor.body.position.y = 0; botActor.dead = null;
+  botActor.body.rotation.set(0, 0, 0); botActor.body.position.y = 0; botActor.dead = null; botActor.root.visible = true;
+  playerActor.body.rotation.set(0, 0, 0); playerActor.dead = null;
+  Replay.clear();
   botActor.wood.emissive.setHex(0);
   Decals.clear();
   PHYS.reset();
@@ -228,7 +231,7 @@ function updatePlayer(dt) {
   if (p.onGround && p.moving) {
     const prev = Math.sin(view.bobPhase * 2);
     view.bobPhase += dt * Math.hypot(p.vel.x, p.vel.z) * 1.35;
-    if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) SFX.play('step', null, 0.7);
+    if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { SFX.play('step', null, 0.7); if ((p.adsT || 0) < 0.5) aiHear(p.pos, 10); }
   }
 
   weaponTick(p, dt);
@@ -247,6 +250,7 @@ function shootPlayer() {
   const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   const muzzle = cam.localToWorld(new V3(lerp(0.19, 0, p.adsT) * 0.9, -0.14, -0.9));
   const res = fire(p, bot, eyeOf(p), muzzle, dir);
+  aiHear(p.pos, 45);
   stats.shots++;
   SFX.play('shot');
   VM.kick = 1; VM.slideT = 1; VM.flashT = 0.05;
@@ -257,6 +261,9 @@ function shootPlayer() {
 
 function damageBot(res) {
   bot.hp -= res.dmg;
+  // 撃たれたら横移動の向きを変え、撃ってきた場所を覚える
+  bot.strafe *= -1; bot.strafeT = rand(0.4, 1); bot.hurtT = 1.2;
+  bot.lastKnown.copy(player.pos); if (bot.lostT > 0) bot.lostT = 0.01;
   stats.hits++; stats.dealt += res.dmg; if (res.head) stats.heads++;
   DmgNums.add(res.point, res.dmg, res.head);
   Particles.wood(res.point, cam.getWorldDirection(new V3()), res.head ? 14 : 8);

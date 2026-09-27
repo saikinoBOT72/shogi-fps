@@ -157,6 +157,20 @@ const PHYS = (() => {
         b.wakeUp(); b.applyImpulse(new CANNON.Vec3(dx * k, Math.abs(dy * k) + power * b.mass * 0.4, dz * k), b.position);
       }
     },
+    // キルカム用：全小物の位置と向きを保存・復元
+    snapshot() {
+      const a = new Float32Array(items.length * 7);
+      items.forEach((it, i) => { const b = it.body, q = b.quaternion; a.set([b.position.x, b.position.y, b.position.z, q.x, q.y, q.z, q.w], i * 7); });
+      return a;
+    },
+    restore(a) {
+      items.forEach((it, i) => {
+        const b = it.body, o = i * 7;
+        b.position.set(a[o], a[o + 1], a[o + 2]); b.quaternion.set(a[o + 3], a[o + 4], a[o + 5], a[o + 6]);
+        b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
+      });
+      sync();
+    },
     reset() {
       for (const it of items) {
         const b = it.body;

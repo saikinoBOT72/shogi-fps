@@ -69,7 +69,8 @@ function updateBot(dt) {
     const side = new V3(-toP.z, 0, toP.x).multiplyScalar(b.strafe);
 
     // 状態の決定
-    const wantCover = los && (b.reloading > 0 || (b.hp < 30 && player.hp > b.hp && b.ammo < 5));
+    const P = b.persona, pref = Math.max(3, b.w.pref + P.prefAdd);
+    const wantCover = los && (b.reloading > 0 || (b.hp < P.coverHp && player.hp > b.hp && b.ammo < b.w.mag * 0.4));
     if (wantCover) {
       b.coverT -= dt;
       if (!b.coverPt || b.coverT <= 0) { b.coverPt = findCover(b, pEye); b.coverT = 0.6; }
@@ -79,9 +80,7 @@ function updateBot(dt) {
       wish.copy(b.coverPt).sub(b.pos).setY(0);
       if (wish.length() < 0.5) wish.set(0, 0, 0);
     } else if (los) {
-      const pref = b.w.pref;
       wish.addScaledVector(toP, dist > pref + 3 ? 1 : dist < pref - 4 ? -0.8 : 0).addScaledVector(side, 0.9);
-      if ((player.reloading > 0 || dist > pref + 8) && dist > 5 && b.seen > 0.5) useSkill(b, toP);
     } else {
       // 見失ったら最後に見た場所へ。まっすぐ行けなければ中継地点を経由
       const tgt = b.lostT < 3 ? b.lastKnown : player.pos;
@@ -91,10 +90,12 @@ function updateBot(dt) {
       wish.copy(b.wp || tgt).sub(b.pos).setY(0);
       if (!b.wp && wish.length() < 1.5) wish.copy(toP).add(side);
     }
+    if (b.skillCd <= 0 && SKILL_AI[b.def.skill]) SKILL_AI[b.def.skill](b, { los, dist, toP, pref });
+    b.hurtT = Math.max(0, (b.hurtT || 0) - dt);
     if (wish.lengthSq() > 0) wish.normalize();
     const steered = steer(b, wish);
     b.jumpT -= dt;
-    if (b.onGround && ((los && b.jumpT <= 0 && Math.random() < dt * (aimedAt ? 1.5 : 0.3)) || b.stuck > 0.6)) { tryJump(b); b.jumpT = rand(1, 2.5); }
+    if (b.onGround && ((los && b.jumpT <= 0 && Math.random() < dt * (aimedAt ? 1.5 : 0.3) * P.jump) || b.stuck > 0.6)) { tryJump(b); b.jumpT = rand(1, 2.5); }
     moveEntity(b, steered, dt);
     b.stuck = (wish.lengthSq() > 0 && b.pos.distanceTo(b.lastPos) < b.def.speed * 0.25 * dt) ? b.stuck + dt : 0;
     b.lastPos.copy(b.pos);
@@ -127,6 +128,26 @@ function updateBot(dt) {
     moveEntity(b, wish, dt);
   }
   b.skillCd = Math.max(0, b.skillCd - dt);
+}
+
+// スキルごとのCPUの使い方
+const SKILL_AI = {
+  // 突撃：相手がリロード中、または遠いときに一気に詰める（突撃型ほど積極的）
+  charge(b, c) {
+    if (c.los && c.dist > 5 && b.seen > 0.5 && (player.reloading > 0 || c.dist > c.pref + 8 / b.persona.eager)) useSkill(b, c.toP);
+  },
+};
+// CPUの性格（対局ごとにランダム）：prefAdd 間合いの増減 / coverHp 隠れ始めるHP / eager スキルの積極さ / jump ジャンプの多さ
+const PERSONAS = {
+  rush:    { name: '突撃型',     prefAdd: -4, coverHp: 15, eager: 1.8, jump: 1.6 },
+  careful: { name: '慎重型',     prefAdd: 4,  coverHp: 45, eager: 0.6, jump: 0.6 },
+  normal:  { name: 'バランス型', prefAdd: 0,  coverHp: 30, eager: 1,   jump: 1 },
+};
+// 音で気づく：見えていなくても、聞こえた位置を「最後に見た場所」にする
+function aiHear(pos, radius) {
+  if (!bot || bot.dead || state !== 'fight') return;
+  if (bot.pos.distanceTo(pos) > radius || bot.lostT === 0) return;
+  bot.lastKnown.copy(pos); bot.lostT = 0.01; bot.wp = null;
 }
 
 function damagePlayer(dmg, from) {

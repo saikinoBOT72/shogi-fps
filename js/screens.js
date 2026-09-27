@@ -13,6 +13,7 @@ function settingsHTML() {
     <div class="row"><span>画質 <small style="opacity:.6">（重いときは「低」）</small></span><div class="seg" id="qSeg">${Object.entries(QUALITIES).map(([k, q]) => `<button data-q="${k}" class="${settings.quality === k ? "on" : ""}">${q.name}</button>`).join("")}</div></div>
     <div class="row"><span>FPS表示</span><div class="seg" id="fpsSeg"><button data-f="1" class="${settings.showFps ? "on" : ""}">ON</button><button data-f="0" class="${settings.showFps ? "" : "on"}">OFF</button></div></div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
+    <div class="row"><span>数値の調整 <small style="opacity:.6">（ダメージ・速さなど）</small></span><button class="small" id="tuneBtn">調整パネル</button></div>
   </div>`;
 }
 function bindSettings() {
@@ -33,6 +34,7 @@ function bindSettings() {
     if (!settings.showFps) $("fps").textContent = "";
   });
   ['sens', 'vol'].forEach(id => $(id).onclick = e => e.stopPropagation());
+  $('tuneBtn').onclick = e => { e.stopPropagation(); openTune(); };
 }
 const KEYS = `<div class="keys"><b>WASD</b>移動　<b>マウス</b>照準　<b>左クリック</b>射撃　<b>右クリック</b>覗き込み　<b>R</b>リロード<br><b>Space</b>ジャンプ　<b>E</b>突撃（前方ダッシュ・被ダメ半減・体当たり）　<b>F</b>フルスクリーン　<b>ESC</b>一時停止</div>`;
 
@@ -70,7 +72,9 @@ function showResult(win) {
       <div><b>${stats.time.toFixed(1)}s</b><span>決着タイム</span></div>
     </div>
     <button class="btn" id="again">もう一局</button>
-    <button class="btn ghost" id="toTitle">タイトルへ</button>`, true);
+    <button class="btn ghost" id="toTitle">タイトルへ</button>
+    <button class="btn ghost" id="resTune">調整パネル</button>`, true);
+  $('resTune').onclick = e => { e.stopPropagation(); openTune(); };
   $('again').onclick = e => { e.stopPropagation(); startMatch(); };
   $('toTitle').onclick = e => { e.stopPropagation(); resetMatch(); showTitle(); };
 }
@@ -90,6 +94,7 @@ function startMatch() {
 function onLocked() {
   if (state === 'countdown' || state === 'fight') {
     paused = false; hideOverlay(); $('hud').style.display = 'block';
+    if ($('tune')) $('tune').style.display = 'none';
   }
 }
 function pause() {

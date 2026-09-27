@@ -21,10 +21,9 @@ function endMatch(win) {
   state = 'end'; stateT = 0; mouseDown = false; rightDown = false;
   stats.time = TIME_LIMIT - Math.max(0, TIME_LIMIT - stats.time);
   showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? '#ffd23a' : '#ff6b5b');
-  setTimeout(() => {
-    if (document.pointerLockElement) document.exitPointerLock();
-    showResult(win);
-  }, 2600);
+  const toResult = () => { if (document.pointerLockElement) document.exitPointerLock(); showResult(win); };
+  // 負けたときは、相手の視点で直前を再生してから結果へ
+  setTimeout(() => { if (win !== false || !Replay.start(toResult)) toResult(); }, win === false ? 1700 : 2600);
 }
 
 // ================= HUD =================

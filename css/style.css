@@ -88,3 +88,26 @@ input[type=range]{width:180px;accent-color:#ffcf6b}
 .stats div{background:rgba(0,0,0,.4);border-radius:8px;padding:10px 14px}
 .stats b{display:block;font-size:26px}
 .stats span{font-size:12px;opacity:.7}
+
+/* 調整パネル */
+button.small{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.3);padding:6px 14px;border-radius:6px;cursor:pointer;font:inherit}
+button.small:hover{background:rgba(255,255,255,.22)}
+#tune{position:fixed;right:0;top:0;bottom:0;width:380px;max-width:92vw;overflow-y:auto;z-index:20;display:none;
+  background:rgba(14,12,10,.94);border-left:1px solid rgba(255,255,255,.15);padding:14px 18px 30px;box-sizing:border-box;font-size:13px}
+#tune .tune-head{display:flex;justify-content:space-between;align-items:center;font-size:18px;position:sticky;top:-14px;background:rgba(14,12,10,.97);padding:6px 0;z-index:1}
+#tune .tune-note{opacity:.65;margin:4px 0 8px;line-height:1.5}
+#tune h4{margin:16px 0 6px;color:#ffcf6b;font-size:14px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:4px}
+#tune .tune-row{display:grid;grid-template-columns:1fr 130px 52px;align-items:center;gap:8px;margin:5px 0}
+#tune .tune-row.changed span,#tune .tune-row.changed em{color:#ffcf6b;font-weight:bold}
+#tune input[type=range]{width:130px}
+#tune em{font-style:normal;text-align:right;font-family:monospace}
+#tune button{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.3);padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit}
+#tune .tune-btns{display:flex;gap:8px;margin-top:16px}
+#tune textarea{display:none;width:100%;height:140px;margin-top:10px;background:#000;color:#cfc;border:1px solid #444;font:12px monospace;box-sizing:border-box}
+
+/* キルカム */
+#killcam{position:fixed;inset:0;pointer-events:none;display:none;box-shadow:inset 0 0 140px 30px rgba(160,0,0,.55)}
+#killcam .kc-top{position:absolute;top:22px;left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:baseline;white-space:nowrap;text-shadow:0 2px 6px #000}
+#killcam .kc-top b{font:900 italic 34px "Yu Gothic",sans-serif;color:#ff5b4b;letter-spacing:3px}
+#killcam .kc-top span{font-size:18px;font-weight:bold}
+#killcam .kc-skip{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);font-size:14px;opacity:.7}
