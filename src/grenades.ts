@@ -92,8 +92,17 @@ export const Grenades = (() => {
     }
   }
   function clear() { list.forEach(g => scene.remove(g.mesh)); list.length = 0; }
-  const samples = () => { const s = new THREE.Mesh(geo, m); s.add(new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 4, 8), bandM)); return [s]; };
-  return { fire, update, clear, samples };
+  const makeMesh = () => { const s = new THREE.Mesh(geo, m); s.add(new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 4, 8), bandM)); return s; };
+  const samples = () => [makeMesh()];
+  // リプレイ用：飛んでいる弾の位置と回転
+  const ghosts = [];
+  const snapshot = () => list.map(g => [g.pos.x, g.pos.y, g.pos.z, g.mesh.rotation.x, g.mesh.rotation.y, g.mesh.rotation.z]);
+  function showGhosts(snap) {
+    while (ghosts.length < snap.length) { const s = makeMesh(); scene.add(s); ghosts.push(s); }
+    ghosts.forEach((g, i) => { const s = snap[i]; g.visible = !!s; if (s) { g.position.set(s[0], s[1], s[2]); g.rotation.set(s[3], s[4], s[5]); } });
+  }
+  const setLiveVisible = v => list.forEach(g => { g.mesh.visible = v; });
+  return { fire, update, clear, samples, snapshot, showGhosts, setLiveVisible };
 })();
 
 // 煙幕：その場に煙の玉を張る。中や向こう側は見えない（CPUも見えない）
@@ -104,6 +113,7 @@ export const Smoke = (() => {
     g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
   });
   const clouds = [];
+  let nextId = 0;
   function spawn(pos, r, life) {
     const g = new THREE.Group(), puffs = [];
     for (let i = 0; i < 24; i++) {
@@ -114,23 +124,36 @@ export const Smoke = (() => {
     }
     g.position.copy(pos);
     scene.add(g);
-    clouds.push({ g, puffs, pos: pos.clone(), r, t: 0, life });
+    clouds.push({ g, puffs, pos: pos.clone(), r, t: 0, life, id: nextId++ });
     SFX.play('smoke', pos);
   }
   function update(dt) {
     for (let i = clouds.length - 1; i >= 0; i--) {
       const c = clouds[i];
       c.t += dt;
-      const grow = Math.min(1, c.t / 0.8), fade = clamp((c.life - c.t) / 1.5, 0, 1);
-      for (const p of c.puffs) {
-        p.s.position.copy(p.off).multiplyScalar(0.3 + 0.7 * grow);
-        p.s.position.y += c.t * 0.08;
-        p.s.scale.setScalar(p.sc * (0.4 + 0.6 * grow));
-        p.s.material.opacity = 0.9 * fade;
-        p.s.material.rotation += p.rot * dt;
-      }
-      c.eff = c.r * 0.85 * grow * (fade > 0.3 ? 1 : fade / 0.3);
+      pose(c, dt);
       if (c.t >= c.life) { scene.remove(c.g); clouds.splice(i, 1); }
+    }
+  }
+  // 煙の見た目を、出てからの時間 c.t に合わせる
+  function pose(c, dt) {
+    const grow = Math.min(1, c.t / 0.8), fade = clamp((c.life - c.t) / 1.5, 0, 1);
+    for (const p of c.puffs) {
+      p.s.position.copy(p.off).multiplyScalar(0.3 + 0.7 * grow);
+      p.s.position.y += c.t * 0.08;
+      p.s.scale.setScalar(p.sc * (0.4 + 0.6 * grow));
+      p.s.material.opacity = 0.9 * fade;
+      p.s.material.rotation += p.rot * dt;
+    }
+    c.eff = c.r * 0.85 * grow * (fade > 0.3 ? 1 : fade / 0.3);
+  }
+  // リプレイ用：その時点の煙（まだ出ていない煙は隠す）
+  const snapshot = () => clouds.map(c => [c.id, c.t]);
+  function restore(snap) {
+    for (const c of clouds) {
+      const s = snap ? snap.find(x => x[0] === c.id) : [c.id, c.t];   // null なら今の姿に戻す
+      c.g.visible = !!s;
+      if (s) { const t = c.t; c.t = s[1]; pose(c, 0.016); c.t = t; }
     }
   }
   // a→b の線が煙の玉を通るか
@@ -146,5 +169,5 @@ export const Smoke = (() => {
   // その位置（足元）が煙の中か
   const inside = p => clouds.some(c => c.eff > 0.3 && c.pos.distanceTo(new V3(p.x, p.y + 1, p.z)) < c.eff);
   const samples = () => [new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: P.shiro[1], transparent: true, depthWrite: false }))];
-  return { spawn, update, blocks, clear, inside, samples };
+  return { spawn, update, blocks, clear, inside, samples, snapshot, restore };
 })();

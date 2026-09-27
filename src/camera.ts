@@ -26,6 +26,7 @@ export function updateCamera(dt, rdt) {
   const eye = eyeOf(p);
   const moveK = p.onGround ? clamp(Math.hypot(p.vel.x, p.vel.z) / p.def.speed, 0, 1) * (1 - (p.adsT || 0) * 0.8) : 0;
   const bobY = Math.sin(view.bobPhase * 2) * 0.035 * moveK, bobX = Math.cos(view.bobPhase) * 0.025 * moveK;
+  view.bobX = bobX; view.bobY = bobY;   // リプレイ用に覚えておく
 
   if (gs.state === 'countdown' && gs.stateT < 1.3) {
     const e = 1 - Math.pow(1 - gs.stateT / 1.3, 3);
@@ -52,8 +53,19 @@ export function updateCamera(dt, rdt) {
   sky.position.copy(cam.position);
   SFX.listener(cam);
 
-  // 一人称の銃
+  // 貫きの準備中は相手が壁越しに見える
+  botActor.xray.visible = p.skillT > 0 && p.skill.type === 'pierce' && !bot.dead;
+  poseViewModel(p, rdt, swayX, swayY, bobX, bobY);
+}
+
+// 撃ったときの銃の跳ね上がり
+export const kickOf = w => w.kind === 'bow' ? 0.6 : w.kind === 'grenade' ? 1.6 : clamp(w.recoil / 0.022, 1, 2.2);
+
+// 一人称の銃の構え・揺れ・反動（リプレイでも同じ動きを使う）
+// p: adsT, draw, reloading, w, skillT, skill, cd, dead を持つもの
+export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   const ads = p.adsT || 0;
+  const dashing = p.skillT > 0 && p.skill.type === 'dash', guarding = p.skillT > 0 && p.skill.type === 'guard';
   VM.sway.x = damp(VM.sway.x, swayX, 10, rdt); VM.sway.y = damp(VM.sway.y, swayY, 10, rdt);
   VM.kick = Math.max(0, VM.kick - rdt * 9);
   VM.slideT = Math.max(0, VM.slideT - rdt * 14);
@@ -70,8 +82,6 @@ export function updateCamera(dt, rdt) {
   // スナイパーを覗いている間は銃を消してスコープ画面に
   VM.scoped = !!p.w.zoom && ads > 0.8 && !p.dead;
   VM.root.visible = !VM.scoped;
-  // 貫きの準備中は相手が壁越しに見える
-  botActor.xray.visible = p.skillT > 0 && p.skill.type === 'pierce' && !bot.dead;
   // 弓：弦を引く・追尾が準備できたら矢が光る
   if (VM.pist.isBow) {
     VM.pist.setDraw(p.draw || 0);

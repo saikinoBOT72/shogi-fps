@@ -83,8 +83,7 @@ export function loop(now) {
   // キルカム再生中
   if (gs.state === 'killcam') {
     Replay.update(rdt);
-    DmgNums.update(0);
-    render(false);
+    render(true);   // 決めた側の銃も描く
     return;
   }
 

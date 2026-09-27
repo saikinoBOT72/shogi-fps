@@ -32,8 +32,8 @@ export function endMatch(win) {
   stats.time = TIME_LIMIT - Math.max(0, TIME_LIMIT - stats.time);
   showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? 'var(--kin-2)' : 'var(--shu-1)');
   const toResult = () => { if (document.pointerLockElement) document.exitPointerLock(); showResult(win); };
-  // 負けたときは、相手の視点で直前を再生してから結果へ
-  setTimeout(() => { if (win !== false || !Replay.start(toResult)) toResult(); }, win === false ? 1700 : 2600);
+  // 決着がついたら、決めた側の視点で直前を再生してから結果へ（時間切れは再生なし）
+  setTimeout(() => { if (win === null || !Replay.start(win, toResult)) toResult(); }, win === false ? 1700 : 1900);
 }
 
 // ================= HUD =================
