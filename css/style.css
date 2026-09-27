@@ -1,0 +1,90 @@
+html,body{margin:0;height:100%;overflow:hidden;background:#0e0c0a;font-family:"Yu Gothic","Hiragino Sans","Meiryo",sans-serif;color:#fff;user-select:none}
+canvas{display:block}
+#hud{position:fixed;inset:0;pointer-events:none;display:none}
+.shadow{text-shadow:0 2px 6px rgba(0,0,0,.7)}
+
+/* クロスヘア */
+#xh{position:absolute;left:50%;top:50%}
+#xh i{position:absolute;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+#xh .t,#xh .b{width:2px;height:9px;left:-1px}
+#xh .l,#xh .r{height:2px;width:9px;top:-1px}
+#xh .dot{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%}
+/* ヒットマーカー */
+#hm{position:absolute;left:50%;top:50%;opacity:0}
+#hm i{position:absolute;width:3px;height:11px;background:#fff;left:-1.5px;top:-5.5px;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+#hm.head i{background:#ffd23a}
+#hm.kill i{background:#ff3b3b;height:16px;top:-8px}
+/* 被弾方向 */
+.dd{position:absolute;left:50%;top:50%;width:280px;height:280px;margin:-140px 0 0 -140px;border-radius:50%;
+  background:conic-gradient(from -20deg,rgba(255,40,40,.85) 0deg,rgba(255,40,40,0) 40deg,transparent 40deg);
+  -webkit-mask:radial-gradient(circle,transparent 118px,#000 120px,#000 136px,transparent 138px);
+  mask:radial-gradient(circle,transparent 118px,#000 120px,#000 136px,transparent 138px)}
+#lowhp{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(180,0,0,.55) 100%);opacity:0}
+#hurt{position:absolute;inset:0;box-shadow:inset 0 0 180px 50px rgba(255,0,0,.75);opacity:0}
+#dashfx{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 35%,rgba(255,255,255,.28) 100%);opacity:0}
+
+/* 上部 */
+#top{position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
+#timer{font-size:30px;font-weight:900;font-style:italic;letter-spacing:1px}
+#foeWrap{display:flex;align-items:center;gap:10px}
+#foeTag{font:900 22px "Yu Mincho",serif;background:#e8c27a;color:#1a1008;width:36px;height:40px;display:flex;align-items:center;justify-content:center;clip-path:polygon(50% 0,94% 22%,88% 100%,12% 100%,6% 22%)}
+.bar{position:relative;height:12px;background:rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.85);transform:skewX(-18deg);overflow:hidden}
+.bar .lag{position:absolute;inset:0;background:#fff;transform-origin:left;transition:transform .5s .25s}
+.bar .fill{position:absolute;inset:0;transform-origin:left}
+#foeBar{width:340px}
+#foeBar .fill{background:linear-gradient(#ff7a6a,#d63a2a)}
+
+/* 自分 */
+#me{position:absolute;left:28px;bottom:26px}
+#meHpNum{font-size:48px;font-weight:900;font-style:italic;line-height:1}
+#meHpNum small{font-size:18px;opacity:.7;margin-left:4px}
+#meBar{width:300px;height:14px;margin-top:6px}
+#meBar .fill{background:linear-gradient(#8ff0a6,#2fb865)}
+#meName{margin-top:6px;font-size:14px;opacity:.85}
+
+/* 武器・スキル */
+#wep{position:absolute;right:30px;bottom:26px;text-align:right}
+#ammoNum{font-size:48px;font-weight:900;font-style:italic;line-height:1}
+#ammoNum small{font-size:20px;opacity:.7}
+#ammoNum.low{color:#ff6b5b}
+#pips{display:flex;gap:3px;justify-content:flex-end;margin-top:6px}
+#pips i{width:5px;height:14px;background:#ffd98a;transform:skewX(-18deg)}
+#pips i.e{background:rgba(255,255,255,.2)}
+#wepName{margin-top:6px;font-size:14px;opacity:.85}
+#reloadTxt{position:absolute;left:50%;top:calc(50% + 46px);transform:translateX(-50%);font-weight:900;font-size:15px;letter-spacing:2px;opacity:0}
+#skill{position:absolute;right:30px;bottom:150px;display:flex;align-items:center;gap:10px}
+#skill .ring{position:relative;width:54px;height:54px}
+#skill svg{position:absolute;inset:0;transform:rotate(-90deg)}
+#skill .key{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px}
+#skill.ready .key{color:#7ee0ff;text-shadow:0 0 10px #39c6ff}
+#skillName{font-weight:900;font-size:16px}
+
+#center{position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);font-size:92px;font-weight:900;font-style:italic;white-space:nowrap}
+#center.pop{animation:pop .35s ease-out}
+@keyframes pop{from{transform:translate(-50%,-50%) scale(1.6);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+#hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;opacity:.55}
+
+#fps{position:fixed;left:8px;top:6px;font:bold 13px monospace;color:#9f9;text-shadow:0 1px 2px #000;pointer-events:none;z-index:5}
+/* オーバーレイ */
+#overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:14px;
+  background:radial-gradient(ellipse at center,rgba(10,8,6,.35),rgba(10,8,6,.8))}
+#overlay.dim{background:rgba(10,8,6,.72)}
+.logo{font:900 86px "Yu Mincho","Hiragino Mincho ProN",serif;letter-spacing:6px;text-shadow:0 6px 24px rgba(0,0,0,.6)}
+.logo span{color:#ffcf6b}
+.sub{font-size:18px;opacity:.85;letter-spacing:2px}
+.card{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px 22px;min-width:420px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:8px 0;font-size:15px}
+.seg{display:flex;gap:4px}
+.seg button{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit}
+.seg button.on{background:#ffcf6b;color:#1a1008;border-color:#ffcf6b;font-weight:bold}
+input[type=range]{width:180px;accent-color:#ffcf6b}
+.btn{font:900 24px "Yu Gothic",sans-serif;padding:12px 44px;border-radius:10px;border:none;background:#ffcf6b;color:#1a1008;cursor:pointer;letter-spacing:2px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.btn:hover{background:#ffe09a}
+.btn.ghost{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.5);font-size:16px;padding:8px 22px}
+.keys{font-size:13px;opacity:.75;line-height:1.9}
+.keys b{display:inline-block;min-width:18px;padding:0 6px;border:1px solid rgba(255,255,255,.4);border-radius:4px;margin:0 2px}
+.res{font:900 80px "Yu Gothic",sans-serif;font-style:italic}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stats div{background:rgba(0,0,0,.4);border-radius:8px;padding:10px 14px}
+.stats b{display:block;font-size:26px}
+.stats span{font-size:12px;opacity:.7}
