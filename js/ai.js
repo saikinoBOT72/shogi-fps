@@ -30,23 +30,52 @@ function pickWaypoint(e, target, targetEye) {
     const a = i / 16 * Math.PI * 2;
     for (const r of [2.5, 5, 8]) {
       const x = e.pos.x + Math.cos(a) * r, z = e.pos.z + Math.sin(a) * r;
-      if (insideCollider(x, z, e.radius + 0.15)) continue;
+      if (insideCollider(x, z, e.radius + 0.15, e.pos.y)) continue;
       const p = new V3(x, 0, z);
       if (!reachable(e, e.pos, p)) continue;
       let s = p.distanceTo(target);
-      if (targetEye && hasLOS(new V3(x, e.eyeH, z), targetEye)) s -= 6;
+      if (targetEye && hasLOS(new V3(x, e.pos.y + e.eyeH, z), targetEye)) s -= 6;
       if (s < bs) { bs = s; best = p; }
     }
   }
   return best;
+}
+// その位置に立ったとき、体のどこか（頭・胸・足・左右の端）が from から見えるか（煙は隠れ場所にならない）
+function bodyVisible(pos, e, from) {
+  const side = new V3(-(from.z - pos.z), 0, from.x - pos.x).normalize().multiplyScalar(e.radius * 0.9);
+  const pts = [0.92, 0.6, 0.25].map(k => new V3(pos.x, pos.y + e.height * k, pos.z));
+  pts.push(pts[1].clone().add(side), pts[1].clone().sub(side));
+  return pts.some(p => hasLOS(from, p, true));
+}
+// 経路探索で次に向かう点（まっすぐ行けるなら null）
+function navNext(b, tgt, dt, pEye) {
+  if (Math.abs(tgt.y - b.pos.y) < 0.6 && reachable(b, b.pos, tgt)) { b.path = null; return null; }
+  b.pathT = (b.pathT || 0) - dt;
+  if (!b.path || b.pathT <= 0 || !b.pathGoal || b.pathGoal.distanceTo(tgt) > 3) {
+    b.path = Nav.find(b.pos, tgt); b.pathI = 0; b.pathT = 1.5; b.pathGoal = tgt.clone();
+  }
+  if (!b.path || !b.path.length) {
+    // 道が見つからない（相手が高い所など）：近くの中継地点へ。着いたら壁を登る
+    b.wpT -= dt;
+    if (b.wp && (Math.hypot(b.wp.x - b.pos.x, b.wp.z - b.pos.z) < 0.8 || b.wpT <= 0)) b.wp = null;
+    if (!b.wp) { b.wp = pickWaypoint(b, tgt, pEye); b.wpT = 1.2; }
+    return b.wp;
+  }
+  // 通り過ぎた点・見通せる先の点は飛ばす
+  for (let n = 0; n < 6 && b.pathI < b.path.length - 1; n++) {
+    const p = b.path[b.pathI], q = b.path[b.pathI + 1];
+    if (Math.hypot(p.x - b.pos.x, p.z - b.pos.z) < 0.7 || (Math.abs(q.y - b.pos.y) < 0.2 && Math.abs(p.y - b.pos.y) < 0.2 && reachable(b, b.pos, q))) b.pathI++;
+    else break;
+  }
+  return b.path[b.pathI];
 }
 function findCover(e, from) {
   let best = null, bd = Infinity;
   for (let i = 0; i < 22; i++) {
     const a = rand(0, Math.PI * 2), r = rand(2.5, 11);
     const x = e.pos.x + Math.cos(a) * r, z = e.pos.z + Math.sin(a) * r;
-    if (insideCollider(x, z, e.radius + 0.2)) continue;
-    if (hasLOS(new V3(x, e.eyeH, z), from)) continue;
+    if (insideCollider(x, z, e.radius + 0.2, e.pos.y)) continue;
+    if (bodyVisible(new V3(x, e.pos.y, z), e, from)) continue;   // 体が少しでも見える所は隠れ場所にしない
     if (r < bd) { bd = r; best = new V3(x, 0, z); }
   }
   return best;
@@ -85,21 +114,26 @@ function updateBot(dt) {
       wish.copy(toP);
     } else if (b.coverPt) {
       wish.copy(b.coverPt).sub(b.pos).setY(0);
-      if (wish.length() < 0.5) wish.set(0, 0, 0);
+      if (wish.length() < 0.5) { wish.set(0, 0, 0); if (bodyVisible(b.pos, b, pEye)) b.coverT = 0; }   // 着いても見えていたら探し直す
     } else if (los) {
       wish.addScaledVector(toP, dist > pref + 3 ? 1 : dist < pref - 4 ? -0.8 : 0).addScaledVector(side, 0.9);
     } else if (b.healing) {
-      // 見えていない間に回復を待つ（HPが戻るまでその場で様子見）
-      wish.set(0, 0, 0);
+      // 回復待ち：体がはみ出していたり煙の中なら、ちゃんと隠れられる所へ移ってから待つ
+      b.coverT -= dt;
+      if (bodyVisible(b.pos, b, pEye) || Smoke.inside(b.pos)) {
+        if (!b.healPt || b.coverT <= 0) { b.healPt = findCover(b, pEye); b.coverT = 0.8; }
+        if (b.healPt) wish.copy(b.healPt).sub(b.pos).setY(0);
+        else wish.copy(toP).negate().add(side);
+      } else { wish.set(0, 0, 0); b.healPt = null; }
     } else {
       // 見失ったら最後に見た場所へ。まっすぐ行けなければ中継地点を経由
       const tgt = b.lostT < 3 ? b.lastKnown : player.pos;
-      b.wpT -= dt;
-      if (b.wp && (b.wp.distanceTo(b.pos.clone().setY(0)) < 0.8 || b.wpT <= 0)) b.wp = null;
-      if (!b.wp && !reachable(b, b.pos, tgt)) { b.wp = pickWaypoint(b, tgt, pEye); b.wpT = 1.2; }
-      wish.copy(b.wp || tgt).sub(b.pos).setY(0);
-      if (!b.wp && wish.length() < 1.5) wish.copy(toP).add(side);
+      const next = navNext(b, tgt, dt, pEye);
+      wish.copy(next || tgt).sub(b.pos).setY(0);
+      if (!next && wish.length() < 1.5) wish.copy(toP).add(side);
     }
+    // 煙の中で立ち止まらない
+    if (Smoke.inside(b.pos) && wish.lengthSq() < 0.05) wish.copy(side).addScaledVector(toP, 0.4);
     const skAI = SKILL_AI[b.def.skill] || SKILL_AI[b.skill.type];
     if (b.charges > 0 && skAI) skAI(b, { los, dist, toP, pref, dt, aimedAt, side });
     b.hurtT = Math.max(0, (b.hurtT || 0) - dt);
@@ -107,6 +141,8 @@ function updateBot(dt) {
     const steered = steer(b, wish);
     b.jumpT -= dt;
     if (b.onGround && ((los && b.jumpT <= 0 && Math.random() < dt * (aimedAt ? 1.5 : 0.3) * P.jump) || b.stuck > 0.6)) { tryJump(b); b.jumpT = rand(1, 2.5); }
+    // 行き止まりの壁や、相手が高い所にいるときは壁を登る
+    b.wantClimb = !!(b.wallN && steered.dot(b.wallN) < -0.2 && (b.stuck > 0.2 || player.pos.y > b.pos.y + 0.8));
     moveEntity(b, steered, dt);
     b.stuck = (wish.lengthSq() > 0 && b.pos.distanceTo(b.lastPos) < b.def.speed * 0.25 * dt) ? b.stuck + dt : 0;
     b.lastPos.copy(b.pos);

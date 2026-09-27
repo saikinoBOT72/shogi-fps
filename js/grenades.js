@@ -1,7 +1,7 @@
 // グレネード（角の武器）と煙幕（角のスキル）
 'use strict';
 
-// グレネード：放物線で飛び、跳ねて転がり、時間で爆発（相手に直撃したらその場で爆発）
+// グレネード：速くまっすぐ気味に飛び、何かに当たった瞬間に爆発
 const Grenades = (() => {
   const geo = new THREE.IcosahedronGeometry(0.14, 0);
   const m = mat(0x3d5a2e, { roughness: 0.6 });
@@ -52,19 +52,23 @@ const Grenades = (() => {
       if (len > 1e-5) {
         const dir = step.clone().normalize();
         ray.set(g.pos, dir); ray.far = len + 0.14;
-        const hit = ray.intersectObjects(blockers, true)[0];
+        let hit = ray.intersectObjects(blockers, true)[0];
+        // 相手の体を通り抜けないよう、進む線分で当たりを見る（速いので点の判定だと飛び越える）
+        const t = g.target;
+        if (!t.dead) {
+          const r = t.radius + 0.15, p = t.pos;
+          const hp = ray.ray.intersectBox(new THREE.Box3(new V3(p.x - r, p.y, p.z - r), new V3(p.x + r, p.y + t.height, p.z + r)), new V3());
+          if (hp && hp.distanceTo(g.pos) <= len + 0.14 && (!hit || hp.distanceTo(g.pos) < hit.distance)) hit = { point: hp, direct: true };
+        }
         ray.far = Infinity;
-        if (hit) {
-          // 跳ね返る
+        if (hit && hit.direct) { g.pos.copy(hit.point); g.fuse = 0; }
+        else if (hit) {
+          // 何かに当たったらその場で爆発
           const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : dir.clone().negate();
-          const sp = g.vel.length();
-          g.vel.reflect(n).multiplyScalar(0.42);
           g.pos.copy(hit.point).addScaledVector(n, 0.15);
-          if (sp > 3) SFX.play('clunk', g.pos);
           const ph = hit.object.userData.phys;
-          if (ph && sp > 3) PHYS.hit(ph, hit.point, dir, sp * 0.1);
-          g.spin.multiplyScalar(0.6);
-          g.bounces++;
+          if (ph) PHYS.hit(ph, hit.point, dir, 3);
+          g.fuse = 0;
         } else g.pos.add(step);
       }
       // 相手に直撃
@@ -129,5 +133,7 @@ const Smoke = (() => {
     return false;
   }
   function clear() { clouds.forEach(c => scene.remove(c.g)); clouds.length = 0; }
-  return { spawn, update, blocks, clear };
+  // その位置（足元）が煙の中か
+  const inside = p => clouds.some(c => c.eff > 0.3 && c.pos.distanceTo(new V3(p.x, p.y + 1, p.z)) < c.eff);
+  return { spawn, update, blocks, clear, inside };
 })();

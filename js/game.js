@@ -45,8 +45,9 @@ function resetMatch(foeType) {
   player = makeEntity(myType, false);
   bot = makeEntity(foeType, true);
   VM.setWeapon(player.w.model);
-  player.pos.set(rand(-4, 4), 0, H - 3);
-  bot.pos.set(rand(-4, 4), 0, -(H - 3));
+  // 出撃地点：外周の塀の裏（開始時にお互いが見えない）
+  player.pos.set(rand(-3, 3), GROUND, H - 4.5);
+  bot.pos.set(rand(-3, 3), GROUND, -(H - 4.5));
   Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
     persona: Object.values(PERSONAS)[Math.floor(Math.random() * 3)] });
   stats = { shots: 0, hits: 0, heads: 0, dealt: 0, taken: 0, time: 0 };
@@ -70,8 +71,8 @@ const eyeOf = e => new V3(e.pos.x, e.pos.y + e.eyeH, e.pos.z);
 
 function collide(e) {
   const R = e.radius;
-  e.onGround = false;
-  if (e.pos.y <= 0) { e.pos.y = 0; if (e.vy < 0) e.vy = 0; e.onGround = true; }
+  e.onGround = false; e.wallN = null;
+  if (e.pos.y <= GROUND) { e.pos.y = GROUND; if (e.vy < 0) e.vy = 0; e.onGround = true; }
   for (const c of colliders) {
     let cx, cz, top, bottom;
     if (c.kind === 'box') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = c.max.y; bottom = c.min.y; }
@@ -94,6 +95,7 @@ function collide(e) {
       nx = o[0]; nz = o[1]; push = o[2] + R;
     }
     e.pos.x += nx * push; e.pos.z += nz * push;
+    e.wallN = new V3(nx, 0, nz); e.wallTop = top;   // 壁登り用：触れている壁の向きと高さ
     const vn = e.vel.x * nx + e.vel.z * nz;
     if (vn < 0) { e.vel.x -= vn * nx; e.vel.z -= vn * nz; }
   }
@@ -101,8 +103,8 @@ function collide(e) {
   if (Math.abs(e.pos.x) > lim) { e.pos.x = clamp(e.pos.x, -lim, lim); e.vel.x = 0; }
   if (Math.abs(e.pos.z) > lim) { e.pos.z = clamp(e.pos.z, -lim, lim); e.vel.z = 0; }
 }
-function hasLOS(a, b) {
-  if (Smoke.blocks(a, b)) return false;   // 煙の向こうは見えない
+function hasLOS(a, b, ignoreSmoke) {
+  if (!ignoreSmoke && Smoke.blocks(a, b)) return false;   // 煙の向こうは見えない
   const d = b.clone().sub(a), dist = d.length();
   ray.set(a, d.normalize()); ray.far = dist;
   const hit = ray.intersectObjects(blockers, true).length > 0;
@@ -135,6 +137,10 @@ function moveEntity(e, wish, dt) {
     e.vel.add(dv);
   }
   e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt;
+  // 壁登り：壁に向かってジャンプを押し続けると登る（1回に登れる時間は climbT まで）
+  if (e.onGround) e.climbT = 1.6;
+  e.climbing = !!(e.wantClimb && e.wallN && e.climbT > 0 && e.pos.y < e.wallTop);
+  if (e.climbing) { e.vy = Math.max(e.vy, 5.5); e.climbT -= dt; e.airT = 1; e.jumped = true; }
   const prevVy = e.vy;
   e.vy -= G * dt; e.pos.y += e.vy * dt;
   const was = e.onGround;
@@ -351,7 +357,10 @@ function updatePlayer(dt) {
   }
   jumpPressed -= dt;
   const guardOrDash = p.skillT > 0 && ['guard', 'dash', 'step', 'leap'].includes(p.skill.type);   // 覗き込めないスキル中
-  p.adsT = damp(p.adsT || 0, rightDown && !p.dead && p.reloading <= 0 && !guardOrDash ? 1 : 0, 14, dt);
+  p.adsT = damp(p.adsT || 0, rightDown && !p.dead && p.reloading <= 0 && !guardOrDash ? 1 : 0, p.w.adsSpeed || 14, dt);
+  // 壁に向かってジャンプ長押しで登る
+  p.wantClimb = !!(keys.Space && p.wallN && wish.dot(p.wallN) < -0.2 && state === 'fight');
+  if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('step', null, 0.6); p.climbSnd = 0.22; }
   p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1);
   moveEntity(p, wish, dt);
   skillTick(p, dt);

@@ -9,6 +9,9 @@ function loop(now) {
   if (slowmoT > 0) { slowmoT -= rdt; if (slowmoT <= 0) timeScale = 1; }
   const dt = rdt * timeScale;
   perfTick(rdt);
+  // 影の範囲をプレイヤーの周りに（広いマップでも影をくっきり）
+  const sc = state === 'title' || !player ? new V3() : player.pos;
+  sun.target.position.set(sc.x, 0, sc.z); sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 60);
   sndBudget = 4;
 
   clouds.forEach(c => { c.position.x += dt * 2; if (c.position.x > 450) c.position.x = -450; });
@@ -23,7 +26,7 @@ function loop(now) {
   if (state === 'title') {
     titleT += rdt;
     const a = titleT * 0.07;
-    cam.position.set(Math.sin(a) * 36, 13 + Math.sin(titleT * 0.3) * 2, Math.cos(a) * 36);
+    cam.position.set(Math.sin(a) * 62, 26 + Math.sin(titleT * 0.3) * 3, Math.cos(a) * 62);
     cam.lookAt(0, 1.5, 0);
     cam.fov = 60; cam.updateProjectionMatrix();
     sky.position.copy(cam.position);

@@ -7,14 +7,15 @@ let blockers = propMeshes;   // 弾・視線を遮るもの全部
 let sndBudget = 4;           // 1フレームに鳴らす衝突音の上限（小物が一斉に崩れても音割れしない）
 // 文字入りの木目を表面に焼き込んだ駒（1メッシュで描けるので軽い）
 const solidMatCache = {};
-function pieceSolidMats(ch) {
-  if (solidMatCache[ch]) return solidMatCache[ch];
+function pieceSolidMats(ch, red) {
+  const key = ch + (red ? 'r' : '');
+  if (solidMatCache[key]) return solidMatCache[key];
   const tex = canvasTex(256, 256, (g, w, h) => {
     woodGrain(g, w, h, '#e6b872', '120,70,25', 30);
-    g.fillStyle = '#1d1208'; g.font = '900 136px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif';
+    g.fillStyle = red ? '#a8161a' : '#1d1208'; g.font = '900 136px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif';
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 128, 150);
   });
-  return solidMatCache[ch] = [new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), pieceWoodMat];
+  return solidMatCache[key] = [new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), pieceWoodMat];
 }
 const crateTex = canvasTex(256, 256, (g, w) => {
   woodGrain(g, w, w, '#b98a52', '60,30,10', 40);
@@ -37,12 +38,9 @@ const PHYS = (() => {
     if (q) b.quaternion.copy(q);
     world.addBody(b); return b;
   };
-  // 盤・柵・草原
-  addStatic(new CANNON.Box(new CANNON.Vec3(H + 1, 1.2, H + 1)), 0, -1.2, 0);
+  // 外周の地面（盤や障害物は下の colliders から作る）
   const gq = new CANNON.Quaternion(); gq.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-  addStatic(new CANNON.Plane(), 0, -4.5, 0, gq);
-  [[0, -H - 0.6, H + 1, 0.25], [0, H + 0.6, H + 1, 0.25], [-H - 0.6, 0, 0.25, H + 1], [H + 0.6, 0, 0.25, H + 1]]
-    .forEach(([x, z, hx, hz]) => addStatic(new CANNON.Box(new CANNON.Vec3(hx, 0.25, hz)), x, 0.25, z));
+  addStatic(new CANNON.Plane(), 0, GROUND, 0, gq);
   // 動かない障害物
   for (const c of colliders) {
     if (c.kind === 'box') {
@@ -87,16 +85,16 @@ const PHYS = (() => {
   const TOWER = ['歩', '香', '桂', '銀', '金', '角', '飛'];
   [1, -1].forEach(s => {
     // 駒の塔：寝かせた駒を積み上げる
-    TOWER.forEach((ch, i) => addDynamic(pieceObj(ch, 1.4, 1.7, 0.34, true), [0.7, 0.17, 0.85], 1, -12 * s, 0.17 + i * 0.34, -2 * s, rand(-0.12, 0.12)));
+    TOWER.forEach((ch, i) => addDynamic(pieceObj(ch, 1.4, 1.7, 0.34, true), [0.7, 0.17, 0.85], 1, -16 * s, 0.17 + i * 0.34, -14 * s, rand(-0.12, 0.12)));
     // ドミノ：立てた駒を並べる（1枚倒すと連鎖する）
-    for (let i = 0; i < 8; i++) addDynamic(pieceObj('歩', 0.9, 1.3, 0.26), [0.45, 0.65, 0.13], 0.8, (4.5 + i * 0.75) * s, 0.65, -15 * s, Math.PI / 2, 1.25, dominoMat);
+    for (let i = 0; i < 8; i++) addDynamic(pieceObj('歩', 0.9, 1.3, 0.26), [0.45, 0.65, 0.13], 0.8, (1.5 + i * 0.75) * s, 0.65, -18.5 * s, Math.PI / 2, 1.25, dominoMat);
     // 木箱のピラミッド
     const cs = 1.2;
-    [[-0.62, 0], [0.62, 0], [0, 1]].forEach(([dx, row]) => addDynamic(crateObj(cs), [cs / 2, cs / 2, cs / 2], 4, (8.5 + dx) * s, cs / 2 + row * cs, -2.5 * s, 0, 0.65));
+    [[-0.62, 0], [0.62, 0], [0, 1]].forEach(([dx, row]) => addDynamic(crateObj(cs), [cs / 2, cs / 2, cs / 2], 4, (9 + dx) * s, cs / 2 + row * cs, -4 * s, 0, 0.65));
     // 散らばった小さい駒
     for (let i = 0; i < 5; i++) {
       let x, z;
-      do { x = rand(-H + 2, H - 2); z = rand(-H + 5, -1); } while (insideCollider(x, z, 1));
+      do { x = rand(-BH + 2, BH - 2); z = rand(-BH + 3, -1); } while (insideCollider(x, z, 1, 0) || Math.abs(x) < 3);
       addDynamic(pieceObj('歩', 0.7, 0.85, 0.2, true), [0.35, 0.1, 0.425], 0.4, x * s, 0.1, z * s, rand(0, 6), 1.7);
     }
   });

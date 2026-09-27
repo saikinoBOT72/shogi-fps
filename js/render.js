@@ -43,9 +43,9 @@ const sun = new THREE.DirectionalLight(C(0xfff0d6), 1.9);
 sun.position.copy(SUN_DIR).multiplyScalar(60);
 sun.castShadow = Q.shadow > 0;
 sun.shadow.mapSize.set(Q.shadow || 512, Q.shadow || 512);
-Object.assign(sun.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 20, far: 110 });
+Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 20, far: 120 });
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
-scene.add(sun);
+scene.add(sun); scene.add(sun.target);
 
 // ---------- テクスチャ ----------
 function canvasTex(w, h, draw, srgb = true) {
@@ -71,7 +71,7 @@ const darkWoodTex = canvasTex(512, 512, (g, w, h) => woodGrain(g, w, h, '#8a5a30
 darkWoodTex.wrapS = darkWoodTex.wrapT = THREE.RepeatWrapping;
 const boardTex = canvasTex(2048, 2048, (g, w) => {
   woodGrain(g, w, w, '#dcab60', '110,65,20', 160);
-  const m = w / (2 * H + 2), cell = (w - 2 * m) / 9;
+  const m = w / (2 * BH + 2), cell = (w - 2 * m) / 9;
   g.strokeStyle = '#3a2310'; g.lineWidth = 5;
   for (let i = 0; i <= 9; i++) {
     g.beginPath(); g.moveTo(m + i * cell, m); g.lineTo(m + i * cell, w - m); g.stroke();

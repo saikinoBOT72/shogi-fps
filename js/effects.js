@@ -24,7 +24,7 @@ const Particles = (() => {
         p.was = true; p.life -= dt;
         p.vel.y -= p.grav * dt; p.vel.multiplyScalar(1 - p.drag * dt);
         p.pos.addScaledVector(p.vel, dt);
-        const gy = Math.abs(p.pos.x) < H + 1 && Math.abs(p.pos.z) < H + 1 ? 0 : -4.5;
+        const gy = groundAt(p.pos.x, p.pos.z);
         if (p.pos.y < gy + p.size / 2) { p.pos.y = gy + p.size / 2; p.vel.y *= -p.bounce; p.vel.x *= 0.6; p.vel.z *= 0.6; p.spin.multiplyScalar(0.5); }
         p.rot.addScaledVector(p.spin, dt);
         const k = p.life / p.max;

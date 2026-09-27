@@ -27,7 +27,7 @@ const BoardMode = (() => {
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: tatamiTex, roughness: 0.95 }));
   floor.rotation.x = -Math.PI / 2; floor.position.y = -2.4; floor.receiveShadow = true; bScene.add(floor);
 
-  const BW = 9 * S / (1 - 2 / (2 * H + 2));         // 盤の目の余白に合わせた盤の大きさ
+  const BW = 9 * S / (1 - 2 / (2 * BH + 2));         // 盤の目の余白に合わせた盤の大きさ
   const sideM = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.8 });
   const topM = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.75 });
   const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(BW, 1.4, BW), [sideM, sideM, topM, sideM, sideM, sideM]);
@@ -65,7 +65,11 @@ const BoardMode = (() => {
   const fromEnd = (o, y) => (o === 0 ? y : 8 - y);   // 0 が相手陣の一番奥
   const ORTH = [[1, 0], [-1, 0], [0, 1], [0, -1]], DIAG = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
   const GOLD = [[0, 1], [1, 1], [-1, 1], [1, 0], [-1, 0], [0, -1]];
-  const label = p => (p.type === 'K' && p.owner === 1 ? '玉' : PIECES[p.type].name);
+  // 成り：成駒の字（赤）。成駒は盤上の動きが変わる（撃ち合いの性能は元の駒のまま）
+  const PRO = { P: 'と', L: '杏', N: '圭', S: '全', R: '龍', B: '馬' };
+  const label = p => (p.promoted ? PRO[p.type] : p.type === 'K' && p.owner === 1 ? '玉' : PIECES[p.type].name);
+  const canPromote = p => !p.promoted && !!PRO[p.type];
+  const inZone = (o, y) => (o === 0 ? y <= 2 : y >= 6);
 
   function initBoard() {
     board = [...Array(9)].map(() => Array(9).fill(null));
@@ -86,20 +90,20 @@ const BoardMode = (() => {
       let nx = x + dx, ny = y + dy * f;
       while (inB(nx, ny)) { const q = b[ny][nx]; if (q) { if (q.owner !== p.owner) res.push([nx, ny]); break; } res.push([nx, ny]); nx += dx; ny += dy * f; }
     };
-    const t = p.type;
+    const t = p.type, pr = p.promoted;
     if (t === 'K') [...ORTH, ...DIAG].forEach(d => step(...d));
-    else if (t === 'R') ORTH.forEach(d => slide(...d));
-    else if (t === 'B') DIAG.forEach(d => slide(...d));
-    else if (t === 'G') GOLD.forEach(d => step(...d));
+    else if (t === 'R') { ORTH.forEach(d => slide(...d)); if (pr) DIAG.forEach(d => step(...d)); }   // 龍
+    else if (t === 'B') { DIAG.forEach(d => slide(...d)); if (pr) ORTH.forEach(d => step(...d)); }   // 馬
+    else if (t === 'G' || pr) GOLD.forEach(d => step(...d));                                          // 金・と・杏・圭・全
     else if (t === 'S') [[0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(d => step(...d));
     else if (t === 'N') { step(1, 2); step(-1, 2); }
     else if (t === 'L') slide(0, 1);
     else if (t === 'P') step(0, 1);
     return res;
   }
-  // 成りがまだ無いので、その先に動けなくなるマス（歩・香の最奥、桂の奥2段）には行けない
+  // 行き所のないマス（歩・香の最奥、桂の奥2段）：そこへ動くときは必ず成る。そこには打てない
   const deadEnd = (t, o, y) => ((t === 'P' || t === 'L') && fromEnd(o, y) === 0) || (t === 'N' && fromEnd(o, y) <= 1);
-  const movesOf = (b, x, y) => rawMoves(b, x, y).filter(([, ty]) => !deadEnd(b[y][x].type, b[y][x].owner, ty));
+  const movesOf = (b, x, y) => rawMoves(b, x, y);
   function dropSquares(b, owner, type) {
     const res = [];
     for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
@@ -150,6 +154,7 @@ const BoardMode = (() => {
         const tgt = board[m.ty][m.tx];
         if (tgt) { const p = pWin(me.type, tgt.type); s += p * worth(tgt.type) - (1 - p) * worth(me.type); }
         if (attackedBy(board, 0, m.fx, m.fy)) s += val(me.type) * 0.4;   // 狙われている駒を逃がす
+        if (canPromote(me) && (inZone(1, m.fy) || inZone(1, m.ty))) s += 1.5;   // 成れる手
         s += me.type === 'K' ? -0.3 : (m.ty - m.fy) * 0.12;
       } else s += 0.25;
       const nb = simulate(board, m, 1);
@@ -165,7 +170,7 @@ const BoardMode = (() => {
   const SIZE = { K: 0.98, R: 0.93, B: 0.93, G: 0.88, S: 0.88, N: 0.84, L: 0.8, P: 0.76 };
   function pieceMesh(p) {
     const g = new THREE.Group(), z = SIZE[p.type];
-    const m = new THREE.Mesh(pieceGeo, pieceSolidMats(label(p)));
+    const m = new THREE.Mesh(pieceGeo, pieceSolidMats(label(p), p.promoted));
     m.scale.set(z * S * 0.82, z * S * 0.92, 0.3 / PIECE_DEPTH);
     m.rotation.x = -Math.PI / 2; m.position.y = 0.15; m.castShadow = true;
     g.add(m); g.rotation.y = p.owner === 1 ? Math.PI : 0;
@@ -270,9 +275,10 @@ const BoardMode = (() => {
       showUI(false);
       const mn = label(me), fn = label(foe);
       overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? '#ffcf6b' : '#7ec8ff'}">${playerIsAttacker ? '攻め' : '守り'}</div>
-        <div class="vs-line"><b class="bm-koma">${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma">${fn}</b></div>
+        <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:#b0161a"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted ? ' style="color:#b0161a"' : ''}>${fn}</b></div>
         <p>${playerIsAttacker ? `勝てば相手の「${fn}」を取れる。負けるとあなたの「${mn}」を取られる` : `守り切れば攻めてきた「${fn}」を取れる。負けるとあなたの「${mn}」を取られる`}</p>
         <p>制限時間 ${TIME_LIMIT} 秒・時間切れは守った側の勝ち</p>
+        ${me.promoted || foe.promoted ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
         <button class="btn" id="bmFight">撃ち合い開始</button>${keysHTML()}`, true);
       $('bmFight').onclick = e => { e.stopPropagation(); startMatch(); };
     });
@@ -321,6 +327,12 @@ const BoardMode = (() => {
         SFX.play('clunk');
       }
     }
+    // 成り：敵陣に入る・敵陣から出る・敵陣の中で動いたとき（行き所がなければ必ず成る。CPUはいつも成る）
+    const moved = m.kind === 'move' && !m.lost && winner === null ? board[m.ty][m.tx] : null;
+    if (moved && canPromote(moved) && (inZone(owner, m.fy) || inZone(owner, m.ty))) {
+      moved.promoted = owner === 1 || deadEnd(moved.type, owner, m.ty) || await askPromote(moved);
+      if (moved.promoted) SFX.play('ding');
+    }
     lastMove = m.lost ? null : m; preview = null;
     refresh(m.lost ? null : m);
     if (winner !== null) { gameOver(winner); return; }
@@ -343,6 +355,16 @@ const BoardMode = (() => {
     await doMove(m, 1);
   }
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function askPromote(p) {
+    return new Promise(res => {
+      overlay(`<div class="res" style="font-size:46px">成りますか？</div>
+        <div class="vs-line"><b class="bm-koma">${label(p)}</b><em>→</em><b class="bm-koma" style="color:#b0161a">${PRO[p.type]}</b></div>
+        <p>成ると盤上の動きが変わります（撃ち合いの性能はまだ元の駒のままです）</p>
+        <div class="modes"><button class="btn" id="bmPro">成る</button><button class="btn ghost-btn" id="bmNoPro">成らない</button></div>`, true);
+      $('bmPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(true); };
+      $('bmNoPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(false); };
+    });
+  }
 
   function gameOver(winner) {
     over = true; busy = true;
@@ -403,5 +425,9 @@ const BoardMode = (() => {
   addEventListener('resize', () => { bCam.aspect = innerWidth / innerHeight; bCam.updateProjectionMatrix(); });
 
   showUI(false);
-  return { start, exit, abort, update, battleResult, scene: bScene, cam: bCam };
+  return {
+    start, exit, abort, update, battleResult, scene: bScene, cam: bCam,
+    // 確認用：盤面を直接いじって表示を更新する（開発中のテストに使う）
+    debug: { get board() { return board; }, get hands() { return hands; }, refresh: () => refresh() },
+  };
 })();
