@@ -1,8 +1,9 @@
 // 矢（弓の弾）：重力で落ちる飛び道具。刺さった矢はしばらく残る。追尾の矢は相手を追いかける
+import { P } from './palette';
 import * as THREE from 'three';
 import { C, V3 } from './core';
 import { SFX } from './audio';
-import { mat, scene } from './render';
+import { mat, scene, toon } from './render';
 import { PHYS, blockers } from './physics';
 import { Particles } from './effects';
 import { botActor, damageBot, eyeOf, player, ray, skillDamageMul } from './game';
@@ -12,9 +13,9 @@ export const Arrows = (() => {
   const shaftGeo = new THREE.CylinderGeometry(0.016, 0.016, 1, 5); shaftGeo.rotateX(Math.PI / 2);
   const tipGeo = new THREE.ConeGeometry(0.04, 0.13, 5); tipGeo.rotateX(Math.PI / 2); tipGeo.translate(0, 0, 0.56);
   const featherGeo = new THREE.PlaneGeometry(0.16, 0.06); featherGeo.rotateY(Math.PI / 2); featherGeo.translate(0, 0.04, -0.4);
-  const shaftM = mat(0x8a5a30), tipM = mat(0x4a5058, { metalness: 0.4, roughness: 0.4 });
-  const featherM = new THREE.MeshStandardMaterial({ color: C(0xd8402e), side: THREE.DoubleSide, roughness: 0.9 });
-  const glowM = new THREE.MeshStandardMaterial({ color: C(0x8a5a30), emissive: C(0x39c6ff), emissiveIntensity: 1.2 });
+  const shaftM = mat(P.kiji[0]), tipM = mat(P.sumi[2], { metalness: 0.4, roughness: 0.4 });
+  const featherM = toon({ color: C(P.shu[1]), side: THREE.DoubleSide, roughness: 0.9 });
+  const glowM = toon({ color: C(P.kiji[0]), emissive: C(P.mizu[1]), emissiveIntensity: 1.2 });
   const TIP = 0.56;   // 矢の中心から先端まで
 
   function makeArrow(homing) {
@@ -85,12 +86,12 @@ export const Arrows = (() => {
         const ang = cur.angleTo(want), max = a.turn * dt;
         if (ang > 1e-4) cur.lerp(want, Math.min(1, max / ang)).normalize();
         a.vel.copy(cur).multiplyScalar(spd);
-        if (Math.random() < 0.8) Particles.glow(a.pos, 0x39c6ff);
+        if (Math.random() < 0.8) Particles.glow(a.pos, P.mizu[1]);
       } else {
         a.vel.y -= a.gravity * dt;
         a.vel.multiplyScalar(Math.max(0, 1 - a.drag * dt));
         // 飛んだ弧が見えるように白い尾を残す
-        if (Math.random() < 0.85) Particles.trail(a.pos, a.full ? 0xfff2c0 : 0xffffff);
+        if (Math.random() < 0.85) Particles.trail(a.pos, a.full ? P.kin[2] : P.shiro[2]);
       }
 
       const step = a.vel.clone().multiplyScalar(dt), len = step.length(), dir = step.clone().normalize();

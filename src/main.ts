@@ -1,5 +1,8 @@
 // メインループ
+import { P } from './palette';
 import './style.css';
+import { applyCssPalette } from './palette';
+applyCssPalette();   // 画面（CSS）でもパレットの色を使う
 import './core';
 import './tune';
 import './audio';
@@ -53,6 +56,7 @@ export function loop(now) {
   // 将棋モードの盤面
   if (gs.state === 'board') {
     BoardMode.update(rdt);
+    renderer.shadowMap.needsUpdate = true;   // 盤面は別の描画経路なので、ここで影を更新する
     renderer.clear(); renderer.render(BoardMode.scene, BoardMode.cam);
     return;
   }
@@ -89,7 +93,7 @@ export function loop(now) {
     if (gs.state === 'countdown') {
       const n = 3 - Math.floor(gs.stateT);
       if (n !== lastBeep && n >= 1 && n <= 3) { lastBeep = n; showCenter(n); SFX.play('beep', false); }
-      if (gs.stateT >= 3) { gs.state = 'fight'; lastBeep = -1; showCenter('FIGHT!', '#ffd23a'); SFX.play('beep', true); setTimeout(() => { if ($('center').textContent === 'FIGHT!') $('center').textContent = ''; }, 900); }
+      if (gs.stateT >= 3) { gs.state = 'fight'; lastBeep = -1; showCenter('FIGHT!', 'var(--kin-2)'); SFX.play('beep', true); setTimeout(() => { if ($('center').textContent === 'FIGHT!') $('center').textContent = ''; }, 900); }
     }
     if (gs.state === 'fight') stats.time += dt;
     updatePlayer(dt);
@@ -128,7 +132,12 @@ export function perfTick(rdt) {
   else if (perf.high >= 6 && gs.resScale < 1) { next = Math.min(1, gs.resScale + 0.05); perf.high = 0; }
   if (next !== gs.resScale) { gs.resScale = next; renderer.setPixelRatio(Q.pr * gs.resScale); renderer.setSize(innerWidth, innerHeight); }
 }
+let frameNo = 0;
 export function render(withGun?) {
+  // 影は画質「中」なら 2 フレームに1回だけ描き直す（動きはほぼ変わらず、影の計算が半分）
+  frameNo++;
+  renderer.shadowMap.autoUpdate = false;
+  if (!Q.shadowEvery || frameNo % Q.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
   renderer.clear();
   renderer.render(scene, cam);
   if (withGun && gs.state !== 'title') { renderer.clearDepth(); renderer.render(vmScene, vmCam); }

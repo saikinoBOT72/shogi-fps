@@ -39,6 +39,12 @@ CPUはマップをマス目にした経路探索（`src/nav.ts`）で段差や�
 
 駒を足すときは `src/core.ts` の `PIECES`・`WEAPONS`・`SKILLS` に追加し、CPUのスキルの使い方を `src/ai.ts` の `SKILL_AI` に書く。
 
+## 絵柄
+
+- 色は `src/palette.ts` の固定パレットだけを使う（コードに16進の色を直接書かない）。画面（CSS）では `var(--shu-1)` のように使える
+- 材質はトゥーン調（陰影を4段に塗り分け）。丸い形も面ごとに陰影が分かれるローポリ調にそろえる
+- テクスチャはパレットの色と細かい点描で描く。動く駒には墨色の輪郭線
+
 ## 開発
 
 Vite + TypeScript。three.js と cannon-es（物理）は npm のパッケージ。
@@ -48,6 +54,7 @@ npm install        # 最初に1回
 npm run dev        # 開発用サーバー（http://localhost:5173、保存すると即反映）
 npm run build      # 型チェックして dist/index.html を作る（ダブルクリックで遊べる1ファイル）
 npm run typecheck  # 型チェックだけ
+node tools/fix-imports.mjs  # 型チェックで「名前が見つからない」ものの import を自動で足す
 ```
 
 開発中はブラウザのコンソールで `dev` から中身を触れる（例：`dev.game.player.hp`、`dev.step(60)` で60フレーム進める）。配布用の `dist` には入らない。
@@ -59,6 +66,7 @@ npm run typecheck  # 型チェックだけ
 | ファイル | 中身 |
 |---|---|
 | `src/core.ts` | 共通の道具、**駒・武器・スキル・CPUの強さのデータ**、設定 |
+| `src/palette.ts` | **固定パレット**（12色相×明暗3段＋無彩色＋木地）。色はすべてここから選ぶ |
 | `src/state.ts` | 複数のファイルから書き換えるゲームの状態（`gs`） |
 | `src/tune.ts` | 調整パネル（数値をスライダーで変える。変えた値は保存） |
 | `src/audio.ts` | 効果音（Web Audio で合成） |

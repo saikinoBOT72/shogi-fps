@@ -1,4 +1,4 @@
-// タイトル・一時停止・結果画面
+// タイトル・駒選択・設定・操作方法・一時停止・結果画面
 import { gs } from './state';
 import { $, DIFFS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, saveSettings, settings } from './core';
 import { openTune } from './tune';
@@ -8,120 +8,181 @@ import { bot, player, playerActor, resetMatch, resolveFoe, stats } from './game'
 import { initPips } from './hud';
 import { BoardMode } from './boardmode';
 
-// ================= 画面（タイトル・一時停止・結果） =================
+// ================= 共通 =================
 export function overlay(html, dim?) {
   const o = $('overlay'); o.innerHTML = html; o.style.display = 'flex'; o.classList.toggle('dim', !!dim);
+  o.scrollTop = 0;
 }
 export const hideOverlay = () => { $('overlay').style.display = 'none'; };
+const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
+const koma = (ch: string, extra = '') => `<b class="koma${extra}">${ch}</b>`;
+
+// ================= 設定 =================
 export function settingsHTML() {
-  return `<div class="card">
-    <div class="row"><span>CPUの強さ</span><div class="seg" id="diffSeg">${Object.entries(DIFFS).map(([k, d]) => `<button data-d="${k}" class="${settings.diff === k ? 'on' : ''}">${d.name}</button>`).join('')}</div></div>
+  const seg = (id, items, cur) => `<div class="seg" id="${id}">${items.map(([k, name]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}">${name}</button>`).join('')}</div>`;
+  return `<div class="panel form">
+    <div class="row"><span>CPUの強さ</span>${seg('diffSeg', Object.entries(DIFFS).map(([k, d]: any) => [k, d.name]), settings.diff)}</div>
     <div class="row"><span>マウス感度 <b id="sensV">${settings.sens.toFixed(2)}</b></span><input id="sens" type="range" min="0.2" max="3" step="0.05" value="${settings.sens}"></div>
-    <div class="row"><span>画質 <small style="opacity:.6">（重いときは「低」）</small></span><div class="seg" id="qSeg">${Object.entries(QUALITIES).map(([k, q]) => `<button data-q="${k}" class="${settings.quality === k ? "on" : ""}">${q.name}</button>`).join("")}</div></div>
-    <div class="row"><span>FPS表示</span><div class="seg" id="fpsSeg"><button data-f="1" class="${settings.showFps ? "on" : ""}">ON</button><button data-f="0" class="${settings.showFps ? "" : "on"}">OFF</button></div></div>
+    <div class="row"><span>画質<small>重いときは「低」</small></span>${seg('qSeg', Object.entries(QUALITIES).map(([k, q]: any) => [k, q.name]), settings.quality)}</div>
+    <div class="row"><span>FPS表示</span>${seg('fpsSeg', [['1', 'ON'], ['0', 'OFF']], settings.showFps ? '1' : '0')}</div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
-    <div class="row"><span>数値の調整 <small style="opacity:.6">（ダメージ・速さなど）</small></span><button class="small" id="tuneBtn">調整パネル</button></div>
+    <div class="row"><span>数値の調整<small>ダメージ・速さなど</small></span><button class="btn small" id="tuneBtn">調整パネル</button></div>
   </div>`;
 }
 export function bindSettings() {
-  document.querySelectorAll<HTMLElement>('#diffSeg button').forEach(b => b.onclick = e => {
-    e.stopPropagation(); settings.diff = b.dataset.d; saveSettings();
-    document.querySelectorAll<HTMLElement>('#diffSeg button').forEach(x => x.classList.toggle('on', x === b));
+  const segBind = (id, fn) => document.querySelectorAll<HTMLElement>(`#${id} button`).forEach(b => b.onclick = e => {
+    e.stopPropagation(); fn(b.dataset.v); saveSettings();
+    document.querySelectorAll<HTMLElement>(`#${id} button`).forEach(x => x.classList.toggle('on', x === b));
   });
+  segBind('diffSeg', v => { settings.diff = v; });
+  segBind('qSeg', v => { settings.quality = v; if (gs.state === 'title') location.reload(); });   // 画質は作り直しが必要なので再読み込み
+  segBind('fpsSeg', v => { settings.showFps = v === '1'; if (!settings.showFps) $('fps').textContent = ''; });
   $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').textContent = settings.sens.toFixed(2); saveSettings(); };
   $('vol').oninput = e => { settings.vol = +e.target.value; SFX.setVol(settings.vol); saveSettings(); };
-  document.querySelectorAll<HTMLElement>("#qSeg button").forEach(b => b.onclick = e => {
-    e.stopPropagation(); settings.quality = b.dataset.q; saveSettings();
-    document.querySelectorAll<HTMLElement>("#qSeg button").forEach(x => x.classList.toggle("on", x === b));
-    if (gs.state === "title") location.reload();   // 画質は作り直しが必要なので再読み込み
-  });
-  document.querySelectorAll<HTMLElement>("#fpsSeg button").forEach(b => b.onclick = e => {
-    e.stopPropagation(); settings.showFps = b.dataset.f === "1"; saveSettings();
-    document.querySelectorAll<HTMLElement>("#fpsSeg button").forEach(x => x.classList.toggle("on", x === b));
-    if (!settings.showFps) $("fps").textContent = "";
-  });
   ['sens', 'vol'].forEach(id => $(id).onclick = e => e.stopPropagation());
-  $('tuneBtn').onclick = e => { e.stopPropagation(); openTune(); };
+  on('tuneBtn', openTune);
 }
-// 操作説明（スキルは選んだ駒に合わせる）
+function showSettings(back: () => void) {
+  overlay(`<div class="screen">
+    <h2 class="h">設定</h2>
+    ${settingsHTML()}
+    <div class="menu"><button class="btn sub" id="back">戻る</button></div>
+  </div>`, true);
+  bindSettings();
+  on('back', back);
+}
+
+// ================= 操作方法 =================
+// 操作説明（スキルは今の駒に合わせる）
 export const keysHTML = () => {
   const sk = SKILLS[(PIECES[gs.matchCtx ? gs.matchCtx.myType : settings.myPiece] || PIECES.P).skill];
-  return `<div class="keys"><b>WASD</b>移動　<b>マウス</b>照準　<b>左クリック</b>射撃　<b>右クリック</b>覗き込み　<b>R</b>リロード<br><b>Space</b>ジャンプ　<b>E</b>${sk.name}（${sk.help}）　<b>F</b>フルスクリーン　<b>ESC</b>一時停止</div>`;
+  const k = (key, what) => `<div><kbd>${key}</kbd><span>${what}</span></div>`;
+  return `<div class="keys">
+    ${k('WASD', '移動')}${k('マウス', '狙う')}${k('左クリック', '撃つ（弓は長押しで引く）')}${k('右クリック', '覗き込み')}
+    ${k('Space', 'ジャンプ（壁に向かって長押しで登る）')}${k('R', 'リロード')}${k('E', `${sk.name}：${sk.help}`)}${k('F', 'フルスクリーン')}${k('ESC', '一時停止')}
+  </div>`;
 };
+function showControls(back: () => void) {
+  const rows = Object.values(PIECES).map((p: any) => {
+    const sk = SKILLS[p.skill], w = WEAPONS[p.weapon];
+    return `<tr><td>${koma(p.name, ' s')}</td><td>${w.name}</td><td><b>${sk.name}</b>　${sk.help}</td></tr>`;
+  }).join('');
+  overlay(`<div class="screen wide">
+    <h2 class="h">操作方法</h2>
+    <div class="panel">${keysHTML()}</div>
+    <div class="panel"><table class="skills">${rows}</table></div>
+    <div class="menu"><button class="btn sub" id="back">戻る</button></div>
+  </div>`, true);
+  on('back', back);
+}
+
+// ================= タイトル =================
+export function showTitle() {
+  gs.state = 'title'; $('hud').style.display = 'none';
+  overlay(`<div class="screen title">
+    <div class="logo">将棋<span>FPS</span></div>
+    <div class="tagline">駒を取るときは、撃ち合いで決める。</div>
+    <div class="modes">
+      <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは撃ち合い</small></button>
+      <button class="mode" id="goDuel"><b>撃ち合い</b><small>好きな駒どうしで 1 対 1</small></button>
+    </div>
+    <div class="menu"><button class="btn sub" id="openSettings">設定</button><button class="btn sub" id="openControls">操作方法</button></div>
+  </div>`);
+  on('goBoard', () => BoardMode.start());
+  on('goDuel', showPieceSelect);
+  on('openSettings', () => showSettings(showTitle));
+  on('openControls', () => showControls(showTitle));
+}
+
+// ================= 駒選択（撃ち合い） =================
 // 駒の紹介カード
 export function pieceCard(k) {
-  const p = PIECES[k], w = WEAPONS[p.weapon], sk = SKILLS[p.skill];
-  return `<b class="pc-name">${p.name}</b><span class="pc-val">価値 ${p.value >= 99 ? '∞' : p.value}</span><span>HP ${p.hp}</span><span>${w.name}</span><span>${sk.name}</span>`;
+  const p = PIECES[k], w = WEAPONS[p.weapon];
+  return `${koma(p.name)}<span class="val">価値 ${p.value >= 99 ? '∞' : p.value}</span><span>HP ${p.hp}</span><span>${w.name}</span>`;
 }
 export function pieceSelectHTML() {
   const opts = (sel, id, withRandom) => `<div class="pick" id="${id}">${Object.keys(PIECES).map(k =>
     `<button data-k="${k}" class="${sel === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}${withRandom
-    ? `<button data-k="random" class="${sel === 'random' ? 'on' : ''}"><b class="pc-name">？</b><span>ランダム</span></button>` : ''}</div>`;
-  return `<div class="picks"><div><h3>あなたの駒</h3>${opts(settings.myPiece, 'pickMe', false)}</div>
+    ? `<button data-k="random" class="${sel === 'random' ? 'on' : ''}">${koma('？')}<span class="val">ランダム</span></button>` : ''}</div>`;
+  const me = PIECES[settings.myPiece] || PIECES.P, sk = SKILLS[me.skill];
+  return `<section class="panel"><h3>あなたの駒</h3>${opts(settings.myPiece, 'pickMe', false)}
+      <p class="detail">${koma(me.name, ' s')}<b>${WEAPONS[me.weapon].name}</b>　スキル「${sk.name}」：${sk.help}</p></section>
     <div class="vs-mark">VS</div>
-    <div><h3>相手の駒</h3>${opts(settings.foePiece, 'pickFoe', true)}</div></div>`;
+    <section class="panel"><h3>相手の駒</h3>${opts(settings.foePiece, 'pickFoe', true)}</section>`;
 }
 export function bindPieceSelect() {
   const bind = (id, key) => document.querySelectorAll<HTMLElement>(`#${id} button`).forEach(b => b.onclick = e => {
     e.stopPropagation();
     settings[key] = b.dataset.k; saveSettings();
-    resetMatch(); showTitle();
+    resetMatch(); showPieceSelect();
   });
   bind('pickMe', 'myPiece'); bind('pickFoe', 'foePiece');
 }
-
-export function showTitle() {
-  gs.state = 'title'; $('hud').style.display = 'none';
-  overlay(`<div class="logo">将棋<span>FPS</span></div>
-    <div class="modes">
-      <button class="btn" id="goBoard">将棋モード<small>盤で指して、駒を取るときは撃ち合い</small></button>
-      <button class="btn ghost-btn" id="go">撃ち合い（1対1）<small>下で選んだ駒どうしで対戦</small></button>
-    </div>
+function showPieceSelect() {
+  gs.state = 'title';
+  overlay(`<div class="screen wide">
+    <h2 class="h">撃ち合い</h2>
     ${pieceSelectHTML()}
-    ${settingsHTML()}
-    ${keysHTML()}`);
-  bindSettings();
+    <div class="menu"><button class="btn sub" id="back">戻る</button><button class="btn" id="go">対局開始</button></div>
+  </div>`, true);
   bindPieceSelect();
-  $('go').onclick = e => { e.stopPropagation(); startMatch(); };
-  $('goBoard').onclick = e => { e.stopPropagation(); BoardMode.start(); };
+  on('back', showTitle);
+  on('go', startMatch);
 }
+
+// ================= 一時停止 =================
 export function showPause() {
-  overlay(`<div class="res" style="font-size:56px">一時停止</div>
-    ${settingsHTML()}
-    <button class="btn" id="resume">再開</button>
-    <button class="btn ghost" id="quit">タイトルへ</button>${keysHTML()}`, true);
-  bindSettings();
-  $('resume').onclick = e => { e.stopPropagation(); SFX.init(); requestLock(); };
-  $('quit').onclick = e => { e.stopPropagation(); gs.paused = false;
+  overlay(`<div class="screen">
+    <h2 class="h big">一時停止</h2>
+    <div class="menu col">
+      <button class="btn" id="resume">再開</button>
+      <button class="btn sub" id="pSettings">設定</button>
+      <button class="btn sub" id="pControls">操作方法</button>
+      <button class="btn sub" id="quit">タイトルへ</button>
+    </div>
+    <p class="note">画面をクリックしても再開できます</p>
+  </div>`, true);
+  on('resume', () => { SFX.init(); requestLock(); });
+  on('pSettings', () => showSettings(showPause));
+  on('pControls', () => showControls(showPause));
+  on('quit', () => {
+    gs.paused = false;
     if (gs.matchCtx) BoardMode.abort();
     if (settings.quality !== QUALITY_AT_LOAD) { location.reload(); return; }
     resetMatch(); showTitle();
-  };
+  });
 }
+
+// ================= 結果 =================
 export function showResult(win) {
   $('hud').style.display = 'none';
   if (gs.matchCtx) { BoardMode.battleResult(win); return; }   // 将棋モードなら盤面へ
   const acc = stats.shots ? Math.round(stats.hits / stats.shots * 100) : 0;
-  overlay(`<div class="res" style="color:${win === true ? '#ffd23a' : win === false ? '#ff6b5b' : '#fff'}">${win === true ? '勝利' : win === false ? '敗北' : '引き分け'}</div>
+  overlay(`<div class="screen">
+    <div class="res ${win === true ? 'win' : win === false ? 'lose' : ''}">${win === true ? '勝利' : win === false ? '敗北' : '引き分け'}</div>
     <div class="stats">
       <div><b>${acc}%</b><span>命中率 (${stats.hits}/${stats.shots})</span></div>
       <div><b>${stats.heads}</b><span>ヘッドショット</span></div>
       <div><b>${Math.round(stats.dealt)}</b><span>与ダメージ</span></div>
       <div><b>${stats.time.toFixed(1)}s</b><span>決着タイム</span></div>
     </div>
-    <button class="btn" id="again">もう一局</button>
-    <button class="btn ghost" id="toTitle">タイトルへ</button>
-    <button class="btn ghost" id="resTune">調整パネル</button>`, true);
-  $('resTune').onclick = e => { e.stopPropagation(); openTune(); };
-  $('again').onclick = e => { e.stopPropagation(); startMatch(); };
-  $('toTitle').onclick = e => { e.stopPropagation(); resetMatch(); showTitle(); };
+    <div class="menu">
+      <button class="btn sub" id="toTitle">タイトルへ</button>
+      <button class="btn sub" id="resTune">調整パネル</button>
+      <button class="btn" id="again">もう一局</button>
+    </div>
+  </div>`, true);
+  on('resTune', openTune);
+  on('again', startMatch);
+  on('toTitle', () => { resetMatch(); showTitle(); });
 }
 
+// ================= 対局の開始・一時停止 =================
 export function startMatch() {
   SFX.init();
   resetMatch(gs.matchCtx ? gs.matchCtx.foeType : resolveFoe());
   initPips();
-  $('meName').textContent = `あなた：${player.def.name}　${player.w.name}`;
+  $('meName').textContent = `${player.def.name}　${player.w.name}`;
   $('foeTag').textContent = bot.def.name;
   $('wepName').textContent = player.w.name;
   $('center').textContent = '';

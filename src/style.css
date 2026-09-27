@@ -1,177 +1,231 @@
-html,body{margin:0;height:100%;overflow:hidden;background:#0e0c0a;font-family:"Yu Gothic","Hiragino Sans","Meiryo",sans-serif;color:#fff;user-select:none}
-canvas{display:block}
-#hud{position:fixed;inset:0;pointer-events:none;display:none}
-.shadow{text-shadow:0 2px 6px rgba(0,0,0,.7)}
+/* ================= 共通のルール =================
+   色はすべてパレット（palette.ts）の CSS 変数 --色名-段(0暗/1基本/2明) を使う */
+:root {
+  --font-ui: "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Meiryo", sans-serif;
+  --font-koma: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+  --text: var(--shiro-2);
+  --text-dim: color-mix(in srgb, var(--shiro-2) 66%, transparent);
+  --accent: var(--kin-2);          /* 強調・選択中 */
+  --danger: var(--shu-1);          /* 被弾・負け */
+  --good: var(--midori-2);         /* HP・回復 */
+  --info: var(--mizu-2);           /* スキル */
+  --panel: color-mix(in srgb, var(--sumi-0) 80%, transparent);
+  --panel-soft: color-mix(in srgb, var(--sumi-0) 55%, transparent);
+  --line: color-mix(in srgb, var(--shiro-2) 14%, transparent);
+  --line-strong: color-mix(in srgb, var(--shiro-2) 32%, transparent);
+  --r: 14px;
+  --r-s: 8px;
+  --shade: 0 2px 6px color-mix(in srgb, var(--sumi-0) 75%, transparent);
+  --koma-shape: polygon(50% 0, 94% 22%, 88% 100%, 12% 100%, 6% 22%);
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sumi-0); font-family: var(--font-ui); color: var(--text); user-select: none }
+canvas { display: block }
+button { font-family: var(--font-ui) }
+.shadow { text-shadow: var(--shade) }
 
-/* クロスヘア */
-#xh{position:absolute;left:50%;top:50%}
-#xh i{position:absolute;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.45)}
-#xh .t,#xh .b{width:2px;height:9px;left:-1px}
-#xh .l,#xh .r{height:2px;width:9px;top:-1px}
-#xh .dot{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%}
-/* ヒットマーカー */
-#hm{position:absolute;left:50%;top:50%;opacity:0}
-#hm i{position:absolute;width:3px;height:11px;background:#fff;left:-1.5px;top:-5.5px;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
-#hm.head i{background:#ffd23a}
-#hm.kill i{background:#ff3b3b;height:16px;top:-8px}
-/* 被弾方向 */
-.dd{position:absolute;left:50%;top:50%;width:280px;height:280px;margin:-140px 0 0 -140px;border-radius:50%;
-  background:conic-gradient(from -20deg,rgba(255,40,40,.85) 0deg,rgba(255,40,40,0) 40deg,transparent 40deg);
-  -webkit-mask:radial-gradient(circle,transparent 118px,#000 120px,#000 136px,transparent 138px);
-  mask:radial-gradient(circle,transparent 118px,#000 120px,#000 136px,transparent 138px)}
-#lowhp{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(180,0,0,.55) 100%);opacity:0}
-#hurt{position:absolute;inset:0;box-shadow:inset 0 0 180px 50px rgba(255,0,0,.75);opacity:0}
-#dashfx{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 35%,rgba(255,255,255,.28) 100%);opacity:0}
+/* 駒の形のラベル（どの画面でも同じ見た目） */
+.koma {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 40px; height: 46px; font: 900 26px var(--font-koma); color: var(--sumi-0);
+  background: var(--kiji-2); clip-path: var(--koma-shape);
+}
+.koma.s { width: 26px; height: 30px; font-size: 17px; vertical-align: middle }
 
-/* 上部 */
-#top{position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
-#timer{font-size:30px;font-weight:900;font-style:italic;letter-spacing:1px}
-#foeWrap{display:flex;align-items:center;gap:10px}
-#foeTag{font:900 22px "Yu Mincho",serif;background:#e8c27a;color:#1a1008;width:36px;height:40px;display:flex;align-items:center;justify-content:center;clip-path:polygon(50% 0,94% 22%,88% 100%,12% 100%,6% 22%)}
-.bar{position:relative;height:12px;background:rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.85);transform:skewX(-18deg);overflow:hidden}
-.bar .lag{position:absolute;inset:0;background:#fff;transform-origin:left;transition:transform .5s .25s}
-.bar .fill{position:absolute;inset:0;transform-origin:left}
-#foeBar{width:340px}
-#foeBar .fill{background:linear-gradient(#ff7a6a,#d63a2a)}
+/* ボタン */
+.btn {
+  font: 800 18px var(--font-ui); letter-spacing: 1px; padding: 11px 30px; border-radius: var(--r-s); cursor: pointer;
+  border: 2px solid var(--accent); background: var(--accent); color: var(--sumi-0);
+  transition: transform .08s, filter .15s;
+}
+.btn:hover { filter: brightness(1.08); transform: translateY(-1px) }
+.btn.sub, .btn.ghost, .btn.ghost-btn { background: transparent; color: var(--text); border-color: var(--line-strong) }
+.btn.sub:hover, .btn.ghost:hover, .btn.ghost-btn:hover { background: color-mix(in srgb, var(--shiro-2) 10%, transparent) }
+.btn.small, button.small { font: 700 13px var(--font-ui); padding: 6px 14px; border-radius: 6px; cursor: pointer;
+  background: color-mix(in srgb, var(--shiro-2) 10%, transparent); color: var(--text); border: 1px solid var(--line-strong) }
+kbd { display: inline-block; min-width: 20px; padding: 2px 8px; border: 1px solid var(--line-strong); border-bottom-width: 3px;
+  border-radius: 6px; font: 700 12px var(--font-ui); text-align: center; background: color-mix(in srgb, var(--shiro-2) 6%, transparent) }
 
-/* 自分 */
-#me{position:absolute;left:28px;bottom:26px}
-#meHpNum{font-size:48px;font-weight:900;font-style:italic;line-height:1}
-#meHpNum small{font-size:18px;opacity:.7;margin-left:4px}
-#meBar{width:300px;height:14px;margin-top:6px}
-#meBar .fill{background:linear-gradient(#8ff0a6,#2fb865)}
-#meName{margin-top:6px;font-size:14px;opacity:.85}
+/* ================= 画面（オーバーレイ） ================= */
+#overlay { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: safe center;
+  overflow-y: auto; padding: 24px 16px; box-sizing: border-box; text-align: center;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--sumi-0) 30%, transparent), color-mix(in srgb, var(--sumi-0) 78%, transparent)) }
+#overlay.dim { background: color-mix(in srgb, var(--sumi-0) 74%, transparent) }
+.screen { display: flex; flex-direction: column; align-items: center; gap: 16px; width: min(560px, 100%) }
+.screen.wide { width: min(820px, 100%) }
+.h { margin: 0; font: 900 30px var(--font-ui); letter-spacing: 2px; text-shadow: var(--shade) }
+.h.big { font-size: 46px }
+.note { margin: 0; font-size: 12px; color: var(--text-dim) }
+.panel { box-sizing: border-box; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 18px; text-align: left }
+.panel h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--text-dim); letter-spacing: 1px }
+.menu { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap }
+.menu.col { flex-direction: column; width: 240px }
 
-/* 武器・スキル */
-#wep{position:absolute;right:30px;bottom:26px;text-align:right}
-#ammoNum{font-size:48px;font-weight:900;font-style:italic;line-height:1}
-#ammoNum small{font-size:20px;opacity:.7}
-#ammoNum.low{color:#ff6b5b}
-#pips{display:flex;gap:3px;justify-content:flex-end;margin-top:6px}
-#pips i{width:5px;height:14px;background:#ffd98a;transform:skewX(-18deg)}
-#pips i.e{background:rgba(255,255,255,.2)}
-#wepName{margin-top:6px;font-size:14px;opacity:.85}
-#reloadTxt{position:absolute;left:50%;top:calc(50% + 46px);transform:translateX(-50%);font-weight:900;font-size:15px;letter-spacing:2px;opacity:0}
-#skill{position:absolute;right:30px;bottom:150px;display:flex;align-items:center;gap:10px}
-#skill .ring{position:relative;width:54px;height:54px}
-#skill svg{position:absolute;inset:0;transform:rotate(-90deg)}
-#skill .key{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px}
-#skill.ready .key{color:#7ee0ff;text-shadow:0 0 10px #39c6ff}
-#skillName{font-weight:900;font-size:16px}
+/* タイトル */
+.title { gap: 18px }
+.logo { font: 900 76px var(--font-koma); letter-spacing: 8px; line-height: 1; text-shadow: 0 6px 24px color-mix(in srgb, var(--sumi-0) 60%, transparent) }
+.logo span { color: var(--accent) }
+.tagline { font-size: 15px; color: var(--text-dim); letter-spacing: 3px; margin-top: -6px }
+.modes { display: flex; gap: 14px; width: 100%; flex-wrap: wrap }
+.mode { flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; cursor: pointer;
+  padding: 18px 20px; border-radius: var(--r); border: 2px solid var(--line-strong); background: var(--panel); color: var(--text); transition: border-color .15s, transform .08s }
+.mode:hover { border-color: var(--accent); transform: translateY(-2px) }
+.mode b { font: 900 24px var(--font-ui); letter-spacing: 2px }
+.mode small { font-size: 13px; color: var(--text-dim) }
+.mode:first-child { border-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 22%, var(--panel)) }
 
-#center{position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);font-size:92px;font-weight:900;font-style:italic;white-space:nowrap}
-#center.pop{animation:pop .35s ease-out}
-@keyframes pop{from{transform:translate(-50%,-50%) scale(1.6);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
-#hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;opacity:.55}
+/* 設定 */
+.form .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; font-size: 15px; border-bottom: 1px solid var(--line) }
+.form .row:last-child { border-bottom: none }
+.form .row small { display: block; font-size: 11px; color: var(--text-dim) }
+.seg { display: flex; gap: 4px }
+.seg button { background: color-mix(in srgb, var(--shiro-2) 8%, transparent); color: var(--text); border: 1px solid var(--line-strong); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: 600 13px var(--font-ui) }
+.seg button.on { background: var(--accent); color: var(--sumi-0); border-color: var(--accent); font-weight: 800 }
+input[type=range] { width: 180px; accent-color: var(--accent) }
 
-#fps{position:fixed;left:8px;top:6px;font:bold 13px monospace;color:#9f9;text-shadow:0 1px 2px #000;pointer-events:none;z-index:5}
-/* オーバーレイ */
-#overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:14px;
-  background:radial-gradient(ellipse at center,rgba(10,8,6,.35),rgba(10,8,6,.8))}
-#overlay.dim{background:rgba(10,8,6,.72)}
-.logo{font:900 86px "Yu Mincho","Hiragino Mincho ProN",serif;letter-spacing:6px;text-shadow:0 6px 24px rgba(0,0,0,.6)}
-.logo span{color:#ffcf6b}
-.sub{font-size:18px;opacity:.85;letter-spacing:2px}
-.card{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px 22px;min-width:420px}
-.row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:8px 0;font-size:15px}
-.seg{display:flex;gap:4px}
-.seg button{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit}
-.seg button.on{background:#ffcf6b;color:#1a1008;border-color:#ffcf6b;font-weight:bold}
-input[type=range]{width:180px;accent-color:#ffcf6b}
-.btn{font:900 24px "Yu Gothic",sans-serif;padding:12px 44px;border-radius:10px;border:none;background:#ffcf6b;color:#1a1008;cursor:pointer;letter-spacing:2px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
-.btn:hover{background:#ffe09a}
-.btn.ghost{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.5);font-size:16px;padding:8px 22px}
-.keys{font-size:13px;opacity:.75;line-height:1.9}
-.keys b{display:inline-block;min-width:18px;padding:0 6px;border:1px solid rgba(255,255,255,.4);border-radius:4px;margin:0 2px}
-.res{font:900 80px "Yu Gothic",sans-serif;font-style:italic}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.stats div{background:rgba(0,0,0,.4);border-radius:8px;padding:10px 14px}
-.stats b{display:block;font-size:26px}
-.stats span{font-size:12px;opacity:.7}
-
-/* 調整パネル */
-button.small{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.3);padding:6px 14px;border-radius:6px;cursor:pointer;font:inherit}
-button.small:hover{background:rgba(255,255,255,.22)}
-#tune{position:fixed;right:0;top:0;bottom:0;width:380px;max-width:92vw;overflow-y:auto;z-index:20;display:none;
-  background:rgba(14,12,10,.94);border-left:1px solid rgba(255,255,255,.15);padding:14px 18px 30px;box-sizing:border-box;font-size:13px}
-#tune .tune-head{display:flex;justify-content:space-between;align-items:center;font-size:18px;position:sticky;top:-14px;background:rgba(14,12,10,.97);padding:6px 0;z-index:1}
-#tune .tune-note{opacity:.65;margin:4px 0 8px;line-height:1.5}
-#tune h4{margin:16px 0 6px;color:#ffcf6b;font-size:14px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:4px}
-#tune .tune-row{display:grid;grid-template-columns:1fr 130px 52px;align-items:center;gap:8px;margin:5px 0}
-#tune .tune-row.changed span,#tune .tune-row.changed em{color:#ffcf6b;font-weight:bold}
-#tune input[type=range]{width:130px}
-#tune em{font-style:normal;text-align:right;font-family:monospace}
-#tune button{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.3);padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit}
-#tune .tune-btns{display:flex;gap:8px;margin-top:16px}
-#tune textarea{display:none;width:100%;height:140px;margin-top:10px;background:#000;color:#cfc;border:1px solid #444;font:12px monospace;box-sizing:border-box}
-
-/* キルカム */
-#killcam{position:fixed;inset:0;pointer-events:none;display:none;box-shadow:inset 0 0 140px 30px rgba(160,0,0,.55)}
-#killcam .kc-top{position:absolute;top:22px;left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:baseline;white-space:nowrap;text-shadow:0 2px 6px #000}
-#killcam .kc-top b{font:900 italic 34px "Yu Gothic",sans-serif;color:#ff5b4b;letter-spacing:3px}
-#killcam .kc-top span{font-size:18px;font-weight:bold}
-#killcam .kc-skip{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);font-size:14px;opacity:.7}
+/* 操作方法 */
+.keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 16px; font-size: 13px }
+.keys div { display: flex; align-items: center; gap: 8px }
+.keys kbd { flex: none }
+.skills { width: 100%; border-collapse: collapse; font-size: 13px }
+.skills td { padding: 5px 6px; border-bottom: 1px solid var(--line) }
+.skills tr:last-child td { border-bottom: none }
+.skills td:first-child { width: 34px }
+.skills td:nth-child(2) { white-space: nowrap; color: var(--text-dim) }
 
 /* 駒選択 */
-.picks{display:flex;align-items:center;gap:22px}
-.picks h3{margin:0 0 8px;font-size:14px;opacity:.8;font-weight:normal}
-.pick{display:flex;gap:8px}
-.pick button{display:flex;flex-direction:column;align-items:center;gap:2px;width:112px;padding:10px 6px;border-radius:10px;cursor:pointer;
-  background:rgba(0,0,0,.45);color:#fff;border:2px solid rgba(255,255,255,.18);font:12px "Yu Gothic",sans-serif}
-.pick button:hover{border-color:rgba(255,207,107,.6)}
-.pick button.on{border-color:#ffcf6b;background:rgba(255,207,107,.16)}
-.pick .pc-name{font:900 30px "Yu Mincho",serif;width:44px;height:50px;display:flex;align-items:center;justify-content:center;margin-bottom:4px;
-  background:#e8c27a;color:#1a1008;clip-path:polygon(50% 0,94% 22%,88% 100%,12% 100%,6% 22%)}
-.pick span{opacity:.85;white-space:nowrap}
-.vs-mark{font:900 italic 30px "Yu Gothic",sans-serif;color:#ffcf6b;margin-top:22px}
+.pick { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center }
+.pick button { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 78px; padding: 8px 4px; border-radius: var(--r-s); cursor: pointer;
+  background: var(--panel-soft); color: var(--text); border: 2px solid var(--line); font: 11px var(--font-ui); transition: border-color .15s }
+.pick button:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent) }
+.pick button.on { border-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 25%, var(--panel-soft)) }
+.pick .koma { margin-bottom: 3px }
+.pick span { color: var(--text-dim); white-space: nowrap }
+.pick .val { color: var(--accent); font-weight: 700 }
+.detail { margin: 12px 0 0; font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.detail b { color: var(--text) }
+.vs-mark { font: 900 italic 24px var(--font-ui); color: var(--accent); margin: -6px 0 }
 
-/* 駒の価値・回復中のHPバー */
-.pick .pc-val{color:#ffcf6b;font-weight:bold}
-#meBar.regen{box-shadow:0 0 10px 2px rgba(120,255,160,.7);animation:regen .8s ease-in-out infinite alternate}
-@keyframes regen{from{border-color:rgba(255,255,255,.85)}to{border-color:#8ff0a6}}
+/* 結果 */
+.res { font: 900 italic 72px var(--font-ui); letter-spacing: 4px; text-shadow: var(--shade) }
+.res.win { color: var(--accent) }
+.res.lose { color: var(--danger) }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100% }
+.stats div { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); padding: 10px 8px }
+.stats b { display: block; font-size: 24px }
+.stats span { font-size: 11px; color: var(--text-dim) }
 
-/* 駒が増えたので選択を2段に */
-.picks{flex-direction:column;gap:4px}
-.picks > div{display:flex;flex-direction:column;align-items:center}
-.vs-mark{margin:0;font-size:22px}
-.pick{gap:5px}
-.pick button{width:74px;padding:6px 3px;font-size:11px}
-.pick .pc-name{font-size:24px;width:34px;height:40px;margin-bottom:2px}
-/* スナイパーのスコープ */
-#scope{position:absolute;inset:0;display:none;background:radial-gradient(circle at center,transparent 0,transparent 36vh,rgba(0,0,0,.4) 36.5vh,#000 37.5vh)}
-#scope:before,#scope:after{content:"";position:absolute;background:rgba(0,0,0,.85)}
-#scope:before{left:50%;top:14vh;bottom:14vh;width:2px;margin-left:-1px}
-#scope:after{top:50%;left:calc(50% - 36vh);right:calc(50% - 36vh);height:2px;margin-top:-1px}
+/* ================= HUD ================= */
+#hud { position: fixed; inset: 0; pointer-events: none; display: none; text-shadow: var(--shade) }
+/* クロスヘア */
+#xh { position: absolute; left: 50%; top: 50% }
+#xh i { position: absolute; background: var(--text); box-shadow: 0 0 0 1px color-mix(in srgb, var(--sumi-0) 45%, transparent) }
+#xh .t, #xh .b { width: 2px; height: 9px; left: -1px }
+#xh .l, #xh .r { height: 2px; width: 9px; top: -1px }
+#xh .dot { width: 3px; height: 3px; left: -1.5px; top: -1.5px; border-radius: 50% }
+/* ヒットマーカー */
+#hm { position: absolute; left: 50%; top: 50%; opacity: 0 }
+#hm i { position: absolute; width: 3px; height: 11px; background: var(--text); left: -1.5px; top: -5.5px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--sumi-0) 40%, transparent) }
+#hm.head i { background: var(--accent) }
+#hm.kill i { background: var(--danger); height: 16px; top: -8px }
+/* 被弾の向き・低HP・被弾・突撃 */
+.dd { position: absolute; left: 50%; top: 50%; width: 280px; height: 280px; margin: -140px 0 0 -140px; border-radius: 50%;
+  background: conic-gradient(from -20deg, color-mix(in srgb, var(--danger) 85%, transparent) 0deg, transparent 40deg);
+  -webkit-mask: radial-gradient(circle, transparent 118px, #000 120px, #000 136px, transparent 138px);
+  mask: radial-gradient(circle, transparent 118px, #000 120px, #000 136px, transparent 138px) }
+#lowhp { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 45%, color-mix(in srgb, var(--shu-0) 55%, transparent) 100%); opacity: 0 }
+#hurt { position: absolute; inset: 0; box-shadow: inset 0 0 180px 50px color-mix(in srgb, var(--danger) 70%, transparent); opacity: 0 }
+#dashfx { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 35%, color-mix(in srgb, var(--shiro-2) 26%, transparent) 100%); opacity: 0 }
 
-/* 画面が低いときはスクロールできるように */
-#overlay{overflow-y:auto;justify-content:safe center;padding:16px 0;box-sizing:border-box}
-.logo{font-size:64px}
+/* 上：時間・相手のHP */
+#top { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px }
+#timer { font: 900 italic 28px var(--font-ui); letter-spacing: 1px }
+#foeWrap { display: flex; align-items: center; gap: 10px }
+#foeTag { width: 34px; height: 40px; font: 900 22px var(--font-koma); color: var(--sumi-0); background: var(--kiji-2); clip-path: var(--koma-shape);
+  display: flex; align-items: center; justify-content: center }
+.bar { position: relative; height: 12px; background: color-mix(in srgb, var(--sumi-0) 50%, transparent); border: 2px solid color-mix(in srgb, var(--shiro-2) 85%, transparent); transform: skewX(-18deg); overflow: hidden }
+.bar .lag { position: absolute; inset: 0; background: var(--shiro-2); transform-origin: left; transition: transform .5s .25s }
+.bar .fill { position: absolute; inset: 0; transform-origin: left }
+#foeBar { width: 320px }
+#foeBar .fill { background: linear-gradient(var(--shu-2), var(--shu-1)) }
 
-/* タイトルのモード選択 */
-.modes{display:flex;gap:14px}
-.modes .btn{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:22px;padding:12px 30px}
-.modes .btn small{font-size:12px;font-weight:normal;letter-spacing:0;opacity:.8}
-.btn.ghost-btn{background:rgba(255,255,255,.12);color:#fff;border:2px solid rgba(255,255,255,.4)}
-.btn.ghost-btn:hover{background:rgba(255,255,255,.22)}
-/* 将棋モードの盤面 */
-#bmUI{position:fixed;inset:0;pointer-events:none;display:none}
-#bmMsg{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:24px;font-weight:900;white-space:nowrap}
-.bm-panel{position:absolute;background:rgba(0,0,0,.5);border-radius:10px;padding:10px 14px;pointer-events:auto;max-width:300px}
-.bm-panel h4{margin:0 0 6px;font-size:13px;font-weight:normal;opacity:.8}
-.bm-e{left:18px;top:18px;font:bold 20px "Yu Mincho",serif;letter-spacing:2px}
-.bm-p{right:18px;bottom:18px}
-#bmHandP{display:flex;flex-wrap:wrap;gap:6px;min-height:24px}
-.bm-hand{font:bold 22px "Yu Mincho",serif;background:#e8c27a;color:#1a1008;border:2px solid #8a5a2b;border-radius:6px;padding:3px 9px;cursor:pointer}
-.bm-hand.sel{background:#7ec8ff}
-.bm-hand small{font-size:12px}
-.bm-btns{position:absolute;left:18px;bottom:18px;display:flex;gap:8px;pointer-events:auto}
-.bm-help{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:13px;opacity:.7;white-space:nowrap}
-.vs-line{display:flex;align-items:center;gap:14px;font-size:16px}
-.vs-line em{font:900 italic 30px "Yu Gothic",sans-serif;color:#ffcf6b}
-.bm-koma{font:900 34px "Yu Mincho",serif;background:#e8c27a;color:#1a1008;width:52px;height:60px;display:flex;align-items:center;justify-content:center;
-  clip-path:polygon(50% 0,94% 22%,88% 100%,12% 100%,6% 22%)}
+/* 左下：自分のHP */
+#me { position: absolute; left: 26px; bottom: 24px }
+#meHpNum { font: 900 italic 46px var(--font-ui); line-height: 1 }
+#meHpNum small { font-size: 18px; color: var(--text-dim); margin-left: 4px }
+#meBar { width: 280px; height: 14px; margin-top: 6px }
+#meBar .fill { background: linear-gradient(var(--midori-2), var(--midori-1)) }
+#meBar.regen { box-shadow: 0 0 10px 2px color-mix(in srgb, var(--good) 65%, transparent); animation: regen .8s ease-in-out infinite alternate }
+@keyframes regen { from { border-color: color-mix(in srgb, var(--shiro-2) 85%, transparent) } to { border-color: var(--good) } }
+#meName { margin-top: 6px; font-size: 13px; color: var(--text-dim) }
+
+/* 右下：弾・スキル */
+#wep { position: absolute; right: 28px; bottom: 24px; text-align: right }
+#ammoNum { font: 900 italic 46px var(--font-ui); line-height: 1 }
+#ammoNum small { font-size: 20px; color: var(--text-dim) }
+#ammoNum.low { color: var(--danger) }
+#pips { display: flex; gap: 3px; justify-content: flex-end; margin-top: 6px }
+#pips i { width: 5px; height: 14px; background: var(--accent); transform: skewX(-18deg) }
+#pips i.e { background: color-mix(in srgb, var(--shiro-2) 20%, transparent) }
+#wepName { margin-top: 6px; font-size: 13px; color: var(--text-dim) }
+#reloadTxt { position: absolute; left: 50%; top: calc(50% + 46px); transform: translateX(-50%); font-weight: 900; font-size: 14px; letter-spacing: 2px; opacity: 0 }
+#skill { position: absolute; right: 28px; bottom: 140px; display: flex; align-items: center; gap: 10px }
+#skill .ring { position: relative; width: 52px; height: 52px }
+#skill svg { position: absolute; inset: 0; transform: rotate(-90deg) }
+#skill .key { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 19px }
+#skill.ready .key { color: var(--info); text-shadow: 0 0 10px var(--mizu-1) }
+#skillName { font-weight: 800; font-size: 15px }
+
+#center { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); font: 900 italic 88px var(--font-ui); white-space: nowrap }
+#center.pop { animation: pop .35s ease-out }
+@keyframes pop { from { transform: translate(-50%, -50%) scale(1.6); opacity: 0 } to { transform: translate(-50%, -50%) scale(1); opacity: 1 } }
+#hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); font-size: 11px; color: var(--text-dim) }
+#fps { position: fixed; left: 8px; top: 6px; font: 700 12px monospace; color: var(--good); text-shadow: var(--shade); pointer-events: none; z-index: 5 }
+
 /* 弓の引き具合のリング */
-#drawRing{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;opacity:0;--p:0%;
-  background:conic-gradient(rgba(255,255,255,.85) var(--p),rgba(255,255,255,.12) 0);
-  -webkit-mask:radial-gradient(circle,transparent 19px,#000 20px);mask:radial-gradient(circle,transparent 19px,#000 20px)}
-#drawRing.full{background:#ffe27a;box-shadow:0 0 12px #ffcf6b}
+#drawRing { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; opacity: 0; --p: 0%;
+  background: conic-gradient(color-mix(in srgb, var(--shiro-2) 85%, transparent) var(--p), color-mix(in srgb, var(--shiro-2) 12%, transparent) 0);
+  -webkit-mask: radial-gradient(circle, transparent 19px, #000 20px); mask: radial-gradient(circle, transparent 19px, #000 20px) }
+#drawRing.full { background: var(--accent); box-shadow: 0 0 12px var(--accent) }
+/* スナイパーのスコープ */
+#scope { position: absolute; inset: 0; display: none; background: radial-gradient(circle at center, transparent 0, transparent 36vh, color-mix(in srgb, var(--sumi-0) 40%, transparent) 36.5vh, var(--sumi-0) 37.5vh) }
+#scope:before, #scope:after { content: ""; position: absolute; background: color-mix(in srgb, var(--sumi-0) 85%, transparent) }
+#scope:before { left: 50%; top: 14vh; bottom: 14vh; width: 2px; margin-left: -1px }
+#scope:after { top: 50%; left: calc(50% - 36vh); right: calc(50% - 36vh); height: 2px; margin-top: -1px }
+
+/* ================= 調整パネル ================= */
+#tune { position: fixed; right: 0; top: 0; bottom: 0; width: 380px; max-width: 92vw; overflow-y: auto; z-index: 20; display: none; box-sizing: border-box;
+  background: color-mix(in srgb, var(--sumi-0) 95%, transparent); border-left: 1px solid var(--line); padding: 14px 18px 30px; font-size: 13px }
+#tune .tune-head { display: flex; justify-content: space-between; align-items: center; font-size: 18px; position: sticky; top: -14px; background: var(--sumi-0); padding: 6px 0; z-index: 1 }
+#tune .tune-note { color: var(--text-dim); margin: 4px 0 8px; line-height: 1.5 }
+#tune h4 { margin: 16px 0 6px; color: var(--accent); font-size: 14px; border-bottom: 1px solid var(--line); padding-bottom: 4px }
+#tune .tune-row { display: grid; grid-template-columns: 1fr 130px 52px; align-items: center; gap: 8px; margin: 5px 0 }
+#tune .tune-row.changed span, #tune .tune-row.changed em { color: var(--accent); font-weight: bold }
+#tune input[type=range] { width: 130px }
+#tune em { font-style: normal; text-align: right; font-family: monospace }
+#tune button { background: color-mix(in srgb, var(--shiro-2) 10%, transparent); color: var(--text); border: 1px solid var(--line-strong); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit }
+#tune .tune-btns { display: flex; gap: 8px; margin-top: 16px }
+#tune textarea { display: none; width: 100%; height: 140px; margin-top: 10px; background: var(--sumi-0); color: var(--shiro-1); border: 1px solid var(--sumi-2); font: 12px monospace; box-sizing: border-box }
+
+/* ================= キルカム ================= */
+#killcam { position: fixed; inset: 0; pointer-events: none; display: none; box-shadow: inset 0 0 140px 30px color-mix(in srgb, var(--shu-0) 55%, transparent) }
+#killcam .kc-top { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: baseline; white-space: nowrap; text-shadow: var(--shade) }
+#killcam .kc-top b { font: 900 italic 32px var(--font-ui); color: var(--danger); letter-spacing: 3px }
+#killcam .kc-top span { font-size: 17px; font-weight: 700 }
+#killcam .kc-skip { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--text-dim) }
+
+/* ================= 将棋モード ================= */
+#bmUI { position: fixed; inset: 0; pointer-events: none; display: none }
+#bmMsg { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 22px; font-weight: 900; white-space: nowrap }
+.bm-panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; pointer-events: auto; max-width: 300px }
+.bm-panel h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--text-dim) }
+.bm-e { left: 18px; top: 18px; font: 700 20px var(--font-koma); letter-spacing: 2px }
+.bm-p { right: 18px; bottom: 18px }
+#bmHandP { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px }
+.bm-hand { font: 700 20px var(--font-koma); background: var(--kiji-2); color: var(--sumi-0); border: 2px solid var(--kiji-0); border-radius: 6px; padding: 3px 9px; cursor: pointer }
+.bm-hand.sel { background: var(--ao-2) }
+.bm-hand small { font-size: 12px }
+.bm-btns { position: absolute; left: 18px; bottom: 18px; display: flex; gap: 8px; pointer-events: auto }
+.bm-help { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); font-size: 12px; color: var(--text-dim); white-space: nowrap }
+.vs-line { display: flex; align-items: center; gap: 14px; font-size: 15px }
+.vs-line em { font: 900 italic 28px var(--font-ui); color: var(--accent) }
+.bm-koma { width: 52px; height: 60px; display: flex; align-items: center; justify-content: center; font: 900 34px var(--font-koma); color: var(--sumi-0); background: var(--kiji-2); clip-path: var(--koma-shape) }

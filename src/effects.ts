@@ -1,7 +1,8 @@
 // エフェクト・一人称の銃・駒のキャラクター
+import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { C, LIGHT, V3, lerp, rand } from './core';
-import { GUN_BUILDERS, buildGun, cam, makeEyes, makePiece, makeShield, pieceGeo, pieceWoodMat, scene, starTex } from './render';
+import { GUN_BUILDERS, buildGun, cam, flatten, makeEyes, makePiece, makeShield, outlineMat, pieceGeo, pieceWoodMat, scene, starTex, toon } from './render';
 import { groundAt } from './world';
 
 // ================= エフェクト =================
@@ -9,7 +10,7 @@ import { groundAt } from './world';
 export const Particles = (() => {
   const N = 320, box = new THREE.BoxGeometry(1, 1, 1), dummy = new THREE.Object3D(), col = new THREE.Color();
   const make = m => { const im = new THREE.InstancedMesh(box, m, N); im.frustumCulled = false; for (let i = 0; i < N; i++) { dummy.scale.setScalar(0); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); im.setColorAt(i, col.set(1, 1, 1)); } scene.add(im); return im; };
-  const lit = make(new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }));
+  const lit = make(toon({ roughness: 0.9, flatShading: true }));
   const glow = make(new THREE.MeshBasicMaterial({ fog: false }));
   const sets = [{ im: lit, ps: [], i: 0 }, { im: glow, ps: [], i: 0 }];
   sets.forEach(s => { for (let i = 0; i < N; i++) s.ps.push({ life: 0 }); });
@@ -38,12 +39,12 @@ export const Particles = (() => {
       s.im.instanceMatrix.needsUpdate = true;
     }
   }
-  const WOOD = [C(0xe6b872), C(0xc9954f), C(0xf2d19a)];
+  const WOOD = [C(P.kiji[2]), C(P.kiji[1]), C(P.kin[2])];
   return {
     update,
     impact(point, normal) {
-      for (let i = 0; i < 6; i++) spawn(true, point, normal.clone().multiplyScalar(rand(3, 8)).add(new V3(rand(-3, 3), rand(-1, 4), rand(-3, 3))), { size: 0.035, life: rand(0.12, 0.28), color: C(0xffd070).multiplyScalar(3), grav: 12, bounce: 0.4 });
-      for (let i = 0; i < 5; i++) spawn(false, point, normal.clone().multiplyScalar(rand(1, 3)).add(new V3(rand(-1, 1), rand(0, 1.5), rand(-1, 1))), { size: rand(0.07, 0.14), life: rand(0.35, 0.7), color: C(0xcaa878), grav: 2, drag: 3, grow: 1.5 });
+      for (let i = 0; i < 6; i++) spawn(true, point, normal.clone().multiplyScalar(rand(3, 8)).add(new V3(rand(-3, 3), rand(-1, 4), rand(-3, 3))), { size: 0.035, life: rand(0.12, 0.28), color: C(P.kin[2]).multiplyScalar(3), grav: 12, bounce: 0.4 });
+      for (let i = 0; i < 5; i++) spawn(false, point, normal.clone().multiplyScalar(rand(1, 3)).add(new V3(rand(-1, 1), rand(0, 1.5), rand(-1, 1))), { size: rand(0.07, 0.14), life: rand(0.35, 0.7), color: C(P.kiji[2]), grav: 2, drag: 3, grow: 1.5 });
     },
     wood(point, dir, n = 10, power = 1) {
       for (let i = 0; i < n; i++) spawn(false, point, dir.clone().multiplyScalar(rand(2, 6) * power).add(new V3(rand(-3, 3), rand(1, 5), rand(-3, 3)).multiplyScalar(power)), { size: rand(0.05, 0.15), life: rand(0.9, 1.8), color: WOOD[i % 3], grav: 18, bounce: 0.35 });
@@ -54,12 +55,12 @@ export const Particles = (() => {
     glow(point, color) { spawn(true, point, new V3(rand(-0.3, 0.3), rand(-0.3, 0.3), rand(-0.3, 0.3)), { size: rand(0.05, 0.09), life: rand(0.2, 0.35), color: C(color).multiplyScalar(2.5), grav: 0, bounce: 0 }); },
     // 爆発：火花・閃光・黒い煙
     explosion(p) {
-      for (let i = 0; i < 26; i++) spawn(true, p, new V3(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize().multiplyScalar(rand(6, 16)), { size: rand(0.05, 0.12), life: rand(0.2, 0.5), color: C(0xffa040).multiplyScalar(3), grav: 10, bounce: 0.3 });
-      for (let i = 0; i < 8; i++) spawn(true, p, new V3(rand(-2, 2), rand(0, 2), rand(-2, 2)), { size: rand(0.5, 0.9), life: rand(0.08, 0.16), color: C(0xffe0a0).multiplyScalar(3), grav: 0, bounce: 0, grow: 1.5 });
-      for (let i = 0; i < 16; i++) spawn(false, p.clone().add(new V3(rand(-0.5, 0.5), rand(0, 0.5), rand(-0.5, 0.5))), new V3(rand(-3, 3), rand(0.5, 4), rand(-3, 3)), { size: rand(0.35, 0.7), life: rand(0.8, 1.4), color: C(0x5a524a), grav: -0.5, drag: 2.5, grow: 2 });
+      for (let i = 0; i < 26; i++) spawn(true, p, new V3(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize().multiplyScalar(rand(6, 16)), { size: rand(0.05, 0.12), life: rand(0.2, 0.5), color: C(P.daidai[1]).multiplyScalar(3), grav: 10, bounce: 0.3 });
+      for (let i = 0; i < 8; i++) spawn(true, p, new V3(rand(-2, 2), rand(0, 2), rand(-2, 2)), { size: rand(0.5, 0.9), life: rand(0.08, 0.16), color: C(P.shiro[2]).multiplyScalar(3), grav: 0, bounce: 0, grow: 1.5 });
+      for (let i = 0; i < 16; i++) spawn(false, p.clone().add(new V3(rand(-0.5, 0.5), rand(0, 0.5), rand(-0.5, 0.5))), new V3(rand(-3, 3), rand(0.5, 4), rand(-3, 3)), { size: rand(0.35, 0.7), life: rand(0.8, 1.4), color: C(P.sumi[2]), grav: -0.5, drag: 2.5, grow: 2 });
     },
     dust(point, n = 6, power = 1) {
-      for (let i = 0; i < n; i++) spawn(false, point.clone().add(new V3(rand(-0.3, 0.3), 0.05, rand(-0.3, 0.3))), new V3(rand(-2, 2), rand(0.3, 1.5), rand(-2, 2)).multiplyScalar(power), { size: rand(0.12, 0.22), life: rand(0.35, 0.6), color: C(0xd8bf8e), grav: 0.5, drag: 4, grow: 1.8 });
+      for (let i = 0; i < n; i++) spawn(false, point.clone().add(new V3(rand(-0.3, 0.3), 0.05, rand(-0.3, 0.3))), new V3(rand(-2, 2), rand(0.3, 1.5), rand(-2, 2)).multiplyScalar(power), { size: rand(0.12, 0.22), life: rand(0.35, 0.6), color: C(P.kiji[2]), grav: 0.5, drag: 4, grow: 1.8 });
     },
   };
 })();
@@ -67,7 +68,7 @@ export const Particles = (() => {
 // 弾痕
 export const Decals = (() => {
   const N = 80, list = [];
-  const m = new THREE.MeshBasicMaterial({ color: 0x1a120a, transparent: true, opacity: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+  const m = new THREE.MeshBasicMaterial({ color: P.sumi[0], transparent: true, opacity: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
   const geo = new THREE.CircleGeometry(0.07, 6);
   for (let i = 0; i < N; i++) { const d = new THREE.Mesh(geo, m); d.visible = false; scene.add(d); list.push(d); }
   let i = 0;
@@ -86,7 +87,7 @@ export const Tracers = (() => {
   const N = 40, list = [];
   const geo = new THREE.BoxGeometry(0.022, 0.022, 1); geo.translate(0, 0, 0.5);
   for (let i = 0; i < N; i++) {
-    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: P.kin[2], transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
     m.visible = false; scene.add(m); list.push({ m, t: 0 });
   }
   let i = 0;
@@ -127,8 +128,8 @@ export const DmgNums = (() => {
       const d = list[i = (i + 1) % N], g = d.c.getContext('2d');
       g.clearRect(0, 0, 128, 64);
       g.font = 'italic 900 46px "Yu Gothic",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.lineWidth = 7; g.strokeStyle = 'rgba(0,0,0,.8)'; g.strokeText(Math.round(n), 64, 34);
-      g.fillStyle = head ? '#ffd23a' : '#ffffff'; g.fillText(Math.round(n), 64, 34);
+      g.lineWidth = 7; g.strokeStyle = rgba(P.sumi[0], 0.85); g.strokeText(Math.round(n), 64, 34);
+      g.fillStyle = head ? css(P.kin[2]) : css(P.shiro[2]); g.fillText(Math.round(n), 64, 34);
       d.tex.needsUpdate = true;
       d.s.position.copy(pos).add(new V3(rand(-0.3, 0.3), 0.2, rand(-0.3, 0.3)));
       d.vel = new V3(rand(-0.6, 0.6), 2.2, rand(-0.6, 0.6));
@@ -151,9 +152,9 @@ export const DmgNums = (() => {
 // ================= 一人称の銃（別シーンで描画して壁にめり込まない） =================
 export const vmScene = new THREE.Scene();
 export const vmCam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.01, 10);
-vmScene.add(new THREE.HemisphereLight(C(0xdcecff), C(0x806040), 0.8 * LIGHT));
-export const vmSun = new THREE.DirectionalLight(C(0xfff0d6), 1.6 * LIGHT); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
-export const vmFlashLight = new THREE.PointLight(C(0xffc870), 0, 2, 1); vmScene.add(vmFlashLight);
+vmScene.add(new THREE.HemisphereLight(C(P.ao[2]), C(P.kiji[0]), 0.8 * LIGHT));
+export const vmSun = new THREE.DirectionalLight(C(P.shiro[2]), 1.6 * LIGHT); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
+export const vmFlashLight = new THREE.PointLight(C(P.kin[2]), 0, 2, 1); vmScene.add(vmFlashLight);
 export const VM: any = (() => {
   const root = new THREE.Group();
   const models: any = {};
@@ -177,6 +178,7 @@ export const VM: any = (() => {
     },
   };
   vm.setWeapon('pistol');
+  flatten(root);
   return vm;
 })();
 // 構えの位置（低めに構え、照準で狙う）。覗き込みも画面の下へ下げてズームするだけ
@@ -189,8 +191,12 @@ export function buildActor(ch, size, model = 'pistol'): any {
   const wood = pieceWoodMat.clone();
   const piece = makePiece(ch, w, h, t, wood, true);
   const eyes = makeEyes(w, h, t / 2 + 0.008); piece.add(eyes);
+  // 輪郭線：体より一回り大きい裏返しの形を墨色で
+  const body0 = piece.userData.body, outline = new THREE.Mesh(pieceGeo, outlineMat);
+  outline.scale.copy(body0.scale).multiply(new V3(1.06, 1.045, 1.12));
+  piece.add(outline);
   // 貫きの準備中に壁越しに見える姿
-  const xray = new THREE.Mesh(pieceGeo, new THREE.MeshBasicMaterial({ color: 0xff3050, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
+  const xray = new THREE.Mesh(pieceGeo, new THREE.MeshBasicMaterial({ color: P.shu[1], transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
   xray.scale.copy(piece.userData.body.scale); xray.renderOrder = 20; xray.visible = false; piece.add(xray);
   piece.position.set(0, h / 2, t / 2);
   body.position.z = -t / 2;
@@ -204,6 +210,7 @@ export function buildActor(ch, size, model = 'pistol'): any {
   const shield = makeShield(w * 1.05, h * 0.7);
   shield.position.set(0, h * 0.45, t + 0.45); shield.visible = false;
   body.add(shield);
+  flatten(root);
   scene.add(root);
   return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, xray, w, h, t };
 }

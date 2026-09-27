@@ -1,8 +1,9 @@
 // グレネード（角の武器）と煙幕（角のスキル）
+import { P, rgba } from './palette';
 import * as THREE from 'three';
 import { V3, clamp, rand } from './core';
 import { SFX } from './audio';
-import { canvasTex, mat, scene } from './render';
+import { canvasTex, flatGeo, mat, scene } from './render';
 import { PHYS, blockers } from './physics';
 import { Particles } from './effects';
 import { bot, damageBot, eyeOf, hasLOS, player, ray, skillDamageMul, view } from './game';
@@ -11,9 +12,9 @@ import { killBot } from './hud';
 
 // グレネード：速くまっすぐ気味に飛び、何かに当たった瞬間に爆発
 export const Grenades = (() => {
-  const geo = new THREE.IcosahedronGeometry(0.14, 0);
-  const m = mat(0x3d5a2e, { roughness: 0.6 });
-  const bandM = mat(0xc9a13a, { roughness: 0.5 });
+  const geo = flatGeo(new THREE.IcosahedronGeometry(0.14, 0));
+  const m = mat(P.moegi[0], { roughness: 0.6 });
+  const bandM = mat(P.kin[1], { roughness: 0.5 });
   const list = [];
 
   // o: { owner, target, pos, vel, dmg, radius, gravity, fuse }
@@ -98,14 +99,14 @@ export const Grenades = (() => {
 export const Smoke = (() => {
   const tex = canvasTex(128, 128, g => {
     const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gr.addColorStop(0, 'rgba(235,235,235,1)'); gr.addColorStop(0.55, 'rgba(215,215,215,.7)'); gr.addColorStop(1, 'rgba(200,200,200,0)');
+    gr.addColorStop(0, rgba(P.shiro[2], 1)); gr.addColorStop(0.55, rgba(P.shiro[1], 0.7)); gr.addColorStop(1, rgba(P.shiro[0], 0));
     g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
   });
   const clouds = [];
   function spawn(pos, r, life) {
     const g = new THREE.Group(), puffs = [];
     for (let i = 0; i < 24; i++) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0xdcdcdc, transparent: true, depthWrite: false, opacity: 0 }));
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: P.shiro[1], transparent: true, depthWrite: false, opacity: 0 }));
       const off = new V3(rand(-1, 1), rand(-0.5, 1), rand(-1, 1)).normalize().multiplyScalar(r * rand(0.1, 0.75));
       puffs.push({ s, off, sc: r * rand(0.8, 1.25), rot: rand(-0.3, 0.3) });
       g.add(s);

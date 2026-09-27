@@ -1,7 +1,8 @@
 // 盤（中央の高台）・外周エリア・背景・障害物と当たり判定
+import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { BH, C, GROUND, H, V3, clamp, rand } from './core';
-import { boardTex, canvasTex, darkWoodTex, kanjiMat, makePiece, mat, planeGeo, scene } from './render';
+import { boardTex, canvasTex, darkWoodTex, flatten, kanjiMat, makePiece, mat, planeGeo, scene, toon } from './render';
 
 // ================= 地形・小道具 =================
 export const propMeshes = [];   // 弾・視線を遮る
@@ -9,7 +10,9 @@ export const colliders = [];    // 移動の当たり判定（上に乗れる）
 // walk: 上を歩ける面（盤・段・階段）。経路探索で「床」として扱う
 export function addSolid(obj, cyl?, walk?) {
   scene.add(obj); propMeshes.push(obj);
-  obj.traverse((o: any) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  flatten(obj);
+  // 透明な板（字など）は影を落とさない
+  obj.traverse((o: any) => { if (o.isMesh) { o.castShadow = !o.material.transparent; o.receiveShadow = true; } });
   obj.updateMatrixWorld(true);
   if (cyl) colliders.push({ kind: 'cyl', ...cyl, walk: !!walk });
   else { const b = new THREE.Box3().setFromObject(obj); colliders.push({ kind: 'box', min: b.min, max: b.max, walk: !!walk }); }
@@ -18,18 +21,18 @@ export function addSolid(obj, cyl?, walk?) {
 export const groundAt = (x, z) => (Math.abs(x) <= BH + 1 && Math.abs(z) <= BH + 1 ? 0 : GROUND);
 
 // ---------- 材質 ----------
-export const woodSideM = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.8 });
-export const plasterM = mat(0xf1ebdc, { roughness: 0.95 });   // 白壁
-export const roofM = mat(0x3d4148, { roughness: 0.7 });       // 瓦
-export const stoneM = mat(0x9a968c, { roughness: 1 });
-export const earthM = mat(0x9b7a52, { roughness: 1 });
-export const turfM = mat(0x7aa956, { roughness: 1 });
-export const leafMs = [mat(0x4f8f3a), mat(0x5fa044), mat(0x3f7d34)];
-export const trunkM = mat(0x6b4a2a);
+export const woodSideM = toon({ map: darkWoodTex, roughness: 0.8 });
+export const plasterM = mat(P.shiro[1], { roughness: 0.95 });   // 白壁
+export const roofM = mat(P.sumi[2], { roughness: 0.7 });       // 瓦
+export const stoneM = mat(P.nezumi[1], { roughness: 1 });
+export const earthM = mat(P.kiji[0], { roughness: 1 });
+export const turfM = mat(P.moegi[1], { roughness: 1 });
+export const leafMs = [mat(P.midori[1]), mat(P.moegi[1]), mat(P.midori[0])];
+export const trunkM = mat(P.kiji[0]);
 
 // 盤（中央の高台。外周より 1.5 高い）
 {
-  const top = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.75 });
+  const top = toon({ map: boardTex, roughness: 0.75 });
   const b = new THREE.Mesh(new THREE.BoxGeometry(2 * BH + 2, 2.4, 2 * BH + 2), [woodSideM, woodSideM, top, woodSideM, woodSideM, woodSideM]);
   b.position.y = -1.2;
   addSolid(b, null, true);
@@ -39,11 +42,12 @@ export const trunkM = mat(0x6b4a2a);
 // 外周の地面（弾や矢が当たるように propMeshes に入れる）
 {
   const tex = canvasTex(512, 512, (g, w) => {
-    g.fillStyle = '#86b25e'; g.fillRect(0, 0, w, w);
-    for (let i = 0; i < 1400; i++) { g.fillStyle = `rgba(${rand(40, 90)},${rand(90, 140)},${rand(30, 60)},${rand(0.15, 0.4)})`; g.fillRect(rand(0, w), rand(0, w), rand(2, 6), rand(2, 10)); }
+    g.fillStyle = css(P.moegi[1]); g.fillRect(0, 0, w, w);
+    const blades = [P.moegi[0], P.midori[1], P.moegi[2], P.midori[0]];
+    for (let i = 0; i < 1600; i++) { g.fillStyle = rgba(blades[i % 4], rand(0.12, 0.35)); g.fillRect(rand(0, w), rand(0, w), rand(2, 5), rand(3, 10)); }
   });
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(10, 10);
-  const g = new THREE.Mesh(new THREE.PlaneGeometry(2 * H + 8, 2 * H + 8), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(2 * H + 8, 2 * H + 8), toon({ map: tex, roughness: 1 }));
   g.rotation.x = -Math.PI / 2; g.position.y = GROUND; g.receiveShadow = true;
   scene.add(g); propMeshes.push(g);
 }
@@ -68,7 +72,7 @@ export function mergeParts(parts) {
   geo.computeVertexNormals();
   return geo;
 }
-export const lambertVC = new THREE.MeshLambertMaterial({ vertexColors: true });
+export const lambertVC = toon({ vertexColors: true });
 export const M4 = (x, y, z, ry = 0, s = 1, sy = s) => new THREE.Matrix4().compose(new V3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new V3(s, sy, s));
 
 // 遠くの草原（アリーナの外は起伏あり）
@@ -82,7 +86,7 @@ export const M4 = (x, y, z, ry = 0, s = 1, sy = s) => new THREE.Matrix4().compos
     pos.setY(i, GROUND - 0.05 + (Math.sin(x * 0.05) * Math.cos(z * 0.045) * 4 + Math.sin(x * 0.13 + z * 0.07) * 1.5 + 2) * k);
   }
   for (let i = 0; i < pos.count; i += 3) {
-    const c = C(0x7fb35a).offsetHSL(rand(-0.02, 0.02), 0, rand(-0.05, 0.05));
+    const c = C(P.moegi[1]).offsetHSL(rand(-0.02, 0.02), 0, rand(-0.05, 0.05));
     for (let j = 0; j < 3; j++) cols.push(c.r, c.g, c.b);
   }
   geo.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
@@ -97,25 +101,25 @@ export const clouds = [];
   const parts = [];
   const trunkG = new THREE.CylinderGeometry(0.35, 0.5, 2.5, 5);
   const leafG = [0, 1, 2].map(k => new THREE.ConeGeometry(2.6 - k * 0.6, 3, 6));
-  const LEAF = [0x4f8f3a, 0x5fa044, 0x3f7d34];
+  const LEAF = [P.midori[1], P.moegi[1], P.midori[0]];
   for (let i = 0; i < 80; i++) {
     const a = rand(0, Math.PI * 2), r = rand(H + 14, 150);
     const x = Math.cos(a) * r, z = Math.sin(a) * r, s = rand(0.9, 1.8), y = GROUND + 1;
-    parts.push([trunkG, 0x6b4a2a, M4(x, y + 1.25 * s, z, 0, s)]);
+    parts.push([trunkG, P.kiji[0], M4(x, y + 1.25 * s, z, 0, s)]);
     for (let k = 0; k < 3; k++) parts.push([leafG[k], LEAF[(i + k) % 3], M4(x, y + (3 + k * 1.5) * s, z, rand(0, 3), s)]);
   }
   for (let i = 0; i < 14; i++) {
     const a = i / 14 * Math.PI * 2 + rand(-0.15, 0.15), r = rand(280, 360), h = rand(60, 120);
     const x = Math.cos(a) * r, z = Math.sin(a) * r, ry = rand(0, 3);
-    parts.push([new THREE.ConeGeometry(h * 0.9, h, 6), 0x8a9bb0, M4(x, h / 2 - 10, z, ry)]);
-    parts.push([new THREE.ConeGeometry(h * 0.9 * 0.28, h * 0.28, 6), 0xf4f7fb, M4(x, h / 2 - 10 + h * 0.36 + 0.5, z, ry)]);
+    parts.push([new THREE.ConeGeometry(h * 0.9, h, 6), P.ai[2], M4(x, h / 2 - 10, z, ry)]);
+    parts.push([new THREE.ConeGeometry(h * 0.9 * 0.28, h * 0.28, 6), P.shiro[2], M4(x, h / 2 - 10 + h * 0.36 + 0.5, z, ry)]);
   }
   scene.add(new THREE.Mesh(mergeParts(parts), lambertVC));
 
-  const cm = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: C(0x9aa8b8), emissiveIntensity: 0.35 });
+  const cm = toon({ vertexColors: true, emissive: C(P.nezumi[2]), emissiveIntensity: 0.35 });
   for (let i = 0; i < 16; i++) {
     const cp = [];
-    for (let k = 0; k < 5; k++) cp.push([new THREE.IcosahedronGeometry(rand(5, 9), 0), 0xffffff, M4(k * 6 - 12 + rand(-2, 2), rand(-1, 2), rand(-3, 3), 0, 1, 0.6)]);
+    for (let k = 0; k < 5; k++) cp.push([new THREE.IcosahedronGeometry(rand(5, 9), 0), P.shiro[2], M4(k * 6 - 12 + rand(-2, 2), rand(-1, 2), rand(-3, 3), 0, 1, 0.6)]);
     const g = new THREE.Mesh(mergeParts(cp), cm);
     g.position.set(rand(-400, 400), rand(70, 110), rand(-400, 400));
     scene.add(g); clouds.push(g);
@@ -130,20 +134,20 @@ export const clouds = [];
   const lying = (ch, w, l, t) => { const p = makePiece(ch, w, l, t); p.rotation.x = -Math.PI / 2; const g = new THREE.Group(); p.position.y = t / 2; g.add(p); return g; };
   const standing = (ch, w, h, t) => { const p = makePiece(ch, w, h, t); p.position.y = h / 2; const g = new THREE.Group(); g.add(p); return g; };
   const komabako = () => {
-    const g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.75 });
+    const g = new THREE.Group(), m = toon({ map: darkWoodTex, roughness: 0.75 });
     const body = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.7, 2.6), m); body.position.y = 0.85;
     const lid = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.35, 2.8), m); lid.position.set(0.15, 1.87, 0.05); lid.rotation.y = 0.04;
     g.add(body, lid); return g;
   };
   const yunomi = (r, h) => {
     const g = new THREE.Group();
-    const cup = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.82, h, 10), mat(0x6f8f62, { roughness: 0.4 }));
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.82, h, 10), mat(P.seiji[1], { roughness: 0.4 }));
     cup.position.y = h / 2;
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.01, r * 1.01, h * 0.12, 10), mat(0x3f5a3a, { roughness: 0.4 }));
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.01, r * 1.01, h * 0.12, 10), mat(P.seiji[0], { roughness: 0.4 }));
     band.position.y = h * 0.75;
-    const tea = new THREE.Mesh(new THREE.CircleGeometry(r * 0.88, 10), mat(0x9bb04a, { roughness: 0.2 }));
+    const tea = new THREE.Mesh(new THREE.CircleGeometry(r * 0.88, 10), mat(P.moegi[1], { roughness: 0.2 }));
     tea.rotation.x = -Math.PI / 2; tea.position.y = h - 0.15;
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 0.94, r * 0.06, 4, 10), mat(0x6f8f62, { roughness: 0.4 }));
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 0.94, r * 0.06, 4, 10), mat(P.seiji[1], { roughness: 0.4 }));
     rim.rotation.x = Math.PI / 2; rim.position.y = h;
     g.add(cup, band, tea, rim); return g;
   };
@@ -174,8 +178,8 @@ export const clouds = [];
   // 見張り台（大きな駒箱。壁登りで上がる）
   const tower = s => {
     const g = new THREE.Group();
-    const m = boxMesh(s, s, s, new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.75 })); m.position.y = s / 2;
-    const lid = boxMesh(s + 0.3, 0.35, s + 0.3, new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.75 })); lid.position.y = s + 0.17;
+    const m = boxMesh(s, s, s, toon({ map: darkWoodTex, roughness: 0.75 })); m.position.y = s / 2;
+    const lid = boxMesh(s + 0.3, 0.35, s + 0.3, toon({ map: darkWoodTex, roughness: 0.75 })); lid.position.y = s + 0.17;
     const label = new THREE.Mesh(planeGeo, kanjiMat('駒')); label.scale.set(s * 0.7, s * 0.7, 1); label.position.set(0, s * 0.55, s / 2 + 0.01);
     g.add(m, lid, label); return g;
   };
@@ -293,9 +297,12 @@ export function insideCollider(x, z, R, y = 0) {
   for (const { mat: m, geos } of groups.values()) {
     const g = new THREE.BufferGeometry();
     ['position', 'normal', 'uv'].forEach(n => { const a = concat(geos, n); if (a) g.setAttribute(n, a); });
+    g.computeVertexNormals();   // 面ごとの陰影
     g.computeBoundingSphere();
     const mesh = new THREE.Mesh(g, m);
     mesh.castShadow = mesh.receiveShadow = true;
     scene.add(mesh); propMeshes.push(mesh);
   }
+  // 弾・視線の判定を速くする（まとめた大きなメッシュでも、近くの三角形だけ調べる）
+  for (const o of propMeshes) o.traverse((m: any) => { if (m.isMesh) m.geometry.computeBoundsTree(); });
 }

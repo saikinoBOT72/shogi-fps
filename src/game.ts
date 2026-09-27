@@ -1,4 +1,5 @@
 // ゲーム状態・移動と当たり判定・武器・プレイヤー
+import { P } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
@@ -83,6 +84,7 @@ export function resetMatch(foeType?) {
 
 // ================= 物理・当たり判定 =================
 export const ray = new THREE.Raycaster();
+(ray as any).firstHitOnly = true;   // 各メッシュで一番手前の当たりだけ調べる（高速化）
 export const eyeOf = e => new V3(e.pos.x, e.pos.y + e.eyeH, e.pos.z);
 
 export function collide(e) {
@@ -265,7 +267,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
   const walls = ray.intersectObjects(blockers, true);
   const wall = pierce ? null : walls[0];
   const wallDist = wall ? wall.distance : 300;
-  const tracerColor = pierce ? 0xc47aff : shooter.isBot ? 0xff8a70 : 0xffe9a8;
+  const tracerColor = pierce ? P.fuji[1] : shooter.isBot ? P.shu[2] : P.kin[2];
   let hit = null;
   if (target.isBot) {
     const h = !botActor.dead && ray.intersectObject(botActor.hitMesh, false)[0];
@@ -312,7 +314,7 @@ export function skillTick(e, dt) {
     e.skillT -= dt;
     if (sk.type === 'heal' && !e.dead) {
       e.hp = Math.min(e.def.hp, e.hp + sk.amount / sk.duration * dt);
-      if (Math.random() < 0.5) Particles.glow(e.pos.clone().add(new V3(rand(-0.6, 0.6), rand(0.2, e.height), rand(-0.6, 0.6))), 0x6dff8a);
+      if (Math.random() < 0.5) Particles.glow(e.pos.clone().add(new V3(rand(-0.6, 0.6), rand(0.2, e.height), rand(-0.6, 0.6))), P.midori[2]);
     }
   }
   const max = sk.charges || 1;

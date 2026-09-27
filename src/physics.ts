@@ -1,10 +1,11 @@
 // 物理演算で動く小物（cannon.js）
+import { P, css } from './palette';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { gs } from './state';
 import { BH, G, GROUND, clamp, rand } from './core';
 import { SFX } from './audio';
-import { PIECE_DEPTH, canvasTex, pieceGeo, pieceWoodMat, scene, woodGrain } from './render';
+import { PIECE_DEPTH, canvasTex, pieceGeo, pieceWoodMat, scene, toon, woodGrain } from './render';
 import { colliders, insideCollider, propMeshes } from './world';
 
 // ================= 物理演算（cannon.js）：撃つ・押す・体当たりで動く小物 =================
@@ -17,18 +18,18 @@ export function pieceSolidMats(ch, red?) {
   const key = ch + (red ? 'r' : '');
   if (solidMatCache[key]) return solidMatCache[key];
   const tex = canvasTex(256, 256, (g, w, h) => {
-    woodGrain(g, w, h, '#e6b872', '120,70,25', 30);
-    g.fillStyle = red ? '#a8161a' : '#1d1208'; g.font = '900 136px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif';
+    woodGrain(g, w, h, P.kiji[2], P.kiji[0], 30);
+    g.fillStyle = red ? css(P.shu[0]) : css(P.sumi[0]); g.font = '900 136px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif';
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 128, 150);
   });
-  return solidMatCache[key] = [new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), pieceWoodMat];
+  return solidMatCache[key] = [toon({ map: tex, roughness: 0.7 }), pieceWoodMat];
 }
 export const crateTex = canvasTex(256, 256, (g, w) => {
-  woodGrain(g, w, w, '#b98a52', '60,30,10', 40);
-  g.strokeStyle = '#5a3818'; g.lineWidth = 26; g.strokeRect(13, 13, w - 26, w - 26);
+  woodGrain(g, w, w, P.kiji[1], P.sumi[1], 40);
+  g.strokeStyle = css(P.kiji[0]); g.lineWidth = 26; g.strokeRect(13, 13, w - 26, w - 26);
   g.lineWidth = 22; g.beginPath(); g.moveTo(20, 20); g.lineTo(w - 20, w - 20); g.stroke();
 });
-export const crateMat = new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.8 });
+export const crateMat = toon({ map: crateTex, roughness: 0.8 });
 
 export const PHYS = (() => {
   const world = new CANNON.World();

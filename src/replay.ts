@@ -1,4 +1,5 @@
 // キルカム：倒されたとき、直前の数秒を相手の視点で再生する
+import { P } from './palette';
 import { gs } from './state';
 import { $, V3, damp } from './core';
 import { SFX } from './audio';
@@ -11,7 +12,7 @@ import { animateActor } from './camera';
 
 export const Replay = (() => {
   const KEEP = 6;                         // 覚えておく秒数
-  const PLAYER_TRACER = 0xffe9a8;
+  const PLAYER_TRACER = P.kin[2];
   let frames = [], events = [], t = 0, play = null;
 
   // 弾の光跡を記録（再生中は記録しない）

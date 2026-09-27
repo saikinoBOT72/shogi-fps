@@ -121,8 +121,8 @@ try { Object.assign(settings, JSON.parse(localStorage.getItem('shogifps') || '{}
 export const saveSettings = () => { try { localStorage.setItem('shogifps', JSON.stringify(settings)); } catch (e) {} };
 // 画質（pr: 描画解像度の倍率 / shadow: 影の解像度, 0 で影なし / aa: アンチエイリアス）
 export const QUALITIES = {
-  low:  { name: '低', pr: 0.75, shadow: 0,    aa: false },
-  mid:  { name: '中', pr: 1,    shadow: 1024, aa: true },
+  low:  { name: '低', pr: 0.7,  shadow: 0,    aa: false },
+  mid:  { name: '中', pr: 1,    shadow: 1024, aa: false, shadowEvery: 2 },
   high: { name: '高', pr: Math.min(devicePixelRatio, 2), shadow: 2048, aa: true, soft: true },
 };
 export const Q = QUALITIES[settings.quality] || QUALITIES.mid;

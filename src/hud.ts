@@ -1,4 +1,5 @@
 // 勝敗・HUD
+import { P } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
 import { $, TIME_LIMIT, V3 } from './core';
@@ -29,14 +30,14 @@ export function killPlayer() {
 export function endMatch(win) {
   gs.state = 'end'; gs.stateT = 0; gs.mouseDown = false; gs.rightDown = false;
   stats.time = TIME_LIMIT - Math.max(0, TIME_LIMIT - stats.time);
-  showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? '#ffd23a' : '#ff6b5b');
+  showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? 'var(--kin-2)' : 'var(--shu-1)');
   const toResult = () => { if (document.pointerLockElement) document.exitPointerLock(); showResult(win); };
   // 負けたときは、相手の視点で直前を再生してから結果へ
   setTimeout(() => { if (win !== false || !Replay.start(toResult)) toResult(); }, win === false ? 1700 : 2600);
 }
 
 // ================= HUD =================
-export function showCenter(text, color = '#fff') {
+export function showCenter(text, color = 'var(--shiro-2)') {
   const c = $('center');
   c.textContent = text; c.style.color = color;
   c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');

@@ -1,9 +1,10 @@
 // 将棋モード：盤で駒を動かし、駒を取るときは撃ち合いで決着。相手の玉を撃ち合いで取れば勝ち
+import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
 import { $, BH, C, LIGHT, PIECES, Q, TIME_LIMIT, V3, rand } from './core';
 import { SFX } from './audio';
-import { PIECE_DEPTH, boardTex, canvasTex, darkWoodTex, pieceGeo, renderer } from './render';
+import { PIECE_DEPTH, boardTex, canvasTex, darkWoodTex, pieceGeo, renderer, speckle, toon } from './render';
 import { pieceSolidMats } from './physics';
 import { resetMatch } from './game';
 import { hideOverlay, keysHTML, overlay, showTitle, startMatch } from './screens';
@@ -14,11 +15,11 @@ export const BoardMode = (() => {
 
   // ---------- 盤の部屋 ----------
   const bScene = new THREE.Scene();
-  bScene.background = new THREE.Color(0x1c1612);
+  bScene.background = new THREE.Color(P.sumi[0]);
   const bCam = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
   bCam.position.set(0, 14, 10.5); bCam.lookAt(0, 0, 0.9);
-  bScene.add(new THREE.HemisphereLight(C(0xfff2dd), C(0x3a2a1a), 0.75 * LIGHT));
-  const key = new THREE.DirectionalLight(C(0xffe6c0), 1.6 * LIGHT);
+  bScene.add(new THREE.HemisphereLight(C(P.shiro[2]), C(P.sumi[1]), 0.5 * LIGHT));
+  const key = new THREE.DirectionalLight(C(P.shiro[2]), 1.0 * LIGHT);
   key.position.set(6, 16, 8);
   key.castShadow = Q.shadow > 0; key.shadow.mapSize.set(1024, 1024);
   Object.assign(key.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 40 });
@@ -26,17 +27,18 @@ export const BoardMode = (() => {
   bScene.add(key);
 
   const tatamiTex = canvasTex(512, 512, (g, w) => {
-    g.fillStyle = '#b8b27a'; g.fillRect(0, 0, w, w);
-    for (let i = 0; i < w; i += 4) { g.fillStyle = `rgba(80,90,40,${rand(0.05, 0.15)})`; g.fillRect(0, i, w, 2); }
-    g.fillStyle = '#2e4a2a'; g.fillRect(0, 0, w, 14); g.fillRect(0, w - 14, w, 14);
+    g.fillStyle = css(P.ki[2]); g.fillRect(0, 0, w, w);
+    for (let i = 0; i < w; i += 4) { g.fillStyle = rgba(P.ki[0], rand(0.05, 0.15)); g.fillRect(0, i, w, 2); }
+    speckle(g, w, w, P.ki[0], 3000);
+    g.fillStyle = css(P.midori[0]); g.fillRect(0, 0, w, 14); g.fillRect(0, w - 14, w, 14);
   });
   tatamiTex.wrapS = tatamiTex.wrapT = THREE.RepeatWrapping; tatamiTex.repeat.set(5, 5);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: tatamiTex, roughness: 0.95 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), toon({ map: tatamiTex, roughness: 0.95 }));
   floor.rotation.x = -Math.PI / 2; floor.position.y = -2.4; floor.receiveShadow = true; bScene.add(floor);
 
   const BW = 9 * S / (1 - 2 / (2 * BH + 2));         // 盤の目の余白に合わせた盤の大きさ
-  const sideM = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.8 });
-  const topM = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.75 });
+  const sideM = toon({ map: darkWoodTex, roughness: 0.8 });
+  const topM = toon({ map: boardTex, roughness: 0.75 });
   const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(BW, 1.4, BW), [sideM, sideM, topM, sideM, sideM, sideM]);
   boardMesh.position.y = -0.7; boardMesh.castShadow = boardMesh.receiveShadow = true; bScene.add(boardMesh);
   [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => {
@@ -55,7 +57,7 @@ export const BoardMode = (() => {
   for (let y = 0; y < 9; y++) {
     tiles.push([]);
     for (let x = 0; x < 9; x++) {
-      const m = new THREE.Mesh(tileGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+      const m = new THREE.Mesh(tileGeo, new THREE.MeshBasicMaterial({ color: P.shiro[2], transparent: true, opacity: 0, depthWrite: false }));
       m.rotation.x = -Math.PI / 2; m.position.copy(sq(x, y)); m.position.y = 0.012;
       m.userData.sq = [x, y];
       bScene.add(m); tiles[y].push(m);
@@ -239,11 +241,11 @@ export const BoardMode = (() => {
     const set = ([x, y]: number[], c, o = 0.45) => { const m = tiles[y][x].material; m.color.setHex(c); m.opacity = o; };
     for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) tiles[y][x].material.opacity = 0;
     const lm = preview || lastMove;
-    if (lm) { if (lm.kind === 'move') set([lm.fx, lm.fy], 0xf5d76e, 0.35); set([lm.tx, lm.ty], preview ? 0xff7a50 : 0xf5d76e, 0.45); }
-    if (selected && selected.kind === 'move') set([selected.x, selected.y], 0x6fc3ff, 0.55);
-    targets.forEach(([x, y]) => set([x, y], board[y][x] ? 0xff5a4a : 0x7be07a, 0.5));
+    if (lm) { if (lm.kind === 'move') set([lm.fx, lm.fy], P.ki[2], 0.35); set([lm.tx, lm.ty], preview ? P.daidai[1] : P.ki[2], 0.45); }
+    if (selected && selected.kind === 'move') set([selected.x, selected.y], P.ao[2], 0.55);
+    targets.forEach(([x, y]) => set([x, y], board[y][x] ? P.shu[1] : P.midori[2], 0.5));
     const k = findKing(board, 0);
-    if (k && attackedBy(board, 1, k[0], k[1])) set(k, 0xff2020, 0.55);
+    if (k && attackedBy(board, 1, k[0], k[1])) set(k, P.shu[1], 0.55);
   }
   const setMsg = t => { $('bmMsg').textContent = t; };
   function turnMsg() {
@@ -281,8 +283,8 @@ export const BoardMode = (() => {
       gs.matchCtx = { myType: me.type, foeType: foe.type, playerIsAttacker };
       showUI(false);
       const mn = label(me), fn = label(foe);
-      overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? '#ffcf6b' : '#7ec8ff'}">${playerIsAttacker ? '攻め' : '守り'}</div>
-        <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:#b0161a"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted ? ' style="color:#b0161a"' : ''}>${fn}</b></div>
+      overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
+        <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
         <p>${playerIsAttacker ? `勝てば相手の「${fn}」を取れる。負けるとあなたの「${mn}」を取られる` : `守り切れば攻めてきた「${fn}」を取れる。負けるとあなたの「${mn}」を取られる`}</p>
         <p>制限時間 ${TIME_LIMIT} 秒・時間切れは守った側の勝ち</p>
         ${me.promoted || foe.promoted ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
@@ -296,7 +298,7 @@ export const BoardMode = (() => {
     const attackerWon = win === null ? false : (win === true) === ctx.playerIsAttacker;
     const playerWon = win === null ? !ctx.playerIsAttacker : win;
     $('hud').style.display = 'none';
-    overlay(`<div class="res" style="color:${playerWon ? '#ffd23a' : '#ff6b5b'}">${
+    overlay(`<div class="res" style="color:${playerWon ? 'var(--kin-2)' : 'var(--shu-1)'}">${
       ctx.playerIsAttacker ? (attackerWon ? '駒を取った！' : '取り返された…') : (attackerWon ? '駒を取られた…' : '守り切った！')}</div>
       <p>${win === null ? '時間切れ：守った側の勝ち' : ''}</p>
       <button class="btn" id="bmBack">盤面へ戻る</button>`, true);
@@ -365,7 +367,7 @@ export const BoardMode = (() => {
   function askPromote(p) {
     return new Promise(res => {
       overlay(`<div class="res" style="font-size:46px">成りますか？</div>
-        <div class="vs-line"><b class="bm-koma">${label(p)}</b><em>→</em><b class="bm-koma" style="color:#b0161a">${PRO[p.type]}</b></div>
+        <div class="vs-line"><b class="bm-koma">${label(p)}</b><em>→</em><b class="bm-koma" style="color:var(--shu-0)">${PRO[p.type]}</b></div>
         <p>成ると盤上の動きが変わります（撃ち合いの性能はまだ元の駒のままです）</p>
         <div class="modes"><button class="btn" id="bmPro">成る</button><button class="btn ghost-btn" id="bmNoPro">成らない</button></div>`, true);
       $('bmPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(true); };
@@ -376,7 +378,7 @@ export const BoardMode = (() => {
   function gameOver(winner) {
     over = true; busy = true;
     setMsg('');
-    overlay(`<div class="res" style="color:${winner === 0 ? '#ffd23a' : '#ff6b5b'}">${winner === 0 ? '勝利' : '敗北'}</div>
+    overlay(`<div class="res" style="color:${winner === 0 ? 'var(--kin-2)' : 'var(--shu-1)'}">${winner === 0 ? '勝利' : '敗北'}</div>
       <p>${winner === 0 ? '相手の玉を討ち取った！' : 'あなたの王が討たれた…'}</p>
       <button class="btn" id="bmAgain">もう一局</button><button class="btn ghost" id="bmTitle">タイトルへ</button>`, true);
     $('bmAgain').onclick = e => { e.stopPropagation(); start(); };
