@@ -18,15 +18,16 @@ export const LIGHT = Math.PI;
 // hp: 体力 / size: 大きさ（見た目・当たり判定・目線の高さ。差は控えめに） / speed, jump: 機動力
 // strafe: 横移動の速さの倍率（香は前にしか進めない駒なので横が遅い）
 export const PIECES = {
-  P: { name: '歩', value: 1, hp: 90,  size: 0.8,  speed: 7.2, jump: 7.5, weapon: 'pistol',  skill: 'step' },
-  L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'bow',     skill: 'homing', strafe: 0.7 },
-  N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'revolver', skill: 'leap' },
-  S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'smg',     skill: 'guard' },
-  G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.2, jump: 7,   weapon: 'shotgun', skill: 'charge' },
-  B: { name: '角', value: 8, hp: 125, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skill: 'smoke' },
-  R: { name: '飛', value: 10, hp: 130, size: 0.95, speed: 6.5, jump: 7,  weapon: 'sniper',  skill: 'pierce' },
+  // skills: [スキル1, スキル2]（キーは設定で変えられる。初期は E と Q）
+  P: { name: '歩', value: 1, hp: 90,  size: 0.8,  speed: 7.2, jump: 7.5, weapon: 'pistol',   skills: ['step', 'cloak'] },
+  L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'sniper',   skills: ['xray'], strafe: 0.7 },
+  N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing', 'poison'] },
+  S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['c4', 'missile'] },
+  G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.2, jump: 7,   weapon: 'shotgun',  skills: ['charge', 'guard'] },
+  B: { name: '角', value: 8, hp: 125, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skills: ['smoke', 'bigshot'] },
+  R: { name: '飛', value: 10, hp: 130, size: 0.95, speed: 6.5, jump: 7,  weapon: 'smg',      skills: [] },
   // 王は取られたら負けの駒。価値は ∞（99 以上は ∞ と表示）
-  K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',      skill: 'rally' },
+  K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',       skills: ['rally'] },
 };
 // 全体のルール：しばらく被弾しないとHPが回復する
 // speed: 走る速さの倍率（駒の speed に掛ける）、walk: 歩く速さ（走りに対する割合）
@@ -38,6 +39,11 @@ export const WEAPONS = {
   pistol: {
     name: 'ハンドガン', model: 'pistol', dmg: 24, head: 1.6, rate: 0.24, spread: 0.006, bloomShot: 0.012, bloomMax: 0.045, bloomRecover: 0.12,
     move: 0.014, air: 0.04, ads: 0.35, mag: 12, reload: 1.3, auto: false, recoil: 0.022, falloff: [18, 40, 0.7], pref: 12,
+  },
+  // 3発バースト（銀）。1発が重く、撃つほど上に跳ねる癖の強い銃。burstGap: バースト内の間隔
+  burst: {
+    name: 'バーストピストル', model: 'burst', dmg: 22, head: 1.6, rate: 0.55, burst: 3, burstGap: 0.07, spread: 0.008, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
+    move: 0.016, air: 0.04, ads: 0.4, mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
   },
   // 連射で押し切る。近〜中距離
   smg: {
@@ -94,11 +100,23 @@ export const SKILLS = {
   leap: { name: '桂跳び', type: 'leap', key: 'KeyE', cooldown: 8, duration: 2.5, up: 12, fwd: 11, radius: 3.5, dmg: 25, damageTaken: 1,
     help: '斜め前へ大ジャンプ・着地で周りを吹き飛ばす' },
   // 煙幕：その場に煙を張って視界を遮る
-  smoke: { name: '煙幕', type: 'smoke', key: 'KeyE', cooldown: 12, duration: 0, radius: 5, life: 8, damageTaken: 1,
-    help: 'その場に煙を張って視界を遮る' },
-  // 貫き：次の1発が壁や盾を貫通。準備中は相手が透けて見える
-  pierce: { name: '貫き', type: 'pierce', key: 'KeyE', cooldown: 12, duration: 6, damageTaken: 1,
-    help: '次の1発が壁や盾を貫通（相手が透けて見える）' },
+  smoke: { name: '煙幕', type: 'smoke', cooldown: 12, duration: 0, radius: 5, life: 8, damageTaken: 1,
+    help: 'その場に球の煙幕を張って視界を遮る' },
+  // 透明化：しばらく姿が消える（足音は聞こえる）。自分が攻撃すると解除
+  cloak: { name: '透明化', type: 'cloak', cooldown: 14, duration: 5, damageTaken: 1, help: '5秒間 透明になる（攻撃すると解除）' },
+  // 透視：しばらく壁越しに相手が見える
+  xray: { name: '透視', type: 'xray', cooldown: 14, duration: 6, damageTaken: 1, help: '6秒間 壁越しに相手が見える' },
+  // ポイズンドーム：次の矢が刺さった所に毒の球。中にいる相手に持続ダメージ（dps: 1秒あたり）
+  poison: { name: 'ポイズンドーム', type: 'poison', cooldown: 14, duration: 8, radius: 3.5, life: 7, dps: 14, damageTaken: 1,
+    help: '次の矢が刺さった所に毒の球（中にいると持続ダメージ）' },
+  // C4：投げると物や駒に貼りつく。もう一度押すと爆発
+  c4: { name: 'C4', type: 'c4', cooldown: 12, duration: 0, dmg: 85, radius: 4.5, damageTaken: 1, help: '投げて貼りつける・もう一度押すと爆発' },
+  // ホーミングミサイル：ミサイル視点で操作して当てる（その間 自分は無防備）。もう一度押すと自分に戻り、ミサイルはまっすぐ飛ぶ
+  missile: { name: 'ミサイル', type: 'missile', cooldown: 16, duration: 0, dmg: 75, radius: 3.5, speed: 20, life: 8, damageTaken: 1,
+    help: 'ミサイルを操作して当てる（自分は無防備）・もう一度押すと戻る' },
+  // 大玉：次のグレネードが大きくなり、敵も自分も大きく吹き飛ばす（knock: 吹き飛ばす強さ）
+  bigshot: { name: '大玉', type: 'bigshot', cooldown: 12, duration: 10, radius: 5.5, knock: 22, damageTaken: 1,
+    help: '次のグレネードが巨大に・敵も自分も吹き飛ばす' },
   // 王の意地：短時間でHPを回復し、その間は被ダメージ軽減
   rally: { name: '王の意地', type: 'heal', key: 'KeyE', cooldown: 14, duration: 2, amount: 60, damageTaken: 0.7,
     help: '2秒でHPを60回復・その間の被ダメ0.7倍' },
@@ -122,9 +140,9 @@ try { Object.assign(settings, JSON.parse(localStorage.getItem('shogifps') || '{}
 // キー割り当て（e.code）。マウスの撃つ・覗き込みは固定
 export const KEY_ACTIONS: [string, string][] = [
   ['forward', '前'], ['back', '後ろ'], ['left', '左'], ['right', '右'], ['run', '走る（押している間）'], ['jump', 'ジャンプ（壁に向かって長押しで登る）'],
-  ['reload', 'リロード'], ['skill', 'スキル'], ['inspect', '銃を眺める'], ['fullscreen', 'フルスクリーン'],
+  ['reload', 'リロード'], ['skill', 'スキル1'], ['skill2', 'スキル2'], ['inspect', '銃を眺める'], ['fullscreen', 'フルスクリーン'],
 ];
-export const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', run: 'ShiftLeft', jump: 'Space', reload: 'KeyR', skill: 'KeyE', inspect: 'KeyV', fullscreen: 'KeyF' };
+export const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', run: 'ShiftLeft', jump: 'Space', reload: 'KeyR', skill: 'KeyE', skill2: 'KeyQ', inspect: 'KeyV', fullscreen: 'KeyF' };
 (settings as any).keys = Object.assign({}, DEFAULT_KEYS, (settings as any).keys || {});
 // e.code を読みやすい名前に
 export const keyName = (code: string) => ({ Space: 'Space', ShiftLeft: '左Shift', ShiftRight: '右Shift', ControlLeft: '左Ctrl', ControlRight: '右Ctrl', AltLeft: '左Alt', AltRight: '右Alt', Tab: 'Tab', CapsLock: 'CapsLock', Backquote: '`' } as any)[code]

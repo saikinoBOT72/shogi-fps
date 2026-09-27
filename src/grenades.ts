@@ -1,14 +1,42 @@
 // グレネード（角の武器）と煙幕（角のスキル）
 import { P, rgba } from './palette';
 import * as THREE from 'three';
-import { V3, clamp, rand } from './core';
+import { C, V3, clamp, rand } from './core';
 import { SFX } from './audio';
-import { canvasTex, flatGeo, mat, scene } from './render';
+import { flatGeo, mat, scene, toon } from './render';
+import { track } from './gadgets';
 import { PHYS, blockers } from './physics';
 import { Particles } from './effects';
 import { bot, damageBot, eyeOf, hasLOS, player, ray, skillDamageMul, view } from './game';
 import { damagePlayer } from './ai';
 import { killBot } from './hud';
+
+// 爆発：範囲内の駒にダメージと吹き飛ばし。knock: 吹き飛ばしの倍率 / big: 大玉（見た目も大きく）
+export function explodeAt(p, owner, dmgBase, radius, knock = 1, big = false) {
+  const chestOf = e => new V3(e.pos.x, e.pos.y + e.height * 0.55, e.pos.z);
+  for (const e of [player, bot]) {
+    if (!e || e.dead) continue;
+    const c = chestOf(e), d = c.distanceTo(p);
+    if (d > radius) continue;
+    let k = 1 - d / radius;
+    if (!hasLOS(p, c)) k *= 0.35;               // 物陰なら弱まる
+    let dmg = dmgBase * (0.25 + 0.75 * k) * skillDamageMul(e, p);
+    if (e === owner) dmg *= 0.4;                 // 自分も少し巻き込まれる
+    const kk = big ? Math.max(k, 0.5) : k;       // 大玉は範囲のどこでも大きく飛ぶ
+    const push = c.clone().sub(p).setY(0).normalize().multiplyScalar(9 * kk * knock);
+    e.vel.add(push); e.vy = Math.max(e.vy, 5 * kk * Math.min(knock, 2)); e.onGround = false;
+    if (e.isBot) {
+      if (owner === player) damageBot({ dmg, head: false, point: c });
+      else { bot.hp -= dmg; bot.sinceHit = 0; if (bot.hp <= 0) killBot(); }
+    } else damagePlayer(dmg, p);
+  }
+  PHYS.blast(p, radius * 1.6, 10 * knock);
+  Particles.explosion(p);
+  if (big) { Particles.explosion(p.clone().add(new V3(0.8, 0.3, 0))); Particles.explosion(p.clone().add(new V3(-0.8, 0.5, 0.4))); }
+  SFX.play('boom', p);
+  const dp = p.distanceTo(eyeOf(player));
+  view.shake = Math.max(view.shake, clamp(1 - dp / 18, 0, 1) * (big ? 1.2 : 0.9));
+}
 
 // グレネード：速くまっすぐ気味に飛び、何かに当たった瞬間に爆発
 export const Grenades = (() => {
@@ -22,33 +50,14 @@ export const Grenades = (() => {
     const mesh = new THREE.Mesh(geo, m);
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 4, 8), bandM); mesh.add(band);
     mesh.castShadow = true; scene.add(mesh);
+    if (o.big) mesh.scale.setScalar(2.4);   // 大玉
     list.push(Object.assign({}, o, { pos: o.pos.clone(), vel: o.vel.clone(), mesh, spin: new V3(rand(-9, 9), rand(-9, 9), rand(-9, 9)), bounces: 0 }));
   }
   const chestOf = e => new V3(e.pos.x, e.pos.y + e.height * 0.55, e.pos.z);
 
   function explode(g) {
     scene.remove(g.mesh);
-    const p = g.pos;
-    for (const e of [player, bot]) {
-      if (!e || e.dead) continue;
-      const c = chestOf(e), d = c.distanceTo(p);
-      if (d > g.radius) continue;
-      let k = 1 - d / g.radius;
-      if (!hasLOS(p, c)) k *= 0.35;               // 物陰なら弱まる
-      let dmg = g.dmg * (0.25 + 0.75 * k) * skillDamageMul(e, p);
-      if (e === g.owner) dmg *= 0.4;               // 自分も少し巻き込まれる
-      const push = c.clone().sub(p).setY(0).normalize().multiplyScalar(9 * k);
-      e.vel.add(push); e.vy = Math.max(e.vy, 5 * k); e.onGround = false;
-      if (e.isBot) {
-        if (g.owner === player) damageBot({ dmg, head: false, point: c });
-        else { bot.hp -= dmg; bot.sinceHit = 0; if (bot.hp <= 0) killBot(); }
-      } else damagePlayer(dmg, p);
-    }
-    PHYS.blast(p, g.radius * 1.6, 10);
-    Particles.explosion(p);
-    SFX.play('boom', p);
-    const dp = p.distanceTo(eyeOf(player));
-    view.shake = Math.max(view.shake, clamp(1 - dp / 18, 0, 1) * 0.9);
+    explodeAt(g.pos, g.owner, g.dmg, g.radius, g.knock || 1, g.big);
   }
 
   function update(dt) {
@@ -96,64 +105,33 @@ export const Grenades = (() => {
   const samples = () => [makeMesh()];
   // リプレイ用：飛んでいる弾の位置と回転
   const ghosts = [];
-  const snapshot = () => list.map(g => [g.pos.x, g.pos.y, g.pos.z, g.mesh.rotation.x, g.mesh.rotation.y, g.mesh.rotation.z]);
+  const snapshot = () => list.map(g => [g.pos.x, g.pos.y, g.pos.z, g.mesh.rotation.x, g.mesh.rotation.y, g.mesh.rotation.z, g.mesh.scale.x]);
   function showGhosts(snap) {
     while (ghosts.length < snap.length) { const s = makeMesh(); scene.add(s); ghosts.push(s); }
-    ghosts.forEach((g, i) => { const s = snap[i]; g.visible = !!s; if (s) { g.position.set(s[0], s[1], s[2]); g.rotation.set(s[3], s[4], s[5]); } });
+    ghosts.forEach((g, i) => { const s = snap[i]; g.visible = !!s; if (s) { g.position.set(s[0], s[1], s[2]); g.rotation.set(s[3], s[4], s[5]); g.scale.setScalar(s[6] || 1); } });
   }
   const setLiveVisible = v => list.forEach(g => { g.mesh.visible = v; });
   return { fire, update, clear, samples, snapshot, showGhosts, setLiveVisible };
 })();
 
-// 煙幕：その場に煙の玉を張る。中や向こう側は見えない（CPUも見えない）
+// 煙幕：その場に球の煙幕を張る。中や向こう側は見えない（CPUも見えない）
 export const Smoke = (() => {
-  const tex = canvasTex(128, 128, g => {
-    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gr.addColorStop(0, rgba(P.shiro[2], 1)); gr.addColorStop(0.55, rgba(P.shiro[1], 0.7)); gr.addColorStop(1, rgba(P.shiro[0], 0));
-    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
-  });
+  const geo = flatGeo(new THREE.IcosahedronGeometry(1, 2));
   const clouds = [];
-  let nextId = 0;
   function spawn(pos, r, life) {
-    const g = new THREE.Group(), puffs = [];
-    for (let i = 0; i < 24; i++) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: P.shiro[1], transparent: true, depthWrite: false, opacity: 0 }));
-      const off = new V3(rand(-1, 1), rand(-0.5, 1), rand(-1, 1)).normalize().multiplyScalar(r * rand(0.1, 0.75));
-      puffs.push({ s, off, sc: r * rand(0.8, 1.25), rot: rand(-0.3, 0.3) });
-      g.add(s);
-    }
-    g.position.copy(pos);
-    scene.add(g);
-    clouds.push({ g, puffs, pos: pos.clone(), r, t: 0, life, id: nextId++ });
+    const m = track(new THREE.Mesh(geo, toon({ color: C(P.nezumi[2]), emissive: C(P.ai[0]), emissiveIntensity: 0.25, transparent: true, opacity: 0.96, side: THREE.DoubleSide })));
+    m.position.copy(pos); m.scale.setScalar(0.01);
+    clouds.push({ m, pos: pos.clone(), r, t: 0, life });
     SFX.play('smoke', pos);
   }
   function update(dt) {
     for (let i = clouds.length - 1; i >= 0; i--) {
       const c = clouds[i];
       c.t += dt;
-      pose(c, dt);
-      if (c.t >= c.life) { scene.remove(c.g); clouds.splice(i, 1); }
-    }
-  }
-  // 煙の見た目を、出てからの時間 c.t に合わせる
-  function pose(c, dt) {
-    const grow = Math.min(1, c.t / 0.8), fade = clamp((c.life - c.t) / 1.5, 0, 1);
-    for (const p of c.puffs) {
-      p.s.position.copy(p.off).multiplyScalar(0.3 + 0.7 * grow);
-      p.s.position.y += c.t * 0.08;
-      p.s.scale.setScalar(p.sc * (0.4 + 0.6 * grow));
-      p.s.material.opacity = 0.9 * fade;
-      p.s.material.rotation += p.rot * dt;
-    }
-    c.eff = c.r * 0.85 * grow * (fade > 0.3 ? 1 : fade / 0.3);
-  }
-  // リプレイ用：その時点の煙（まだ出ていない煙は隠す）
-  const snapshot = () => clouds.map(c => [c.id, c.t]);
-  function restore(snap) {
-    for (const c of clouds) {
-      const s = snap ? snap.find(x => x[0] === c.id) : [c.id, c.t];   // null なら今の姿に戻す
-      c.g.visible = !!s;
-      if (s) { const t = c.t; c.t = s[1]; pose(c, 0.016); c.t = t; }
+      const grow = Math.min(1, c.t / 0.6), g = 1 - (1 - grow) * (1 - grow), fade = clamp((c.life - c.t) / 1, 0, 1);
+      c.m.scale.setScalar(Math.max(0.01, c.r * g)); c.m.material.opacity = 0.96 * fade;
+      c.eff = c.r * 0.95 * g * (fade > 0.3 ? 1 : fade / 0.3);
+      if (c.t >= c.life) { c.m.visible = false; clouds.splice(i, 1); }
     }
   }
   // a→b の線が煙の玉を通るか
@@ -165,9 +143,9 @@ export const Smoke = (() => {
     }
     return false;
   }
-  function clear() { clouds.forEach(c => scene.remove(c.g)); clouds.length = 0; }
+  function clear() { clouds.length = 0; }   // 形は Gadgets.clear で消える
   // その位置（足元）が煙の中か
   const inside = p => clouds.some(c => c.eff > 0.3 && c.pos.distanceTo(new V3(p.x, p.y + 1, p.z)) < c.eff);
-  const samples = () => [new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: P.shiro[1], transparent: true, depthWrite: false }))];
-  return { spawn, update, blocks, clear, inside, samples, snapshot, restore };
+  const samples = () => [new THREE.Mesh(geo, toon({ color: C(P.nezumi[2]), transparent: true, side: THREE.DoubleSide }))];
+  return { spawn, update, blocks, clear, inside, samples };
 })();

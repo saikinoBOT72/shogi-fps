@@ -299,7 +299,7 @@ export function buildLauncher() {
   K.hand(0, -0.09, 0.15); K.hand(0, -0.07, -0.25);
   return { g: K.g, slide: drum, muzzle: K.muzzleAt(0, 0.03, -0.45), slideZ: drum.position.z, slideAmt: 0.02, ads: new V3(0.17, -0.31, -0.52) };
 }
-export const GUN_BUILDERS = { pistol: buildPistol, shotgun: buildShotgun, smg: buildSMG, bow: buildBow, revolver: buildRevolver, sniper: buildSniper, ar: buildAR, launcher: buildLauncher };
+export const GUN_BUILDERS = { burst: () => buildDeagle({ skin: 'gin', hand: handMat }), pistol: buildPistol, shotgun: buildShotgun, smg: buildSMG, bow: buildBow, revolver: buildRevolver, sniper: buildSniper, ar: buildAR, launcher: buildLauncher };
 export const buildGun = model => (GUN_BUILDERS[model] || buildPistol)();
 // 動く駒の目：縦長のゆるい目。まばたき・倒れると×目
 export const eyeMat = new THREE.MeshBasicMaterial({ color: P.sumi[0] });

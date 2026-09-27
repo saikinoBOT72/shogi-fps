@@ -1,5 +1,6 @@
 // リプレイ：勝っても負けても、決着の直前を「決めた側」の一人称視点で再生する
 // 勝ったとき＝あなたの視点（あなたの銃）、負けたとき＝相手の視点（相手の銃）
+import { Gadgets } from './gadgets';
 import { gs } from './state';
 import { $, V3, damp } from './core';
 import { SFX } from './audio';
@@ -51,14 +52,14 @@ export const Replay = (() => {
       cam: [cam.position.x, cam.position.y, cam.position.z, q.x, q.y, q.z, q.w, cam.fov],
       p: {
         pos: p.pos.clone(), vel: p.vel.clone(), yaw: view.yaw, onGround: p.onGround, dead: p.dead, hp: p.hp,
-        skillT: p.skillT, cd: p.cd, draw: p.draw, adsT: p.adsT || 0, reloading: p.reloading, ammo: p.ammo,
+        sk: p.slots.map(s => s.t), cd: p.cd, draw: p.draw, adsT: p.adsT || 0, reloading: p.reloading, ammo: p.ammo,
         fired: p.cd > lastPcd + 1e-4, sway: [VM.sway.x, VM.sway.y], bob: [view.bobX || 0, view.bobY || 0],
       },
       b: {
         pos: b.pos.clone(), vel: b.vel.clone(), rotY: botActor.root.rotation.y, aim: (b.aimPt || p.pos).clone(), onGround: b.onGround, dead: b.dead, hp: b.hp,
-        skillT: b.skillT, cd: b.cd, draw: b.draw, reloading: b.reloading, ammo: b.ammo, fired: b.cd > lastBcd + 1e-4,
+        sk: b.slots.map(s => s.t), cd: b.cd, draw: b.draw, reloading: b.reloading, ammo: b.ammo, fired: b.cd > lastBcd + 1e-4,
       },
-      ph: PHYS.snapshot(), ar: Arrows.snapshot(), gr: Grenades.snapshot(), sm: Smoke.snapshot(),
+      ph: PHYS.snapshot(), ar: Arrows.snapshot(), gr: Grenades.snapshot(), gd: Gadgets.snapshot(),
       ev: events,
     });
     lastPcd = p.cd; lastBcd = b.cd;
@@ -67,9 +68,9 @@ export const Replay = (() => {
   }
 
   // 記録から動かす、見た目だけの駒
-  const fakeOf = e => ({ pos: new V3(), vel: new V3(), vy: 0, onGround: true, def: e.def, w: e.w, skill: e.skill, skillT: 0, stepPhase: 0, flashT: 0, isBot: false, draw: 0, cd: 0, adsT: 0, reloading: 0, dead: false });
+  const fakeOf = e => ({ pos: new V3(), vel: new V3(), vy: 0, onGround: true, def: e.def, w: e.w, slots: e.slots.map(s => ({ sk: s.sk, t: 0 })), stepPhase: 0, flashT: 0, isBot: false, draw: 0, cd: 0, adsT: 0, reloading: 0, dead: false });
   function apply(fk, r) {
-    fk.pos.copy(r.pos); fk.vel.copy(r.vel); fk.onGround = r.onGround; fk.skillT = r.skillT;
+    fk.pos.copy(r.pos); fk.vel.copy(r.vel); fk.onGround = r.onGround; fk.slots.forEach((s, i) => { s.t = r.sk[i] || 0; });
     fk.cd = r.cd; fk.draw = r.draw || 0; fk.reloading = r.reloading; fk.adsT = r.adsT || 0; fk.dead = r.dead;
   }
 
@@ -83,7 +84,7 @@ export const Replay = (() => {
     const shooter = win ? player : bot, target = win ? bot : player;
     play = {
       i, win, time: frames[i].t, deathT: death.t, endT: Math.min(frames[frames.length - 1].t, death.t + AFTER), onDone,
-      look: frames[i].b.aim.clone(), fp: fakeOf(player), fb: fakeOf(bot), bobPhase: 0, hm: 0, hurt: 0, fovK: 1,
+      look: frames[i].b.aim.clone(), liveGadgets: Gadgets.snapshot(), fp: fakeOf(player), fb: fakeOf(bot), bobPhase: 0, hm: 0, hurt: 0, fovK: 1,
     };
     gs.state = 'killcam'; gs.mouseDown = false; gs.rightDown = false;
     // 決めた側の銃を持つ
@@ -151,7 +152,7 @@ export const Replay = (() => {
     while (P.i < frames.length - 1 && frames[P.i + 1].t <= P.time) { P.i++; onFrame(frames[P.i], frames[P.i - 1]); }
     const f = frames[P.i];
     PHYS.restore(f.ph);
-    Arrows.showGhosts(f.ar); Grenades.showGhosts(f.gr); Smoke.restore(f.sm);
+    Arrows.showGhosts(f.ar); Grenades.showGhosts(f.gr); Gadgets.restore(f.gd);
     apply(P.fp, f.p); apply(P.fb, f.b);
     P.fovK = damp(P.fovK, slow ? 0.82 : 1, 4, rdt);
 
@@ -209,7 +210,7 @@ export const Replay = (() => {
     PHYS.restore(frames[frames.length - 1].ph);
     Arrows.showGhosts([]); Arrows.setLiveVisible(true);
     Grenades.showGhosts([]); Grenades.setLiveVisible(true);
-    Smoke.restore(null);
+    Gadgets.restore(play.liveGadgets);
     // 銃と駒を元の状態へ
     VM.setWeapon(player.w.model); VM.pist.anim?.update(0); VM.flashT = 0; VM.flash.visible = false; vmFlashLight.intensity = 0;
     playerActor.root.visible = false; playerActor.dead = null; playerActor.body.rotation.set(0, 0, 0);

@@ -1,4 +1,5 @@
 // メインループ
+import { Gadgets } from './gadgets';
 import { P } from './palette';
 import './style.css';
 import { applyCssPalette } from './palette';
@@ -107,7 +108,7 @@ export function loop(now) {
   const pdt = gs.paused ? 0 : dt;
   animateActor(botActor, bot, pdt, bot.dead ? null : bot.aimPt || player.pos);
   PHYS.step(pdt, [['player', player], ['bot', bot]]);
-  if (!gs.paused) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); }
+  if (!gs.paused) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); Gadgets.update(dt); }
   if (!gs.paused && (gs.state === 'fight' || gs.state === 'end')) Replay.record(dt);
   Particles.update(pdt); Tracers.update(pdt); DmgNums.update(pdt);
   if (!gs.paused) updateCamera(dt, rdt); else { gs.mdx = gs.mdy = 0; }
@@ -146,7 +147,7 @@ export function render(withGun?) {
 // 読み込み時に、あとで初めて表示される物の描画の準備（シェーダーの作成とテクスチャの転送）を済ませておく。
 // 初めて撃った・爆発した・盾を構えた瞬間などに一瞬固まるのを防ぐ
 function warmUp() {
-  const extra = [...Arrows.samples(), ...Grenades.samples(), ...Smoke.samples()];
+  const extra = [...Arrows.samples(), ...Grenades.samples(), ...Smoke.samples(), ...Gadgets.samples()];
   extra.forEach(o => scene.add(o));
   // 隠れている物も表示し、画面外の物も省かずに描く（Windows の Chrome は「実際に初めて描いた瞬間」にシェーダーの変換をするため）
   const flipped: any[] = [], culled: any[] = [];
@@ -185,10 +186,10 @@ if (import.meta.env.DEV) {
   Promise.all([
     import('./core'), import('./game'), import('./ai'), import('./hud'), import('./screens'), import('./input'), import('./boardmode'),
     import('./physics'), import('./effects'), import('./world'), import('./nav'), import('./camera'), import('./grenades'), import('./arrows'),
-    import('./render'), import('./replay'), import('./state'), import('./audio'),
-  ]).then(([core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, state, audio]) => {
+    import('./render'), import('./replay'), import('./state'), import('./audio'), import('./gadgets'),
+  ]).then(([core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, state, audio, gadgets]) => {
     (window as any).dev = {
-      core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, audio, gs: state.gs,
+      core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, audio, gadgets, gs: state.gs,
       // 画面が非表示でも、テストからゲームを n フレーム進められるように
       step(n: number, each?: (i: number) => void, ms = 1000 / 60) { for (let i = 0; i < n; i++) { loop(last + ms); if (each) each(i); } },
     };

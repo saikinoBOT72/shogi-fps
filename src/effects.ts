@@ -234,9 +234,13 @@ export function buildActor(ch, size, model = 'pistol'): any {
   // 貫きの準備中に壁越しに見える姿
   const xray = new THREE.Mesh(pieceGeo, new THREE.MeshBasicMaterial({ color: P.shu[1], transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
   xray.scale.copy(piece.userData.body.scale); xray.renderOrder = 20; xray.visible = false; piece.add(xray);
+  // 透明化中の姿：うっすら揺らぐ影だけ
+  const ghost = new THREE.Mesh(pieceGeo, new THREE.MeshBasicMaterial({ color: P.shiro[2], transparent: true, opacity: 0.1, depthWrite: false }));
+  ghost.scale.copy(piece.userData.body.scale); ghost.visible = false;
   piece.position.set(0, h / 2, t / 2);
   body.position.z = -t / 2;
   body.add(piece); root.add(body);
+  ghost.position.set(0, h / 2, t / 2); body.add(ghost);
   const gun = buildGun(model);
   gun.g.scale.setScalar(({ shotgun: 1.6, smg: 1.9, bow: 1.5, revolver: 2.0, sniper: 1.3, ar: 1.6, launcher: 1.5 }[model] || 2.2) * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(w * 0.52, h * 0.5, t + 0.12);
@@ -248,5 +252,5 @@ export function buildActor(ch, size, model = 'pistol'): any {
   body.add(shield);
   flatten(root);
   scene.add(root);
-  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, xray, w, h, t };
+  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, xray, ghost, w, h, t };
 }

@@ -37,7 +37,7 @@ export function tuneGroups() {
   for (const [k, p] of Object.entries(PIECES)) {
     add(`駒「${p.name}」`, 'PIECES', k);
     add(`武器：${WEAPONS[p.weapon].name}（${p.name}）`, 'WEAPONS', p.weapon);
-    add(`スキル：${SKILLS[p.skill].name}（${p.name}）`, 'SKILLS', p.skill);
+    for (const sk of p.skills) add(`スキル：${SKILLS[sk].name}（${p.name}）`, 'SKILLS', sk);
   }
   add(`CPU：${DIFFS[settings.diff].name}`, 'DIFFS', settings.diff);
   add('ルール（HP回復）', 'RULES', 'base');

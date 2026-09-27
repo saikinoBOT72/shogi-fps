@@ -168,12 +168,16 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 #pips i.e { background: color-mix(in srgb, var(--shiro-2) 20%, transparent) }
 #wepName { margin-top: 6px; font-size: 13px; color: var(--text-dim) }
 #reloadTxt { position: absolute; left: 50%; top: calc(50% + 46px); transform: translateX(-50%); font-weight: 900; font-size: 14px; letter-spacing: 2px; opacity: 0 }
-#skill { position: absolute; right: 28px; bottom: 140px; display: flex; align-items: center; gap: 10px }
+#skill { position: absolute; right: 28px; bottom: 140px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px }
+#skill .sk { display: flex; align-items: center; gap: 10px }
 #skill .ring { position: relative; width: 52px; height: 52px }
 #skill svg { position: absolute; inset: 0; transform: rotate(-90deg) }
 #skill .key { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 19px }
-#skill.ready .key { color: var(--info); text-shadow: 0 0 10px var(--mizu-1) }
-#skillName { font-weight: 800; font-size: 15px }
+#skill .sk.ready .key { color: var(--info); text-shadow: 0 0 10px var(--mizu-1) }
+#skill .nm { font-weight: 800; font-size: 15px }
+/* 透明化中・ミサイル操作中 */
+#cloakfx { position: absolute; inset: 0; opacity: 0; transition: opacity .3s; box-shadow: inset 0 0 160px 40px color-mix(in srgb, var(--mizu-2) 55%, transparent) }
+#guideTxt { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 17px; white-space: nowrap }
 
 #center { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); font: 900 italic 88px var(--font-ui); white-space: nowrap }
 #center.pop { animation: pop .35s ease-out }

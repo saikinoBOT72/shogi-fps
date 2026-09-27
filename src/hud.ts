@@ -1,13 +1,14 @@
 // 勝敗・HUD
+import { Gadgets } from './gadgets';
 import { P } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
-import { $, TIME_LIMIT, V3 } from './core';
+import { $, TIME_LIMIT, V3, keyName, settings } from './core';
 import { SFX } from './audio';
 import { cam } from './render';
 import { PHYS } from './physics';
 import { Particles, VM } from './effects';
-import { bot, botActor, currentSpread, eyeOf, player, stats, view } from './game';
+import { act, bot, botActor, currentSpread, eyeOf, player, stats, view } from './game';
 import { Replay } from './replay';
 import { showResult } from './screens';
 
@@ -53,8 +54,19 @@ export function addDamageDir(from) {
   dds.push({ el, from: from.clone(), t: 1.1 });
   if (dds.length > 4) dds.shift().el.remove();
 }
+// スキルの表示（枠の数だけ作る）
+const cloakFx = document.createElement('div'); cloakFx.id = 'cloakfx'; $('hud').appendChild(cloakFx);
+const guideTxt = document.createElement('div'); guideTxt.id = 'guideTxt'; guideTxt.className = 'shadow'; $('hud').appendChild(guideTxt);
+const skillKey = i => keyName((settings as any).keys[i === 0 ? 'skill' : 'skill2']);
+export function initSkills() {
+  $('skill').innerHTML = player.slots.map((s, i) => `<div class="sk" id="sk${i}"><span class="nm"></span><div class="ring">
+    <svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="23" fill="rgba(0,0,0,.4)" stroke="rgba(255,255,255,.2)" stroke-width="4"/>
+    <circle class="arc" cx="27" cy="27" r="23" fill="none" stroke="var(--info)" stroke-width="4" stroke-dasharray="144.5" stroke-dashoffset="0"/></svg>
+    <div class="key">${skillKey(i)}</div></div></div>`).join('');
+}
 export function initPips() {
   hud.ammo = -1; hud.cache.clear();
+  initSkills();
   $('pips').innerHTML = '';
   for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
 }
@@ -99,7 +111,7 @@ export function updateHUD(dt) {
   setStyle($('foeBar').children[0], 'transform', `scaleX(${bk.toFixed(3)})`);
   setStyle($('lowhp'), 'opacity', hpk < 0.35 && !p.dead ? (0.55 + Math.sin(performance.now() / 180) * 0.35).toFixed(2) : '0');
   hud.hurt = Math.max(0, hud.hurt - dt * 2.2); setStyle($('hurt'), 'opacity', hud.hurt.toFixed(2));
-  hud.dash = p.skillT > 0 && p.skill.type === 'dash' ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
+  hud.dash = act(p, 'dash') ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
 
   if (p.w.kind === 'bow') {
     // 弓は弾数なし。引き具合を表示
@@ -116,13 +128,24 @@ export function updateHUD(dt) {
     setText('reloadTxt', p.reloading > 0 ? 'リロード中' : 'R でリロード');
   }
 
-  const max = p.skill.charges || 1;
-  const k = p.charges >= max ? 1 : 1 - p.skillCd / p.skill.cooldown;
-  setAttr($('skillArc'), 'stroke-dashoffset', (144.5 * (1 - k)).toFixed(1));
-  const ready = p.charges > 0;
-  if (hud.ready !== ready) { hud.ready = ready; $('skill').classList.toggle('ready', ready); }
-  const armed = p.skillT > 0 && (p.skill.type === 'homing' || p.skill.type === 'pierce');
-  setText('skillName', (armed ? `${p.skill.name} 準備OK` : p.charges > 0 ? p.skill.name : `${p.skill.name} ${p.skillCd.toFixed(1)}`) + (max > 1 ? ` ×${p.charges}` : ''));
+  p.slots.forEach((s, i) => {
+    const el = $('sk' + i); if (!el) return;
+    const sk = s.sk, max = sk.charges || 1;
+    const k = s.charges >= max ? 1 : 1 - s.cd / sk.cooldown;
+    setAttr(el.querySelector('.arc'), 'stroke-dashoffset', (144.5 * (1 - k)).toFixed(1));
+    const again = (sk.type === 'c4' && Gadgets.c4Of(p)) || (sk.type === 'missile' && Gadgets.ctrlOf(p));
+    const ready = s.charges > 0 || !!again;
+    if (changed('skr' + i, ready)) el.classList.toggle('ready', ready);
+    const armed = s.t > 0 && ['homing', 'poison', 'bigshot', 'xray', 'cloak'].includes(sk.type);
+    const name = sk.type === 'c4' && Gadgets.c4Of(p) ? 'C4 起爆' : sk.type === 'missile' && Gadgets.ctrlOf(p) ? '戻る'
+      : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
+    const nm = el.querySelector('.nm'), txt = name + (max > 1 ? ` ×${s.charges}` : '');
+    if (changed('skn' + i, txt)) nm.textContent = txt;
+  });
+  // 透明化中は画面の縁が青白く、ミサイル操作中は案内
+  setStyle(cloakFx, 'opacity', act(p, 'cloak') ? '1' : '0');
+  const mi = p.slots.findIndex(s => s.sk.type === 'missile');
+  setText('guideTxt', Gadgets.ctrlOf(p) ? `ミサイル操作中　マウスで曲げる・${skillKey(mi)} で自分に戻る` : '');
   if (changed('regen', !!p.regen)) $('meBar').classList.toggle('regen', !!p.regen);
   setText('timer', Math.max(0, Math.ceil(TIME_LIMIT - stats.time)));
 }

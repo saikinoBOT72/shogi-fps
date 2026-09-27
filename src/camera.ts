@@ -1,16 +1,33 @@
 // カメラと一人称の銃の動き
+import { Gadgets } from './gadgets';
 import { gs } from './state';
 import { LIGHT, SKILLS, V3, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, sky } from './render';
 import { HIP, Particles, VM, vmCam, vmFlashLight } from './effects';
-import { bot, botActor, eyeOf, player, view } from './game';
+import { act, bot, botActor, eyeOf, player, playerActor, view } from './game';
 
 // ================= カメラ・銃の動き =================
 export function updateCamera(dt, rdt) {
   const p = player;
   // マウス（感度は ADS 中に下げる）
   const sens = 0.0021 * settings.sens * (view.fov / 80);   // 拡大しているほど感度を下げる
+  // ミサイル操作中：マウスでミサイルを曲げ、カメラはミサイルの後ろ
+  const M = Gadgets.ctrlOf(p);
+  playerActor.root.visible = !!M;
+  if (M) {
+    const ms = 0.0021 * settings.sens;
+    M.yaw -= gs.mdx * ms; M.pitch = clamp(M.pitch - gs.mdy * ms, -1.45, 1.45);
+    gs.mdx = 0; gs.mdy = 0;
+    const d = new V3(-Math.sin(M.yaw) * Math.cos(M.pitch), Math.sin(M.pitch), -Math.cos(M.yaw) * Math.cos(M.pitch));
+    cam.position.copy(M.pos).addScaledVector(d, -0.9).add(new V3(0, 0.15, 0));
+    cam.rotation.set(M.pitch, M.yaw, 0);
+    cam.fov = 75; cam.updateProjectionMatrix();
+    sky.position.copy(cam.position); SFX.listener(cam);
+    VM.root.visible = false; VM.shield.visible = false;
+    animateActor(playerActor, p, dt, p.pos.clone().add(new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw))));
+    return;
+  }
   const canLook = (gs.state === 'fight' || (gs.state === 'countdown' && gs.stateT > 1.3)) && !p.dead;
   if (canLook) { view.yaw -= gs.mdx * sens; view.pitch = clamp(view.pitch - gs.mdy * sens, -1.52, 1.52); }
   const swayX = clamp(-gs.mdx * 0.00035, -0.05, 0.05), swayY = clamp(gs.mdy * 0.00035, -0.05, 0.05);
@@ -43,26 +60,26 @@ export function updateCamera(dt, rdt) {
     cam.position.y += bobY + view.dip;
     cam.rotation.set(view.pitch + sy, view.yaw + sx, sr);
   }
-  const dashing = p.skillT > 0 && p.skill.type === 'dash', guarding = p.skillT > 0 && p.skill.type === 'guard';
+  const dashing = !!act(p, 'dash'), guarding = !!act(p, 'guard');
   const targetFov = lerp(80, p.w.zoom || 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
   // すり足：ステップした方向へ少し傾く
   view.stepRoll = damp(view.stepRoll || 0, 0, 6, rdt);
-  if (p.skillT > 0 && p.skill.type === 'step') cam.rotation.z += (view.stepRoll || 0) * 0.06;
+  if (act(p, 'step')) cam.rotation.z += (view.stepRoll || 0) * 0.06;
   view.fov = damp(view.fov, targetFov, dashing ? 20 : 12, rdt);
   cam.fov = view.fov; cam.updateProjectionMatrix();
   sky.position.copy(cam.position);
   SFX.listener(cam);
 
-  // 貫きの準備中は相手が壁越しに見える
-  botActor.xray.visible = p.skillT > 0 && p.skill.type === 'pierce' && !bot.dead;
+  // 透視中は相手が壁越しに見える
+  botActor.xray.visible = !!act(p, 'xray') && !bot.dead;
   poseViewModel(p, rdt, swayX, swayY, bobX, bobY);
 }
 
 // 一人称の銃の構え・揺れ・反動（リプレイでも同じ動きを使う）
-// p: adsT, draw, reloading, w, skillT, skill, cd, dead を持つもの
+// p: adsT, draw, reloading, w, slots, cd, dead を持つもの
 export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   const ads = p.adsT || 0;
-  const dashing = p.skillT > 0 && p.skill.type === 'dash', guarding = p.skillT > 0 && p.skill.type === 'guard';
+  const dashing = !!act(p, 'dash'), guarding = !!act(p, 'guard');
   VM.sway.x = damp(VM.sway.x, swayX, 10, rdt); VM.sway.y = damp(VM.sway.y, swayY, 10, rdt);
   VM.kick = Math.max(0, VM.kick - rdt * 9);
   VM.slideT = Math.max(0, VM.slideT - rdt * 14);
@@ -85,7 +102,7 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   if (VM.pist.isBow) {
     VM.pist.setDraw(p.draw || 0);
     VM.pist.arrow.visible = p.cd <= 0;
-    VM.pist.arrowM.emissiveIntensity = p.skillT > 0 && p.skill.type === 'homing' ? 1 + Math.sin(performance.now() / 90) * 0.4 : 0;
+    VM.pist.arrowM.emissiveIntensity = act(p, 'homing') || act(p, 'poison') ? 1 + Math.sin(performance.now() / 90) * 0.4 : 0;
   }
   const r = VM.root;
   r.position.set(
@@ -146,15 +163,18 @@ export function animateActor(A, e, dt, lookAt) {
   const lf = e.vel.x * Math.sin(inv) + e.vel.z * Math.cos(inv);  // 前後
   const ls = e.vel.x * Math.cos(inv) - e.vel.z * Math.sin(inv);  // 左右
   A.flinch = Math.max(0, (A.flinch || 0) - dt * 3);
-  const sType = SKILLS[e.def.skill].type, active = e.skillT > 0;
-  A.body.rotation.x = damp(A.body.rotation.x, lf * 0.025 - A.flinch * 0.6 + (active && sType === 'dash' ? 0.35 : 0), 12, dt);
+  const dashA = act(e, 'dash'), guardA = act(e, 'guard');
+  A.body.rotation.x = damp(A.body.rotation.x, lf * 0.025 - A.flinch * 0.6 + (dashA ? 0.35 : 0), 12, dt);
   // 盾
-  A.shieldT = damp(A.shieldT || 0, active && sType === 'guard' ? 1 : 0, 14, dt);
+  A.shieldT = damp(A.shieldT || 0, guardA ? 1 : 0, 14, dt);
   A.shield.visible = A.shieldT > 0.02;
   A.shield.scale.set(1, Math.max(0.01, A.shieldT), 1);
   A.body.rotation.z = damp(A.body.rotation.z, Math.sin(e.stepPhase) * 0.13 * mk - ls * 0.02, 14, dt);
   A.body.position.y = Math.abs(Math.sin(e.stepPhase)) * 0.14 * mk;
   A.wood.emissive.multiplyScalar(Math.max(0, 1 - dt * 10));
+  // 透明化：体と銃を隠して、うっすらした影だけ
+  const cloaked = !!act(e, 'cloak');
+  A.piece.visible = !cloaked; A.gun.g.visible = !cloaked; A.ghost.visible = cloaked;
   e.flashT -= dt;
   A.flash.visible = e.flashT > 0;
   if (A.flash.visible) A.flash.material.rotation = rand(0, 6);

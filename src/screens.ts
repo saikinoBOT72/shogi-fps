@@ -39,7 +39,7 @@ export function bindSettings() {
   });
   segBind('diffSeg', v => { settings.diff = v; });
   segBind('qSeg', v => { settings.quality = v; if (gs.state === 'title') location.reload(); });   // 画質は作り直しが必要なので再読み込み
-  segBind('skinSeg', v => { settings.gunSkin = v; VM.setSkin(v); [playerActor, botActor].forEach(a => a && a.gun.setSkin && a.gun.setSkin(v)); });
+  segBind('skinSeg', v => { settings.gunSkin = v; VM.setSkin(v); [playerActor, botActor].forEach(a => a && a.gun.setSkin && WEAPONS[PIECES[a.type].weapon].model === 'pistol' && a.gun.setSkin(v)); });
   segBind('fpsSeg', v => { settings.showFps = v === '1'; if (!settings.showFps) $('fps').textContent = ''; });
   $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').textContent = settings.sens.toFixed(2); saveSettings(); };
   $('vol').oninput = e => { settings.vol = +e.target.value; SFX.setVol(settings.vol); saveSettings(); };
@@ -59,12 +59,17 @@ function showSettings(back: () => void) {
 // ================= 操作方法 =================
 // 操作説明（スキルは今の駒に合わせる）
 export const keysHTML = (edit = false) => {
-  const sk = SKILLS[(PIECES[gs.matchCtx ? gs.matchCtx.myType : settings.myPiece] || PIECES.P).skill];
+  const sks = (PIECES[gs.matchCtx ? gs.matchCtx.myType : settings.myPiece] || PIECES.P).skills.map(k => SKILLS[k]);
   const K = (settings as any).keys;
   const k = (key, what) => `<div><kbd>${key}</kbd><span>${what}</span></div>`;
   const bind = ([a, what]) => edit
-    ? `<div><button class="kbd-btn" data-a="${a}">${keyName(K[a])}</button><span>${a === 'skill' ? `スキル（${sk.name}：${sk.help}）` : what}</span></div>`
-    : k(keyName(K[a]), a === 'skill' ? `${sk.name}：${sk.help}` : what);
+    ? `<div><button class="kbd-btn" data-a="${a}">${keyName(K[a])}</button><span>${skillLine(a, what)}</span></div>`
+    : k(keyName(K[a]), skillLine(a, what));
+  function skillLine(a, what) {
+    const i = a === 'skill' ? 0 : a === 'skill2' ? 1 : -1;
+    if (i < 0) return what;
+    return sks[i] ? `${what}：${sks[i].name}（${sks[i].help}）` : `${what}：なし`;
+  }
   return `<div class="keys">
     ${KEY_ACTIONS.map(bind).join('')}${k('マウス', '狙う')}${k('左クリック', '撃つ（弓は長押しで引く）')}${k('右クリック', '覗き込み')}${k('ESC', '一時停止')}
   </div>`;
@@ -92,8 +97,8 @@ function bindKeys(rerender: () => void) {
 }
 function showControls(back: () => void) {
   const rows = Object.values(PIECES).map((p: any) => {
-    const sk = SKILLS[p.skill], w = WEAPONS[p.weapon];
-    return `<tr><td>${koma(p.name, ' s')}</td><td>${w.name}</td><td><b>${sk.name}</b>　${sk.help}</td></tr>`;
+    const w = WEAPONS[p.weapon];
+    return `<tr><td>${koma(p.name, ' s')}</td><td>${w.name}</td><td>${p.skills.map(k => `<b>${SKILLS[k].name}</b>　${SKILLS[k].help}`).join('<br>') || 'なし'}</td></tr>`;
   }).join('');
   overlay(`<div class="screen wide">
     <h2 class="h">操作方法</h2>
@@ -134,9 +139,9 @@ export function pieceSelectHTML() {
   const opts = (sel, id, withRandom) => `<div class="pick" id="${id}">${Object.keys(PIECES).map(k =>
     `<button data-k="${k}" class="${sel === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}${withRandom
     ? `<button data-k="random" class="${sel === 'random' ? 'on' : ''}">${koma('？')}<span class="val">ランダム</span></button>` : ''}</div>`;
-  const me = PIECES[settings.myPiece] || PIECES.P, sk = SKILLS[me.skill];
+  const me = PIECES[settings.myPiece] || PIECES.P;
   return `<section class="panel"><h3>あなたの駒</h3>${opts(settings.myPiece, 'pickMe', false)}
-      <p class="detail">${koma(me.name, ' s')}<b>${WEAPONS[me.weapon].name}</b>　スキル「${sk.name}」：${sk.help}</p></section>
+      <p class="detail">${koma(me.name, ' s')}<b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `スキル「${SKILLS[k].name}」：${SKILLS[k].help}`).join('　') || 'スキルなし'}</p></section>
     <div class="vs-mark">VS</div>
     <section class="panel"><h3>相手の駒</h3>${opts(settings.foePiece, 'pickFoe', true)}</section>`;
 }
