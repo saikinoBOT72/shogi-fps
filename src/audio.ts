@@ -1,12 +1,12 @@
 // 効果音（すべて Web Audio で合成）
-'use strict';
+import { V3, rand, settings } from './core';
 
 // ================= サウンド（すべて合成） =================
-const SFX = (() => {
+export const SFX = (() => {
   let ctx = null, master, noiseBuf;
   function init() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
-    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const comp = ctx.createDynamicsCompressor();
     master = ctx.createGain(); master.gain.value = settings.vol;
     master.connect(comp).connect(ctx.destination);

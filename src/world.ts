@@ -1,29 +1,31 @@
 // 盤（中央の高台）・外周エリア・背景・障害物と当たり判定
-'use strict';
+import * as THREE from 'three';
+import { BH, C, GROUND, H, V3, clamp, rand } from './core';
+import { boardTex, canvasTex, darkWoodTex, kanjiMat, makePiece, mat, planeGeo, scene } from './render';
 
 // ================= 地形・小道具 =================
-const propMeshes = [];   // 弾・視線を遮る
-const colliders = [];    // 移動の当たり判定（上に乗れる）
+export const propMeshes = [];   // 弾・視線を遮る
+export const colliders = [];    // 移動の当たり判定（上に乗れる）
 // walk: 上を歩ける面（盤・段・階段）。経路探索で「床」として扱う
-function addSolid(obj, cyl, walk) {
+export function addSolid(obj, cyl?, walk?) {
   scene.add(obj); propMeshes.push(obj);
-  obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  obj.traverse((o: any) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   obj.updateMatrixWorld(true);
   if (cyl) colliders.push({ kind: 'cyl', ...cyl, walk: !!walk });
   else { const b = new THREE.Box3().setFromObject(obj); colliders.push({ kind: 'box', min: b.min, max: b.max, walk: !!walk }); }
 }
 // その場所の地面の高さ（盤の上は 0、外周は GROUND）
-const groundAt = (x, z) => (Math.abs(x) <= BH + 1 && Math.abs(z) <= BH + 1 ? 0 : GROUND);
+export const groundAt = (x, z) => (Math.abs(x) <= BH + 1 && Math.abs(z) <= BH + 1 ? 0 : GROUND);
 
 // ---------- 材質 ----------
-const woodSideM = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.8 });
-const plasterM = mat(0xf1ebdc, { roughness: 0.95 });   // 白壁
-const roofM = mat(0x3d4148, { roughness: 0.7 });       // 瓦
-const stoneM = mat(0x9a968c, { roughness: 1 });
-const earthM = mat(0x9b7a52, { roughness: 1 });
-const turfM = mat(0x7aa956, { roughness: 1 });
-const leafMs = [mat(0x4f8f3a), mat(0x5fa044), mat(0x3f7d34)];
-const trunkM = mat(0x6b4a2a);
+export const woodSideM = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.8 });
+export const plasterM = mat(0xf1ebdc, { roughness: 0.95 });   // 白壁
+export const roofM = mat(0x3d4148, { roughness: 0.7 });       // 瓦
+export const stoneM = mat(0x9a968c, { roughness: 1 });
+export const earthM = mat(0x9b7a52, { roughness: 1 });
+export const turfM = mat(0x7aa956, { roughness: 1 });
+export const leafMs = [mat(0x4f8f3a), mat(0x5fa044), mat(0x3f7d34)];
+export const trunkM = mat(0x6b4a2a);
 
 // 盤（中央の高台。外周より 1.5 高い）
 {
@@ -48,7 +50,7 @@ const trunkM = mat(0x6b4a2a);
 
 // ---------- 背景を1つのメッシュにまとめる（描画回数を減らして軽くする） ----------
 // parts: [geometry, color, matrix] の配列 → 頂点カラー付きの1メッシュ（面ごとの陰影でローポリ感）
-function mergeParts(parts) {
+export function mergeParts(parts) {
   const pos = [], col = [];
   const c = new THREE.Color();
   for (const [g0, hex, m] of parts) {
@@ -66,8 +68,8 @@ function mergeParts(parts) {
   geo.computeVertexNormals();
   return geo;
 }
-const lambertVC = new THREE.MeshLambertMaterial({ vertexColors: true });
-const M4 = (x, y, z, ry = 0, s = 1, sy = s) => new THREE.Matrix4().compose(new V3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new V3(s, sy, s));
+export const lambertVC = new THREE.MeshLambertMaterial({ vertexColors: true });
+export const M4 = (x, y, z, ry = 0, s = 1, sy = s) => new THREE.Matrix4().compose(new V3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new V3(s, sy, s));
 
 // 遠くの草原（アリーナの外は起伏あり）
 {
@@ -90,7 +92,7 @@ const M4 = (x, y, z, ry = 0, s = 1, sy = s) => new THREE.Matrix4().compose(new V
 }
 
 // 遠くの木・山（まとめて1メッシュ）・雲（1つずつ1メッシュ）
-const clouds = [];
+export const clouds = [];
 {
   const parts = [];
   const trunkG = new THREE.CylinderGeometry(0.35, 0.5, 2.5, 5);
@@ -179,7 +181,7 @@ const clouds = [];
   };
 
   // (x, z) と (-x, -z) の2か所に置く。y0 は下端の高さ
-  const place = (make, x, z, ry = 0, y0 = G0, cyl, walk) => {
+  const place = (make, x, z, ry = 0, y0 = G0, cyl?, walk?) => {
     [[1, 0], [-1, Math.PI]].forEach(([s, add]) => {
       const o = make(); o.position.set(x * s, y0, z * s); o.rotation.y = ry + add;
       addSolid(o, cyl && { x: x * s, z: z * s, r: cyl.r, y0, y1: y0 + cyl.h }, walk);
@@ -255,7 +257,7 @@ const clouds = [];
 }
 
 // (x, z) が障害物の中か。y はその場所に立つ高さ（それより低い段や盤は乗れるので障害物扱いしない）
-function insideCollider(x, z, R, y = 0) {
+export function insideCollider(x, z, R, y = 0) {
   return Math.abs(x) > H - R || Math.abs(z) > H - R || colliders.some(c => {
     const top = c.kind === 'cyl' ? c.y1 : c.max.y, bottom = c.kind === 'cyl' ? c.y0 : c.min.y;
     if (top <= y + 0.4 || bottom >= y + 1.8) return false;
@@ -269,7 +271,7 @@ function insideCollider(x, z, R, y = 0) {
   const groups = new Map(), merged = [];
   scene.updateMatrixWorld(true);
   for (const obj of propMeshes) {
-    obj.traverse(o => {
+    obj.traverse((o: any) => {
       if (!o.isMesh || Array.isArray(o.material) || o.material.transparent) return;
       const k = o.material.uuid;
       if (!groups.has(k)) groups.set(k, { mat: o.material, geos: [] });
@@ -286,7 +288,7 @@ function insideCollider(x, z, R, y = 0) {
   };
   merged.forEach(o => o.parent && o.parent.remove(o));
   // 中身が無くなった置き物は外し、まとめたメッシュを弾・視線の判定に入れる
-  const rest = propMeshes.filter(obj => { let has = false; obj.traverse(o => { if (o.isMesh && o.parent) has = true; }); return has || obj.isMesh && obj.parent; });
+  const rest = propMeshes.filter(obj => { let has = false; obj.traverse((o: any) => { if (o.isMesh && o.parent) has = true; }); return has || obj.isMesh && obj.parent; });
   propMeshes.length = 0; propMeshes.push(...rest);
   for (const { mat: m, geos } of groups.values()) {
     const g = new THREE.BufferGeometry();

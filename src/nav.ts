@@ -1,7 +1,8 @@
 // 経路探索：地面を 1m のマス目にして、段差（階段でつながった所だけ）を考えながら A* で道を探す
-'use strict';
+import { GROUND, H, V3 } from './core';
+import { colliders } from './world';
 
-const Nav = (() => {
+export const Nav = (() => {
   const N = 2 * H, off = H, R = 0.5, STEP = 0.45;   // STEP: 歩いて上り下りできる段差
   const hgt = new Float32Array(N * N), block = new Uint8Array(N * N);
   const walkC = colliders.filter(c => c.walk), solidC = colliders.filter(c => !c.walk);

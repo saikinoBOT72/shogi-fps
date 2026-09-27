@@ -1,15 +1,20 @@
 // カメラと一人称の銃の動き
-'use strict';
+import { gs } from './state';
+import { LIGHT, SKILLS, V3, clamp, damp, lerp, rand, settings } from './core';
+import { SFX } from './audio';
+import { cam, sky } from './render';
+import { HIP, Particles, VM, vmCam, vmFlashLight } from './effects';
+import { bot, botActor, eyeOf, player, view } from './game';
 
 // ================= カメラ・銃の動き =================
-function updateCamera(dt, rdt) {
+export function updateCamera(dt, rdt) {
   const p = player;
   // マウス（感度は ADS 中に下げる）
   const sens = 0.0021 * settings.sens * (view.fov / 80);   // 拡大しているほど感度を下げる
-  const canLook = (state === 'fight' || (state === 'countdown' && stateT > 1.3)) && !p.dead;
-  if (canLook) { view.yaw -= mdx * sens; view.pitch = clamp(view.pitch - mdy * sens, -1.52, 1.52); }
-  const swayX = clamp(-mdx * 0.00035, -0.05, 0.05), swayY = clamp(mdy * 0.00035, -0.05, 0.05);
-  mdx = 0; mdy = 0;
+  const canLook = (gs.state === 'fight' || (gs.state === 'countdown' && gs.stateT > 1.3)) && !p.dead;
+  if (canLook) { view.yaw -= gs.mdx * sens; view.pitch = clamp(view.pitch - gs.mdy * sens, -1.52, 1.52); }
+  const swayX = clamp(-gs.mdx * 0.00035, -0.05, 0.05), swayY = clamp(gs.mdy * 0.00035, -0.05, 0.05);
+  gs.mdx = 0; gs.mdy = 0;
 
   view.shake = Math.max(0, view.shake - rdt * 1.8);
   const s = view.shake * view.shake, t = performance.now() / 1000;
@@ -22,8 +27,8 @@ function updateCamera(dt, rdt) {
   const moveK = p.onGround ? clamp(Math.hypot(p.vel.x, p.vel.z) / p.def.speed, 0, 1) * (1 - (p.adsT || 0) * 0.8) : 0;
   const bobY = Math.sin(view.bobPhase * 2) * 0.035 * moveK, bobX = Math.cos(view.bobPhase) * 0.025 * moveK;
 
-  if (state === 'countdown' && stateT < 1.3) {
-    const e = 1 - Math.pow(1 - stateT / 1.3, 3);
+  if (gs.state === 'countdown' && gs.stateT < 1.3) {
+    const e = 1 - Math.pow(1 - gs.stateT / 1.3, 3);
     const hi = eye.clone().add(new V3(Math.sin(view.yaw) * 6, 10, Math.cos(view.yaw) * 6));
     cam.position.lerpVectors(hi, eye, e);
     cam.rotation.set(lerp(-0.85, view.pitch, e), view.yaw, 0);
@@ -89,12 +94,12 @@ function updateCamera(dt, rdt) {
   VM.flash.visible = VM.flashT > 0;
   if (VM.flash.visible) { VM.flash.rotation.z = rand(0, 6); VM.flash.scale.setScalar(rand(0.8, 1.3)); }
   vmFlashLight.position.set(r.position.x, r.position.y + 0.05, r.position.z - 0.3);
-  vmFlashLight.intensity = VM.flash.visible ? 2.5 : 0;
+  vmFlashLight.intensity = VM.flash.visible ? 2.5 * LIGHT : 0;
   vmCam.fov = lerp(58, 50, ads); vmCam.updateProjectionMatrix();
 }
 
 // 駒のアニメーション（ぴょこぴょこ歩く・よろける・倒れる）
-function animateActor(A, e, dt, lookAt) {
+export function animateActor(A, e, dt, lookAt) {
   A.root.position.copy(e.pos);
   if (lookAt) {
     const d = lookAt.clone().sub(e.pos);

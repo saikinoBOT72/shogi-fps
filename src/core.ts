@@ -1,20 +1,23 @@
 // 共通の道具・駒/武器/スキルのデータ・設定
-'use strict';
+import * as THREE from 'three';
 
-const V3 = THREE.Vector3;
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const rand = (a, b) => a + Math.random() * (b - a);
-const lerp = (a, b, t) => a + (b - a) * t;
-const damp = (a, b, k, dt) => lerp(a, b, 1 - Math.exp(-k * dt));
-const $ = id => document.getElementById(id);
-const C = hex => new THREE.Color(hex).convertSRGBToLinear();
+export const V3 = THREE.Vector3;
+export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const rand = (a: number, b: number) => a + Math.random() * (b - a);
+export const lerp = (a, b, t) => a + (b - a) * t;
+export const damp = (a, b, k, dt) => lerp(a, b, 1 - Math.exp(-k * dt));
+export const $ = (id: string): any => document.getElementById(id);
+// 色（three.js が 16進の sRGB を自動で線形に変換する）
+export const C = hex => new THREE.Color(hex);
+// three.js r155 以降は光が物理的に正しい計算になった。以前と同じ明るさにするため光の強さに π を掛ける
+export const LIGHT = Math.PI;
 
 // ================= 駒データ（ここに駒を足していく） =================
 // value: 駒の価値（将棋の点数）。駒同士は互角ではなく、価値が高いほど強くする（HPなどの目安）
 //   歩1 香3 桂4 銀5 金6 角8 飛10 … 安い駒で高い駒を倒すと嬉しい、というバランス
 // hp: 体力 / size: 大きさ（見た目・当たり判定・目線の高さ。差は控えめに） / speed, jump: 機動力
 // strafe: 横移動の速さの倍率（香は前にしか進めない駒なので横が遅い）
-const PIECES = {
+export const PIECES = {
   P: { name: '歩', value: 1, hp: 90,  size: 0.8,  speed: 7.2, jump: 7.5, weapon: 'pistol',  skill: 'step' },
   L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'bow',     skill: 'homing', strafe: 0.7 },
   N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'revolver', skill: 'leap' },
@@ -26,8 +29,8 @@ const PIECES = {
   K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',      skill: 'rally' },
 };
 // 全体のルール：しばらく被弾しないとHPが回復する
-const RULES = { regenDelay: 5, regenRate: 12 };
-const WEAPONS = {
+export const RULES = { regenDelay: 5, regenRate: 12 };
+export const WEAPONS = {
   // dmg: ダメージ / head: 頭の倍率 / rate: 連射間隔 / spread: 基本ブレ / bloom*: 連射でブレが広がる量
   // move/air: 移動中・空中のブレ / ads: 右クリック時のブレ倍率 / recoil: 反動 / falloff: [減衰開始, 最大減衰距離, 最小倍率]
   // model: 見た目 / pellets: 1回に出る弾の数
@@ -74,7 +77,7 @@ const WEAPONS = {
     move: 0.01, air: 0.025, ads: 0.7, mag: 6, reload: 2.2, auto: false, recoil: 0.06, falloff: [7, 20, 0.25], pref: 6,
   },
 };
-const SKILLS = {
+export const SKILLS = {
   // type: dash（前に飛び出す）/ guard（盾を構える）
   // 突撃：前方へ一気に踏み込む。突撃中は被ダメージ半減、ぶつかると体当たりダメージ
   charge: { name: '突撃', type: 'dash', key: 'KeyE', cooldown: 6, duration: 0.32, speed: 26, damageTaken: 0.5, ram: 18,
@@ -102,25 +105,25 @@ const SKILLS = {
   guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 9, duration: 2.5, damageTaken: 0.25, slow: 0.55,
     help: '盾を構えて前からの被ダメ1/4・撃つと解除' },
 };
-const skillType = e => SKILLS[e.def.skill].type;
-const DIFFS = {
+export const skillType = e => SKILLS[e.def.skill].type;
+export const DIFFS = {
   // react: 見つけてから撃つまで / err: 狙いのブレ / track: 照準の追従の速さ / gap: 撃つ間隔の追加ランダム / lead: 矢の偏差撃ちの正確さ / dps: 1発が重い武器の撃つペースの上限（1秒あたりのダメージの目安）
   easy:   { name: 'かんたん',   react: 0.7,  err: 0.13,  track: 3.5, gap: [0.35, 0.7], lead: 0.3, dps: 18 },
   normal: { name: 'ふつう',     react: 0.45, err: 0.09,  track: 5.5, gap: [0.22, 0.5], lead: 0.65, dps: 28 },
   hard:   { name: 'むずかしい', react: 0.28, err: 0.06,  track: 9,   gap: [0.08, 0.3], lead: 0.9, dps: 40 },
 };
 // H: アリーナ全体の半分の広さ / BH: 中央の将棋盤の半分の広さ / GROUND: 外周の地面の高さ（盤の上は 0）
-const H = 44, BH = 22, GROUND = -1.5, G = 22, TIME_LIMIT = 120;
+export const H = 44, BH = 22, GROUND = -1.5, G = 22, TIME_LIMIT = 120;
 
 // ---------- 設定 ----------
-const settings = { sens: 1, diff: 'normal', vol: 0.7, quality: 'mid', showFps: false, myPiece: 'P', foePiece: 'P' };
+export const settings = { sens: 1, diff: 'normal', vol: 0.7, quality: 'mid', showFps: false, myPiece: 'P', foePiece: 'P' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('shogifps') || '{}')); } catch (e) {}
-const saveSettings = () => { try { localStorage.setItem('shogifps', JSON.stringify(settings)); } catch (e) {} };
+export const saveSettings = () => { try { localStorage.setItem('shogifps', JSON.stringify(settings)); } catch (e) {} };
 // 画質（pr: 描画解像度の倍率 / shadow: 影の解像度, 0 で影なし / aa: アンチエイリアス）
-const QUALITIES = {
+export const QUALITIES = {
   low:  { name: '低', pr: 0.75, shadow: 0,    aa: false },
   mid:  { name: '中', pr: 1,    shadow: 1024, aa: true },
   high: { name: '高', pr: Math.min(devicePixelRatio, 2), shadow: 2048, aa: true, soft: true },
 };
-const Q = QUALITIES[settings.quality] || QUALITIES.mid;
-const QUALITY_AT_LOAD = settings.quality;
+export const Q = QUALITIES[settings.quality] || QUALITIES.mid;
+export const QUALITY_AT_LOAD = settings.quality;

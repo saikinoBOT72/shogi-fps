@@ -1,9 +1,12 @@
 // エフェクト・一人称の銃・駒のキャラクター
-'use strict';
+import * as THREE from 'three';
+import { C, LIGHT, V3, lerp, rand } from './core';
+import { GUN_BUILDERS, buildGun, cam, makeEyes, makePiece, makeShield, pieceGeo, pieceWoodMat, scene, starTex } from './render';
+import { groundAt } from './world';
 
 // ================= エフェクト =================
 // 破片・火花（インスタンス描画）
-const Particles = (() => {
+export const Particles = (() => {
   const N = 320, box = new THREE.BoxGeometry(1, 1, 1), dummy = new THREE.Object3D(), col = new THREE.Color();
   const make = m => { const im = new THREE.InstancedMesh(box, m, N); im.frustumCulled = false; for (let i = 0; i < N; i++) { dummy.scale.setScalar(0); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); im.setColorAt(i, col.set(1, 1, 1)); } scene.add(im); return im; };
   const lit = make(new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }));
@@ -62,7 +65,7 @@ const Particles = (() => {
 })();
 
 // 弾痕
-const Decals = (() => {
+export const Decals = (() => {
   const N = 80, list = [];
   const m = new THREE.MeshBasicMaterial({ color: 0x1a120a, transparent: true, opacity: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
   const geo = new THREE.CircleGeometry(0.07, 6);
@@ -79,7 +82,7 @@ const Decals = (() => {
 })();
 
 // 弾道の光跡
-const Tracers = (() => {
+export const Tracers = (() => {
   const N = 40, list = [];
   const geo = new THREE.BoxGeometry(0.022, 0.022, 1); geo.translate(0, 0, 0.5);
   for (let i = 0; i < N; i++) {
@@ -109,11 +112,11 @@ const Tracers = (() => {
 })();
 
 // ダメージ数字
-const DmgNums = (() => {
+export const DmgNums = (() => {
   const N = 12, list = [];
   for (let k = 0; k < N; k++) {
     const c = document.createElement('canvas'); c.width = 128; c.height = 64;
-    const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, fog: false }));
     s.renderOrder = 10; s.visible = false; scene.add(s);
     list.push({ s, c, tex, t: 0 });
@@ -146,16 +149,16 @@ const DmgNums = (() => {
 })();
 
 // ================= 一人称の銃（別シーンで描画して壁にめり込まない） =================
-const vmScene = new THREE.Scene();
-const vmCam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.01, 10);
-vmScene.add(new THREE.HemisphereLight(C(0xdcecff), C(0x806040), 0.8));
-const vmSun = new THREE.DirectionalLight(C(0xfff0d6), 1.6); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
-const vmFlashLight = new THREE.PointLight(C(0xffc870), 0, 2); vmScene.add(vmFlashLight);
-const VM = (() => {
+export const vmScene = new THREE.Scene();
+export const vmCam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.01, 10);
+vmScene.add(new THREE.HemisphereLight(C(0xdcecff), C(0x806040), 0.8 * LIGHT));
+export const vmSun = new THREE.DirectionalLight(C(0xfff0d6), 1.6 * LIGHT); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
+export const vmFlashLight = new THREE.PointLight(C(0xffc870), 0, 2, 1); vmScene.add(vmFlashLight);
+export const VM: any = (() => {
   const root = new THREE.Group();
-  const models = {};
+  const models: any = {};
   for (const k of Object.keys(GUN_BUILDERS)) models[k] = buildGun(k);
-  for (const [k, m] of Object.entries(models)) { m.g.scale.setScalar(k === 'bow' ? 0.34 : 0.85); m.g.visible = false; root.add(m.g); }
+  for (const [k, m] of Object.entries(models) as [string, any][]) { m.g.scale.setScalar(k === 'bow' ? 0.34 : 0.85); m.g.visible = false; root.add(m.g); }
   vmScene.add(root);
   const pist = models.pistol;
   const flash = new THREE.Group();
@@ -169,7 +172,7 @@ const VM = (() => {
     root, models, pist, flash, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
     // 持っている銃の見た目を切り替える
     setWeapon(model) {
-      for (const [k, m] of Object.entries(models)) m.g.visible = k === model;
+      for (const [k, m] of Object.entries(models) as [string, any][]) m.g.visible = k === model;
       vm.pist = models[model]; vm.pist.muzzle.add(flash);
     },
   };
@@ -177,10 +180,10 @@ const VM = (() => {
   return vm;
 })();
 // 構えの位置（低めに構え、照準で狙う）。覗き込みも画面の下へ下げてズームするだけ
-const HIP = new V3(0.2, -0.24, -0.48);
+export const HIP = new V3(0.2, -0.24, -0.48);
 
 // ================= 駒のキャラクター =================
-function buildActor(ch, size, model = 'pistol') {
+export function buildActor(ch, size, model = 'pistol'): any {
   const root = new THREE.Group(), body = new THREE.Group();
   const w = 1.2 * size, h = 1.85 * size, t = 0.42 * size;
   const wood = pieceWoodMat.clone();

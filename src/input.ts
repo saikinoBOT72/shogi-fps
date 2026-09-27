@@ -1,22 +1,31 @@
 // キーボード・マウス・フルスクリーン
-'use strict';
+import { gs } from './state';
+import { cam, renderer } from './render';
+import { vmCam } from './effects';
+import { isPlaying } from './game';
+import { onLocked, pause } from './screens';
 
 // ================= 入力 =================
-const keys = {};
-let mouseDown = false, rightDown = false, triggerUsed = false, jumpPressed = 0;
-let mdx = 0, mdy = 0, lockGrace = 0, lockFailed = false;
+export const keys: any = {};
+gs.mouseDown = false;
+gs.rightDown = false;
+gs.triggerUsed = false;
+gs.jumpPressed = 0;
+export let lockGrace = 0, lockFailed = false;
+gs.mdx = 0;
+gs.mdy = 0;
 addEventListener('keydown', e => {
-  if (e.code === 'Space') { e.preventDefault(); if (!keys.Space) jumpPressed = 0.15; }
+  if (e.code === 'Space') { e.preventDefault(); if (!keys.Space) gs.jumpPressed = 0.15; }
   if (e.code === 'KeyF' && !e.repeat) toggleFullscreen();
   keys[e.code] = true;
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('mousedown', e => {
   if (!isPlaying()) return;
-  if (e.button === 0) { mouseDown = true; triggerUsed = false; }
-  if (e.button === 2) rightDown = true;
+  if (e.button === 0) { gs.mouseDown = true; gs.triggerUsed = false; }
+  if (e.button === 2) gs.rightDown = true;
 });
-addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.button === 2) rightDown = false; });
+addEventListener('mouseup', e => { if (e.button === 0) gs.mouseDown = false; if (e.button === 2) gs.rightDown = false; });
 addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
   const locked = document.pointerLockElement === renderer.domElement;
@@ -24,9 +33,9 @@ addEventListener('mousemove', e => {
   // 視点が飛ぶ対策：固定直後の数イベントと、明らかに異常な移動量は捨てる
   if (lockGrace > 0) { lockGrace--; return; }
   if (Math.abs(e.movementX) > 350 || Math.abs(e.movementY) > 350) return;
-  mdx += e.movementX; mdy += e.movementY;
+  gs.mdx += e.movementX; gs.mdy += e.movementY;
 });
-function requestLock() {
+export function requestLock() {
   const el = renderer.domElement;
   lockGrace = 2;
   const fallback = () => { lockFailed = true; onLocked(); };
@@ -45,7 +54,7 @@ document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement === renderer.domElement) onLocked();
   else if (isPlaying()) pause();
 });
-function toggleFullscreen() {
+export function toggleFullscreen() {
   if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
   else document.exitFullscreen();
 }

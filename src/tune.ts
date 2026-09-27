@@ -1,8 +1,8 @@
 // 調整パネル：駒・武器・スキル・CPUの数値をスライダーで変えて試す（変えた値は保存される）
-'use strict';
+import { $, DIFFS, PIECES, RULES, SKILLS, WEAPONS, settings } from './core';
 
 // 調整できる項目：[表示名, 最小, 最大, 刻み]
-const TUNE_FIELDS = {
+export const TUNE_FIELDS = {
   hp: ['HP', 30, 250, 5], size: ['大きさ', 0.6, 1.2, 0.02], speed: ['速さ', 3, 50, 0.25], jump: ['ジャンプ力', 4, 12, 0.25],
   dmg: ['ダメージ（1発）', 2, 100, 1], pellets: ['弾の数', 1, 16, 1], head: ['頭の倍率', 1, 3, 0.1], rate: ['連射間隔（秒）', 0.05, 1.5, 0.01],
   spread: ['基本のブレ', 0, 0.12, 0.001], bloomShot: ['連射で広がるブレ', 0, 0.05, 0.001], bloomMax: ['ブレの上限', 0, 0.15, 0.005],
@@ -17,12 +17,12 @@ const TUNE_FIELDS = {
   turn: ['追尾の曲がりやすさ', 0.5, 10, 0.25], adsSpeed: ['覗き込みの速さ', 1, 20, 0.5], radius: ['範囲', 1, 10, 0.25], fuse: ['爆発までの秒', 0.3, 4, 0.1], zoom: ['スコープの視野（小さいほど拡大）', 8, 60, 1],
   up: ['上に跳ぶ強さ', 4, 25, 0.5], fwd: ['前に跳ぶ強さ', 0, 25, 0.5], amount: ['回復量', 10, 150, 5], life: ['続く秒数', 2, 20, 0.5], regenDelay: ['回復が始まるまで（秒）', 1, 15, 0.5], regenRate: ['1秒の回復量', 0, 60, 1],
 };
-const TUNE_ROOTS = { PIECES, WEAPONS, SKILLS, DIFFS, RULES: { base: RULES } };
-const TUNE_DEFAULTS = JSON.parse(JSON.stringify(TUNE_ROOTS));
-const TUNE_KEY = 'shogifps-tune';
+export const TUNE_ROOTS = { PIECES, WEAPONS, SKILLS, DIFFS, RULES: { base: RULES } };
+export const TUNE_DEFAULTS = JSON.parse(JSON.stringify(TUNE_ROOTS));
+export const TUNE_KEY = 'shogifps-tune';
 
 // 保存済みの値を起動時に反映
-let tuneSaved = {};
+export let tuneSaved = {};
 try { tuneSaved = JSON.parse(localStorage.getItem(TUNE_KEY) || '{}'); } catch (e) {}
 for (const [root, objs] of Object.entries(tuneSaved)) {
   for (const [k, vals] of Object.entries(objs)) {
@@ -31,7 +31,7 @@ for (const [root, objs] of Object.entries(tuneSaved)) {
   }
 }
 
-function tuneGroups() {
+export function tuneGroups() {
   const groups = [], seen = new Set();
   const add = (title, root, key) => { if (!seen.has(root + key)) { seen.add(root + key); groups.push({ title, root, key }); } };
   for (const [k, p] of Object.entries(PIECES)) {
@@ -43,12 +43,12 @@ function tuneGroups() {
   add('ルール（HP回復）', 'RULES', 'base');
   return groups;
 }
-function tuneSet(root, key, field, v) {
+export function tuneSet(root, key, field, v) {
   TUNE_ROOTS[root][key][field] = v;
   ((tuneSaved[root] = tuneSaved[root] || {})[key] = tuneSaved[root][key] || {})[field] = v;
   try { localStorage.setItem(TUNE_KEY, JSON.stringify(tuneSaved)); } catch (e) {}
 }
-function tuneReset() {
+export function tuneReset() {
   for (const root of Object.keys(TUNE_ROOTS)) {
     for (const [k, def] of Object.entries(TUNE_DEFAULTS[root])) Object.assign(TUNE_ROOTS[root][k], JSON.parse(JSON.stringify(def)));
   }
@@ -56,7 +56,7 @@ function tuneReset() {
   try { localStorage.removeItem(TUNE_KEY); } catch (e) {}
 }
 // 初期値から変えた項目だけを書き出す
-function tuneExport() {
+export function tuneExport() {
   const lines = [];
   for (const g of tuneGroups()) {
     const cur = TUNE_ROOTS[g.root][g.key], def = TUNE_DEFAULTS[g.root][g.key];
@@ -66,7 +66,7 @@ function tuneExport() {
   return lines.length ? '【将棋FPS 調整値】\n' + lines.join('\n') : '（初期値から変えた項目はありません）';
 }
 
-function openTune() {
+export function openTune() {
   let el = $('tune');
   if (!el) {
     el = document.createElement('div'); el.id = 'tune';

@@ -1,7 +1,14 @@
 // 将棋モード：盤で駒を動かし、駒を取るときは撃ち合いで決着。相手の玉を撃ち合いで取れば勝ち
-'use strict';
+import * as THREE from 'three';
+import { gs } from './state';
+import { $, BH, C, LIGHT, PIECES, Q, TIME_LIMIT, V3, rand } from './core';
+import { SFX } from './audio';
+import { PIECE_DEPTH, boardTex, canvasTex, darkWoodTex, pieceGeo, renderer } from './render';
+import { pieceSolidMats } from './physics';
+import { resetMatch } from './game';
+import { hideOverlay, keysHTML, overlay, showTitle, startMatch } from './screens';
 
-const BoardMode = (() => {
+export const BoardMode = (() => {
   const S = 1.15;                                   // マスの大きさ
   const sq = (x, y) => new V3((x - 4) * S, 0, (y - 4) * S);
 
@@ -10,8 +17,8 @@ const BoardMode = (() => {
   bScene.background = new THREE.Color(0x1c1612);
   const bCam = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
   bCam.position.set(0, 14, 10.5); bCam.lookAt(0, 0, 0.9);
-  bScene.add(new THREE.HemisphereLight(C(0xfff2dd), C(0x3a2a1a), 0.75));
-  const key = new THREE.DirectionalLight(C(0xffe6c0), 1.6);
+  bScene.add(new THREE.HemisphereLight(C(0xfff2dd), C(0x3a2a1a), 0.75 * LIGHT));
+  const key = new THREE.DirectionalLight(C(0xffe6c0), 1.6 * LIGHT);
   key.position.set(6, 16, 8);
   key.castShadow = Q.shadow > 0; key.shadow.mapSize.set(1024, 1024);
   Object.assign(key.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 40 });
@@ -91,11 +98,11 @@ const BoardMode = (() => {
       while (inB(nx, ny)) { const q = b[ny][nx]; if (q) { if (q.owner !== p.owner) res.push([nx, ny]); break; } res.push([nx, ny]); nx += dx; ny += dy * f; }
     };
     const t = p.type, pr = p.promoted;
-    if (t === 'K') [...ORTH, ...DIAG].forEach(d => step(...d));
-    else if (t === 'R') { ORTH.forEach(d => slide(...d)); if (pr) DIAG.forEach(d => step(...d)); }   // 龍
-    else if (t === 'B') { DIAG.forEach(d => slide(...d)); if (pr) ORTH.forEach(d => step(...d)); }   // 馬
-    else if (t === 'G' || pr) GOLD.forEach(d => step(...d));                                          // 金・と・杏・圭・全
-    else if (t === 'S') [[0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(d => step(...d));
+    if (t === 'K') [...ORTH, ...DIAG].forEach(d => step(d[0], d[1]));
+    else if (t === 'R') { ORTH.forEach(d => slide(d[0], d[1])); if (pr) DIAG.forEach(d => step(d[0], d[1])); }   // 龍
+    else if (t === 'B') { DIAG.forEach(d => slide(d[0], d[1])); if (pr) ORTH.forEach(d => step(d[0], d[1])); }   // 馬
+    else if (t === 'G' || pr) GOLD.forEach(d => step(d[0], d[1]));                                          // 金・と・杏・圭・全
+    else if (t === 'S') [[0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(d => step(d[0], d[1]));
     else if (t === 'N') { step(1, 2); step(-1, 2); }
     else if (t === 'L') slide(0, 1);
     else if (t === 'P') step(0, 1);
@@ -177,7 +184,7 @@ const BoardMode = (() => {
     return g;
   }
   const pickables = [];
-  function refresh(animMove) {
+  function refresh(animMove?) {
     pieceGroup.clear(); pickables.length = 0;
     for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
       const p = board[y][x];
@@ -229,7 +236,7 @@ const BoardMode = (() => {
     he.textContent = HAND_ORDER.map(t => PIECES[t].name.repeat(hands[1].filter(h => h === t).length)).join('') || 'なし';
   }
   function paint() {
-    const set = ([x, y], c, o = 0.45) => { const m = tiles[y][x].material; m.color.setHex(c); m.opacity = o; };
+    const set = ([x, y]: number[], c, o = 0.45) => { const m = tiles[y][x].material; m.color.setHex(c); m.opacity = o; };
     for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) tiles[y][x].material.opacity = 0;
     const lm = preview || lastMove;
     if (lm) { if (lm.kind === 'move') set([lm.fx, lm.fy], 0xf5d76e, 0.35); set([lm.tx, lm.ty], preview ? 0xff7a50 : 0xf5d76e, 0.45); }
@@ -247,7 +254,7 @@ const BoardMode = (() => {
   // ---------- 操作 ----------
   const picker = new THREE.Raycaster(), mouse = new THREE.Vector2();
   renderer.domElement.addEventListener('click', e => {
-    if (state !== 'board' || busy || turn !== 0 || over) return;
+    if (gs.state !== 'board' || busy || turn !== 0 || over) return;
     mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
     picker.setFromCamera(mouse, bCam);
     const hit = picker.intersectObjects([...pickables, ...tiles.flat()], false)[0];
@@ -271,7 +278,7 @@ const BoardMode = (() => {
     return new Promise(resolve => {
       battleDone = resolve;
       const me = playerIsAttacker ? att : def, foe = playerIsAttacker ? def : att;
-      matchCtx = { myType: me.type, foeType: foe.type, playerIsAttacker };
+      gs.matchCtx = { myType: me.type, foeType: foe.type, playerIsAttacker };
       showUI(false);
       const mn = label(me), fn = label(foe);
       overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? '#ffcf6b' : '#7ec8ff'}">${playerIsAttacker ? '攻め' : '守り'}</div>
@@ -285,7 +292,7 @@ const BoardMode = (() => {
   }
   // 撃ち合いの結果（win: プレイヤーの勝ち true / 負け false / 時間切れ null）
   function battleResult(win) {
-    const ctx = matchCtx;
+    const ctx = gs.matchCtx;
     const attackerWon = win === null ? false : (win === true) === ctx.playerIsAttacker;
     const playerWon = win === null ? !ctx.playerIsAttacker : win;
     $('hud').style.display = 'none';
@@ -295,8 +302,8 @@ const BoardMode = (() => {
       <button class="btn" id="bmBack">盤面へ戻る</button>`, true);
     $('bmBack').onclick = e => {
       e.stopPropagation();
-      matchCtx = null;
-      hideOverlay(); state = 'board'; showUI(true);
+      gs.matchCtx = null;
+      hideOverlay(); gs.state = 'board'; showUI(true);
       const r = battleDone; battleDone = null; r(attackerWon);
     };
   }
@@ -392,20 +399,20 @@ const BoardMode = (() => {
   function start() {
     SFX.init();
     initBoard();
-    matchCtx = null; anim = null;
-    state = 'board';
+    gs.matchCtx = null; anim = null;
+    gs.state = 'board';
     hideOverlay(); $('hud').style.display = 'none';
     showUI(true);
     refresh();
     turnMsg();
   }
   function exit() {
-    matchCtx = null; over = true;
+    gs.matchCtx = null; over = true;
     showUI(false);
     resetMatch(); showTitle();
   }
   // 将棋モードの撃ち合いを途中でやめたとき
-  function abort() { matchCtx = null; battleDone = null; showUI(false); over = true; }
+  function abort() { gs.matchCtx = null; battleDone = null; showUI(false); over = true; }
 
   let t = 0;
   function update(rdt) {

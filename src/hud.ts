@@ -1,24 +1,33 @@
 // 勝敗・HUD
-'use strict';
+import * as THREE from 'three';
+import { gs } from './state';
+import { $, TIME_LIMIT, V3 } from './core';
+import { SFX } from './audio';
+import { cam } from './render';
+import { PHYS } from './physics';
+import { Particles, VM } from './effects';
+import { bot, botActor, currentSpread, eyeOf, player, stats, view } from './game';
+import { Replay } from './replay';
+import { showResult } from './screens';
 
 // ================= 勝敗 =================
-function killBot() {
+export function killBot() {
   bot.dead = true;
   botActor.dead = { a: 0, v: 2.2, dir: 1 };
   Particles.wood(eyeOf(bot), cam.getWorldDirection(new V3()), 40, 1.3);
   PHYS.blast(eyeOf(bot), 4, 6);
   SFX.play('kill');
-  timeScale = 0.25; slowmoT = 1.1;
+  gs.timeScale = 0.25; gs.slowmoT = 1.1;
   endMatch(true);
 }
-function killPlayer() {
+export function killPlayer() {
   player.dead = true;
   SFX.play('kill');
-  timeScale = 0.35; slowmoT = 0.9;
+  gs.timeScale = 0.35; gs.slowmoT = 0.9;
   endMatch(false);
 }
-function endMatch(win) {
-  state = 'end'; stateT = 0; mouseDown = false; rightDown = false;
+export function endMatch(win) {
+  gs.state = 'end'; gs.stateT = 0; gs.mouseDown = false; gs.rightDown = false;
   stats.time = TIME_LIMIT - Math.max(0, TIME_LIMIT - stats.time);
   showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? '#ffd23a' : '#ff6b5b');
   const toResult = () => { if (document.pointerLockElement) document.exitPointerLock(); showResult(win); };
@@ -27,28 +36,28 @@ function endMatch(win) {
 }
 
 // ================= HUD =================
-function showCenter(text, color = '#fff') {
+export function showCenter(text, color = '#fff') {
   const c = $('center');
   c.textContent = text; c.style.color = color;
   c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
 }
-let hmT = 0;
-function showHitmarker(kind) {
+export let hmT = 0;
+export function showHitmarker(kind) {
   const h = $('hm'); h.className = kind; hmT = kind === 'kill' ? 0.5 : 0.22;
 }
-const dds = [];
-function addDamageDir(from) {
+export const dds = [];
+export function addDamageDir(from) {
   const el = document.createElement('div'); el.className = 'dd';
   $('dds').appendChild(el);
   dds.push({ el, from: from.clone(), t: 1.1 });
   if (dds.length > 4) dds.shift().el.remove();
 }
-function initPips() {
+export function initPips() {
   hud.ammo = -1; hud.cache.clear();
   $('pips').innerHTML = '';
   for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
 }
-function updateHUD(dt) {
+export function updateHUD(dt) {
   const p = player;
   // クロスヘア：実際のブレ幅に合わせて開く
   const spread = currentSpread(p);
@@ -117,9 +126,9 @@ function updateHUD(dt) {
   setText('timer', Math.max(0, Math.ceil(TIME_LIMIT - stats.time)));
 }
 // 前回と同じ値なら DOM に触らない（毎フレームの書き換えは重い）
-const hud = { hurt: 0, dash: 0, ammo: -1, ready: null, cache: new Map() };
-function changed(key, v) { if (hud.cache.get(key) === v) return false; hud.cache.set(key, v); return true; }
-function setHTML(id, v) { if (changed(id + ':h', v)) $(id).innerHTML = v; }
-function setText(id, v) { if (changed(id + ':t', v)) $(id).textContent = v; }
-function setStyle(el, prop, v) { if (changed(el, prop + v)) el.style[prop] = v; }
-function setAttr(el, a, v) { if (changed(el, a + v)) el.setAttribute(a, v); }
+export const hud = { hurt: 0, dash: 0, ammo: -1, ready: null, cache: new Map() };
+export function changed(key, v) { if (hud.cache.get(key) === v) return false; hud.cache.set(key, v); return true; }
+export function setHTML(id, v) { if (changed(id + ':h', v)) $(id).innerHTML = v; }
+export function setText(id, v) { if (changed(id + ':t', v)) $(id).textContent = v; }
+export function setStyle(el, prop, v) { if (changed(el, prop + v)) el.style[prop] = v; }
+export function setAttr(el, a, v) { if (changed(el, a + v)) el.setAttribute(a, v); }

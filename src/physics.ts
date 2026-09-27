@@ -1,13 +1,19 @@
 // 物理演算で動く小物（cannon.js）
-'use strict';
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
+import { gs } from './state';
+import { BH, G, GROUND, clamp, rand } from './core';
+import { SFX } from './audio';
+import { PIECE_DEPTH, canvasTex, pieceGeo, pieceWoodMat, scene, woodGrain } from './render';
+import { colliders, insideCollider, propMeshes } from './world';
 
 // ================= 物理演算（cannon.js）：撃つ・押す・体当たりで動く小物 =================
-const physMeshes = [];       // 弾と視線を遮る（CPUの経路探索には使わない＝押しのけて進める）
-let blockers = propMeshes;   // 弾・視線を遮るもの全部
-let sndBudget = 4;           // 1フレームに鳴らす衝突音の上限（小物が一斉に崩れても音割れしない）
+export const physMeshes = [];       // 弾と視線を遮る（CPUの経路探索には使わない＝押しのけて進める）
+export let blockers = propMeshes;   // 弾・視線を遮るもの全部
+gs.sndBudget = 4;           // 1フレームに鳴らす衝突音の上限（小物が一斉に崩れても音割れしない）
 // 文字入りの木目を表面に焼き込んだ駒（1メッシュで描けるので軽い）
-const solidMatCache = {};
-function pieceSolidMats(ch, red) {
+export const solidMatCache = {};
+export function pieceSolidMats(ch, red?) {
   const key = ch + (red ? 'r' : '');
   if (solidMatCache[key]) return solidMatCache[key];
   const tex = canvasTex(256, 256, (g, w, h) => {
@@ -17,23 +23,23 @@ function pieceSolidMats(ch, red) {
   });
   return solidMatCache[key] = [new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), pieceWoodMat];
 }
-const crateTex = canvasTex(256, 256, (g, w) => {
+export const crateTex = canvasTex(256, 256, (g, w) => {
   woodGrain(g, w, w, '#b98a52', '60,30,10', 40);
   g.strokeStyle = '#5a3818'; g.lineWidth = 26; g.strokeRect(13, 13, w - 26, w - 26);
   g.lineWidth = 22; g.beginPath(); g.moveTo(20, 20); g.lineTo(w - 20, w - 20); g.stroke();
 });
-const crateMat = new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.8 });
+export const crateMat = new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.8 });
 
-const PHYS = (() => {
+export const PHYS = (() => {
   const world = new CANNON.World();
   world.gravity.set(0, -G, 0);
   world.broadphase = new CANNON.SAPBroadphase(world);
   world.allowSleep = true;
-  world.solver.iterations = 8;
+  (world.solver as any).iterations = 8;
   world.defaultContactMaterial.friction = 0.45;
   world.defaultContactMaterial.restitution = 0.2;
   const items = [];
-  const addStatic = (shape, x, y, z, q) => {
+  const addStatic = (shape, x, y, z, q?) => {
     const b = new CANNON.Body({ mass: 0 }); b.addShape(shape); b.position.set(x, y, z);
     if (q) b.quaternion.copy(q);
     world.addBody(b); return b;
@@ -46,13 +52,13 @@ const PHYS = (() => {
     if (c.kind === 'box') {
       addStatic(new CANNON.Box(new CANNON.Vec3((c.max.x - c.min.x) / 2, (c.max.y - c.min.y) / 2, (c.max.z - c.min.z) / 2)),
         (c.max.x + c.min.x) / 2, (c.max.y + c.min.y) / 2, (c.max.z + c.min.z) / 2);
-    } else addStatic(new CANNON.Cylinder(c.r, c.r, c.y1 - c.y0, 10), c.x, (c.y0 + c.y1) / 2, c.z, gq);
+    } else addStatic(new CANNON.Cylinder(c.r, c.r, c.y1 - c.y0, 10), c.x, (c.y0 + c.y1) / 2, c.z);   // cannon-es の円柱は縦向き
   }
 
   // ドミノ同士は滑りやすく（もたれ合って止まらないように）
   const dominoMat = new CANNON.Material("domino");
   world.addContactMaterial(new CANNON.ContactMaterial(dominoMat, dominoMat, { friction: 0.02, restitution: 0.05 }));
-  function addDynamic(obj, half, mass, x, y, z, ry = 0, pitch = 1, material) {
+  function addDynamic(obj, half, mass, x, y, z, ry = 0, pitch = 1, material?) {
     // 眠る条件を厳しめに（ゆっくり傾き始めたドミノが途中で止まらないように）
     const body = new CANNON.Body({ mass, sleepSpeedLimit: 0.08, sleepTimeLimit: 1.2, linearDamping: 0.03, angularDamping: 0.05 });
     body.addShape(new CANNON.Box(new CANNON.Vec3(...half)));
@@ -63,17 +69,17 @@ const PHYS = (() => {
     world.addBody(body);
     scene.add(obj);
     const it = { body, obj, pitch, domino, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
-    obj.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.userData.phys = it; } });
+    obj.traverse((o: any) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.userData.phys = it; } });
     physMeshes.push(obj);
     body.addEventListener('collide', e => {
       const v = Math.abs(e.contact.getImpactVelocityAlongNormal()), now = performance.now();
-      if (v > 1.8 && now - it.lastSnd > 90 && sndBudget > 0) { it.lastSnd = now; sndBudget--; SFX.play('knock', body.position, clamp(v / 9, 0.15, 1), pitch); }
+      if (v > 1.8 && now - it.lastSnd > 90 && gs.sndBudget > 0) { it.lastSnd = now; gs.sndBudget--; SFX.play('knock', body.position, clamp(v / 9, 0.15, 1), pitch); }
     });
     items.push(it);
     return it;
   }
   // 見た目（原点が中心）
-  const pieceObj = (ch, w, h, t, lying) => {
+  const pieceObj = (ch, w, h, t, lying?) => {
     const g = new THREE.Group(), m = new THREE.Mesh(pieceGeo, pieceSolidMats(ch));
     m.scale.set(w, h, t / PIECE_DEPTH);
     if (lying) m.rotation.x = -Math.PI / 2;
@@ -100,11 +106,11 @@ const PHYS = (() => {
   });
 
   // プレイヤーとCPUは「押す側」の見えない体（キネマティック）として参加
-  const kin = {};
+  const kin: any = {};
   function kinFor(key, e) {
     if (kin[key] && (kin[key].r !== e.radius || kin[key].h !== e.height)) { world.removeBody(kin[key]); kin[key] = null; }
     if (!kin[key]) {
-      const b = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
+      const b: any = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
       b.allowSleep = false;
       [e.radius, e.height / 2, e.height - e.radius].forEach(y => b.addShape(new CANNON.Sphere(e.radius), new CANNON.Vec3(0, y, 0)));
       b.r = e.radius; b.h = e.height;
@@ -146,7 +152,8 @@ const PHYS = (() => {
     // 弾が当たった所を押す
     hit(it, point, dir, power) {
       const b = it.body; b.wakeUp();
-      b.applyImpulse(new CANNON.Vec3(dir.x * power, dir.y * power + power * 0.2, dir.z * power), new CANNON.Vec3(point.x, point.y, point.z));
+      // cannon-es の applyImpulse は「重心からの相対位置」で指定する
+      b.applyImpulse(new CANNON.Vec3(dir.x * power, dir.y * power + power * 0.2, dir.z * power), new CANNON.Vec3(point.x - b.position.x, point.y - b.position.y, point.z - b.position.z));
     },
     // 周りを吹き飛ばす
     blast(pos, radius, power) {
@@ -154,7 +161,7 @@ const PHYS = (() => {
         const b = it.body, dx = b.position.x - pos.x, dy = b.position.y - pos.y, dz = b.position.z - pos.z, d = Math.hypot(dx, dy, dz);
         if (d > radius || d < 1e-3) continue;
         const k = power * b.mass * (1 - d / radius) / d;
-        b.wakeUp(); b.applyImpulse(new CANNON.Vec3(dx * k, Math.abs(dy * k) + power * b.mass * 0.4, dz * k), b.position);
+        b.wakeUp(); b.applyImpulse(new CANNON.Vec3(dx * k, Math.abs(dy * k) + power * b.mass * 0.4, dz * k), new CANNON.Vec3());
       }
     },
     // キルカム用：全小物の位置と向きを保存・復元

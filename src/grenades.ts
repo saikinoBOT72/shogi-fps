@@ -1,8 +1,16 @@
 // グレネード（角の武器）と煙幕（角のスキル）
-'use strict';
+import * as THREE from 'three';
+import { V3, clamp, rand } from './core';
+import { SFX } from './audio';
+import { canvasTex, mat, scene } from './render';
+import { PHYS, blockers } from './physics';
+import { Particles } from './effects';
+import { bot, damageBot, eyeOf, hasLOS, player, ray, skillDamageMul, view } from './game';
+import { damagePlayer } from './ai';
+import { killBot } from './hud';
 
 // グレネード：速くまっすぐ気味に飛び、何かに当たった瞬間に爆発
-const Grenades = (() => {
+export const Grenades = (() => {
   const geo = new THREE.IcosahedronGeometry(0.14, 0);
   const m = mat(0x3d5a2e, { roughness: 0.6 });
   const bandM = mat(0xc9a13a, { roughness: 0.5 });
@@ -52,7 +60,7 @@ const Grenades = (() => {
       if (len > 1e-5) {
         const dir = step.clone().normalize();
         ray.set(g.pos, dir); ray.far = len + 0.14;
-        let hit = ray.intersectObjects(blockers, true)[0];
+        let hit: any = ray.intersectObjects(blockers, true)[0];
         // 相手の体を通り抜けないよう、進む線分で当たりを見る（速いので点の判定だと飛び越える）
         const t = g.target;
         if (!t.dead) {
@@ -87,7 +95,7 @@ const Grenades = (() => {
 })();
 
 // 煙幕：その場に煙の玉を張る。中や向こう側は見えない（CPUも見えない）
-const Smoke = (() => {
+export const Smoke = (() => {
   const tex = canvasTex(128, 128, g => {
     const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
     gr.addColorStop(0, 'rgba(235,235,235,1)'); gr.addColorStop(0.55, 'rgba(215,215,215,.7)'); gr.addColorStop(1, 'rgba(200,200,200,0)');

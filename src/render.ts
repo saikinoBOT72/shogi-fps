@@ -1,25 +1,27 @@
 // レンダラー・空・光・テクスチャ・駒と銃の形
-'use strict';
+import * as THREE from 'three';
+import { gs } from './state';
+import { BH, C, LIGHT, Q, V3, rand } from './core';
 
 // ================= レンダラー・シーン =================
-const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
-let resScale = 1;   // 重いときに自動で下げる解像度の倍率
+export const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
+gs.resScale = 1;   // 重いときに自動で下げる解像度の倍率
 renderer.setPixelRatio(Q.pr);
 renderer.setSize(innerWidth, innerHeight);
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = Q.shadow > 0;
 renderer.shadowMap.type = Q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 renderer.autoClear = false;
 document.body.prepend(renderer.domElement);
-const ANISO = renderer.capabilities.getMaxAnisotropy();
+export const ANISO = renderer.capabilities.getMaxAnisotropy();
 
-const scene = new THREE.Scene();
+export const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(C(0xd6ecf7), 90, 430);
-const cam = new THREE.PerspectiveCamera(80, innerWidth / innerHeight, 0.05, 1500);
+export const cam = new THREE.PerspectiveCamera(80, innerWidth / innerHeight, 0.05, 1500);
 cam.rotation.order = 'YXZ';
 
-const SUN_DIR = new V3(0.45, 0.75, 0.35).normalize();
-const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.ShaderMaterial({
+export const SUN_DIR = new V3(0.45, 0.75, 0.35).normalize();
+export const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
   uniforms: {
     top: { value: new THREE.Color(0x3f8fe0) }, hor: { value: new THREE.Color(0xd6ecf7) },
@@ -33,13 +35,14 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.Shad
       float s = max(dot(d, sun), 0.0);
       c += vec3(1.0, 0.92, 0.75) * (smoothstep(0.9975, 0.999, s) * 0.9 + pow(s, 48.0) * 0.25);
       gl_FragColor = vec4(c, 1.0);
+      #include <colorspace_fragment>
     }`,
 }));
 sky.renderOrder = -1; sky.frustumCulled = false;
 scene.add(sky);
 
-scene.add(new THREE.HemisphereLight(C(0xcfe6ff), C(0x7a6040), 0.65));
-const sun = new THREE.DirectionalLight(C(0xfff0d6), 1.9);
+scene.add(new THREE.HemisphereLight(C(0xcfe6ff), C(0x7a6040), 0.65 * LIGHT));
+export const sun = new THREE.DirectionalLight(C(0xfff0d6), 1.9 * LIGHT);
 sun.position.copy(SUN_DIR).multiplyScalar(60);
 sun.castShadow = Q.shadow > 0;
 sun.shadow.mapSize.set(Q.shadow || 512, Q.shadow || 512);
@@ -48,15 +51,15 @@ sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
 scene.add(sun); scene.add(sun.target);
 
 // ---------- テクスチャ ----------
-function canvasTex(w, h, draw, srgb = true) {
+export function canvasTex(w, h, draw, srgb = true) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c);
-  if (srgb) t.encoding = THREE.sRGBEncoding;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = ANISO;
   return t;
 }
-function woodGrain(g, w, h, base, dark, n = 60) {
+export function woodGrain(g, w, h, base, dark, n = 60) {
   g.fillStyle = base; g.fillRect(0, 0, w, h);
   for (let i = 0; i < n; i++) {
     g.strokeStyle = `rgba(${dark},${rand(0.05, 0.18)})`; g.lineWidth = rand(1, 4);
@@ -66,10 +69,10 @@ function woodGrain(g, w, h, base, dark, n = 60) {
     g.stroke();
   }
 }
-const woodTex = canvasTex(512, 512, (g, w, h) => woodGrain(g, w, h, '#e6b872', '120,70,25'));
-const darkWoodTex = canvasTex(512, 512, (g, w, h) => woodGrain(g, w, h, '#8a5a30', '50,25,8'));
+export const woodTex = canvasTex(512, 512, (g, w, h) => woodGrain(g, w, h, '#e6b872', '120,70,25'));
+export const darkWoodTex = canvasTex(512, 512, (g, w, h) => woodGrain(g, w, h, '#8a5a30', '50,25,8'));
 darkWoodTex.wrapS = darkWoodTex.wrapT = THREE.RepeatWrapping;
-const boardTex = canvasTex(2048, 2048, (g, w) => {
+export const boardTex = canvasTex(2048, 2048, (g, w) => {
   woodGrain(g, w, w, '#dcab60', '110,65,20', 160);
   const m = w / (2 * BH + 2), cell = (w - 2 * m) / 9;
   g.strokeStyle = '#3a2310'; g.lineWidth = 5;
@@ -80,7 +83,7 @@ const boardTex = canvasTex(2048, 2048, (g, w) => {
   g.fillStyle = '#3a2310';
   [[3, 3], [6, 3], [3, 6], [6, 6]].forEach(([a, b]) => { g.beginPath(); g.arc(m + a * cell, m + b * cell, 14, 0, 7); g.fill(); });
 });
-const starTex = canvasTex(128, 128, (g) => {
+export const starTex = canvasTex(128, 128, (g) => {
   const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   gr.addColorStop(0, 'rgba(255,255,230,1)'); gr.addColorStop(0.25, 'rgba(255,210,120,.9)'); gr.addColorStop(1, 'rgba(255,140,40,0)');
   g.fillStyle = gr;
@@ -93,11 +96,11 @@ const starTex = canvasTex(128, 128, (g) => {
 });
 
 // ---------- 材質ヘルパー ----------
-const mat = (hex, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: C(hex), roughness: 0.85, flatShading: true }, o));
-const pieceWoodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.7 });
-const kanjiCache = {};
+export const mat = (hex, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: C(hex), roughness: 0.85, flatShading: true }, o));
+export const pieceWoodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.7 });
+export const kanjiCache = {};
 // small: 動く駒用（目を描く場所を空けるため、字を小さく下げる）
-function kanjiMat(ch, red, small) {
+export function kanjiMat(ch, red?, small?) {
   const k = ch + (red ? 'r' : '') + (small ? 's' : '');
   if (kanjiCache[k]) return kanjiCache[k];
   const tex = canvasTex(256, 256, g => {
@@ -110,16 +113,16 @@ function kanjiMat(ch, red, small) {
 }
 
 // ---------- 駒の形 ----------
-const pieceShape = new THREE.Shape();
+export const pieceShape = new THREE.Shape();
 pieceShape.moveTo(0.14, 0); pieceShape.lineTo(0.86, 0); pieceShape.lineTo(0.94, 0.7);
 pieceShape.lineTo(0.5, 1); pieceShape.lineTo(0.06, 0.7); pieceShape.closePath();
-const PIECE_DEPTH = 0.32;
-const pieceGeo = new THREE.ExtrudeGeometry(pieceShape, { depth: 0.25, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.03, bevelSegments: 1 });
+export const PIECE_DEPTH = 0.32;
+export const pieceGeo = new THREE.ExtrudeGeometry(pieceShape, { depth: 0.25, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.03, bevelSegments: 1 });
 pieceGeo.translate(-0.5, -0.5, -0.125);
-const planeGeo = new THREE.PlaneGeometry(1, 1);
+export const planeGeo = new THREE.PlaneGeometry(1, 1);
 
 // 中心が原点、表面(+z)に文字がある駒
-function makePiece(ch, w, h, t, woodMat = pieceWoodMat, small = false) {
+export function makePiece(ch, w, h, t, woodMat = pieceWoodMat, small = false) {
   const g = new THREE.Group();
   const m = new THREE.Mesh(pieceGeo, woodMat);
   m.scale.set(w, h, t / PIECE_DEPTH);
@@ -132,7 +135,7 @@ function makePiece(ch, w, h, t, woodMat = pieceWoodMat, small = false) {
 }
 
 // ---------- 銃モデル ----------
-function buildPistol() {
+export function buildPistol() {
   const g = new THREE.Group();
   const dark = mat(0x2a2c30, { roughness: 0.45, metalness: 0.35, flatShading: false });
   const mid = mat(0x44474d, { roughness: 0.55, metalness: 0.25, flatShading: false });
@@ -155,7 +158,7 @@ function buildPistol() {
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.034, -0.24); g.add(muzzle);
   return { g, slide, muzzle, slideZ: slide.position.z, slideAmt: 0.05, ads: new V3(0.13, -0.27, -0.44) };
 }
-function buildShotgun() {
+export function buildShotgun() {
   const g = new THREE.Group();
   const dark = mat(0x2a2c30, { roughness: 0.45, metalness: 0.35, flatShading: false });
   const wood = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.7 });
@@ -178,7 +181,7 @@ function buildShotgun() {
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.03, -0.66); g.add(muzzle);
   return { g, slide: pump, muzzle, slideZ: pump.position.z, slideAmt: 0.09, ads: new V3(0.15, -0.3, -0.5) };
 }
-function buildSMG() {
+export function buildSMG() {
   const g = new THREE.Group();
   const dark = mat(0x2a2c30, { roughness: 0.45, metalness: 0.35, flatShading: false });
   const mid = mat(0x44474d, { roughness: 0.55, metalness: 0.25, flatShading: false });
@@ -204,7 +207,7 @@ function buildSMG() {
   return { g, slide: bolt, muzzle, slideZ: bolt.position.z, slideAmt: 0.04, ads: new V3(0.14, -0.28, -0.46) };
 }
 // 弓：setDraw(0〜1) で弦を引く。arrow は番えている矢
-function buildBow() {
+export function buildBow() {
   const g = new THREE.Group(), bow = new THREE.Group();
   g.add(bow); bow.rotation.z = -0.28;   // 少し傾けて構える
   const woodM = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.6 });
@@ -242,7 +245,7 @@ function buildBow() {
     hip: new V3(0.17, -0.2, -0.42), ads: new V3(0.2, -0.28, -0.42), isBow: true };
 }
 // 銃を組み立てる共通の道具
-function gunKit() {
+export function gunKit() {
   const dark = mat(0x2a2c30, { roughness: 0.45, metalness: 0.35, flatShading: false });
   const mid = mat(0x44474d, { roughness: 0.55, metalness: 0.25, flatShading: false });
   const wood = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.7 });
@@ -254,7 +257,7 @@ function gunKit() {
   const muzzleAt = (x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); g.add(o); return o; };
   return { g, dark, mid, wood, box, cyl, hand, muzzleAt };
 }
-function buildRevolver() {
+export function buildRevolver() {
   const K = gunKit();
   K.box(0.05, 0.07, 0.16, K.dark, 0, 0.02, 0);
   K.cyl(0.018, 0.2, K.mid, 0, 0.035, -0.17, 8);
@@ -265,7 +268,7 @@ function buildRevolver() {
   K.hand(0, -0.09, 0.08);
   return { g: K.g, slide: hammer, muzzle: K.muzzleAt(0, 0.035, -0.28), slideZ: hammer.position.z, slideAmt: 0.02, ads: new V3(0.13, -0.27, -0.44) };
 }
-function buildSniper() {
+export function buildSniper() {
   const K = gunKit();
   K.box(0.06, 0.07, 0.34, K.dark, 0, 0.01, 0);
   K.cyl(0.017, 0.62, K.mid, 0, 0.025, -0.47, 8);
@@ -277,7 +280,7 @@ function buildSniper() {
   K.hand(0, -0.09, 0.1); K.hand(0, -0.04, -0.22);
   return { g: K.g, slide: bolt, muzzle: K.muzzleAt(0, 0.025, -0.8), slideZ: bolt.position.z, slideAmt: 0.06, ads: new V3(0.15, -0.32, -0.5) };
 }
-function buildAR() {
+export function buildAR() {
   const K = gunKit();
   K.box(0.06, 0.08, 0.36, K.dark, 0, 0.01, -0.02);
   K.box(0.066, 0.066, 0.2, K.mid, 0, 0.012, -0.28);
@@ -290,7 +293,7 @@ function buildAR() {
   K.hand(0, -0.09, 0.1); K.hand(0, -0.05, -0.28);
   return { g: K.g, slide: bolt, muzzle: K.muzzleAt(0, 0.02, -0.5), slideZ: bolt.position.z, slideAmt: 0.04, ads: new V3(0.15, -0.29, -0.5) };
 }
-function buildLauncher() {
+export function buildLauncher() {
   const K = gunKit();
   K.cyl(0.05, 0.5, K.dark, 0, 0.03, -0.18, 10);
   const drum = K.cyl(0.075, 0.12, K.mid, 0, -0.01, 0.06, 6);   // 回転弾倉
@@ -300,13 +303,13 @@ function buildLauncher() {
   K.hand(0, -0.09, 0.15); K.hand(0, -0.07, -0.25);
   return { g: K.g, slide: drum, muzzle: K.muzzleAt(0, 0.03, -0.45), slideZ: drum.position.z, slideAmt: 0.02, ads: new V3(0.17, -0.31, -0.52) };
 }
-const GUN_BUILDERS = { pistol: buildPistol, shotgun: buildShotgun, smg: buildSMG, bow: buildBow, revolver: buildRevolver, sniper: buildSniper, ar: buildAR, launcher: buildLauncher };
-const buildGun = model => (GUN_BUILDERS[model] || buildPistol)();
+export const GUN_BUILDERS = { pistol: buildPistol, shotgun: buildShotgun, smg: buildSMG, bow: buildBow, revolver: buildRevolver, sniper: buildSniper, ar: buildAR, launcher: buildLauncher };
+export const buildGun = model => (GUN_BUILDERS[model] || buildPistol)();
 // 動く駒の目：縦長のゆるい目。まばたき・倒れると×目
-const eyeMat = new THREE.MeshBasicMaterial({ color: 0x241408 });
-const eyeGeo = new THREE.CircleGeometry(0.5, 14);
-const eyeBarGeo = new THREE.PlaneGeometry(1, 1);
-function makeEyes(w, h, z) {
+export const eyeMat = new THREE.MeshBasicMaterial({ color: 0x241408 });
+export const eyeGeo = new THREE.CircleGeometry(0.5, 14);
+export const eyeBarGeo = new THREE.PlaneGeometry(1, 1);
+export function makeEyes(w, h, z) {
   const eyes = new THREE.Group();
   const list = [-1, 1].map(s => {
     const e = new THREE.Group();
@@ -321,12 +324,12 @@ function makeEyes(w, h, z) {
   return eyes;
 }
 // 盾（将棋盤）：表面に盤の目
-const shieldMats = (() => {
+export const shieldMats = (() => {
   const side = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.8 });
   const face = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.75 });
   return [side, side, side, side, face, side];
 })();
-function makeShield(w, h) {
+export function makeShield(w, h) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.12), shieldMats);
   m.castShadow = true;
   return m;

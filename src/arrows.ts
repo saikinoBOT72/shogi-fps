@@ -1,7 +1,14 @@
 // 矢（弓の弾）：重力で落ちる飛び道具。刺さった矢はしばらく残る。追尾の矢は相手を追いかける
-'use strict';
+import * as THREE from 'three';
+import { C, V3 } from './core';
+import { SFX } from './audio';
+import { mat, scene } from './render';
+import { PHYS, blockers } from './physics';
+import { Particles } from './effects';
+import { botActor, damageBot, eyeOf, player, ray, skillDamageMul } from './game';
+import { damagePlayer } from './ai';
 
-const Arrows = (() => {
+export const Arrows = (() => {
   const shaftGeo = new THREE.CylinderGeometry(0.016, 0.016, 1, 5); shaftGeo.rotateX(Math.PI / 2);
   const tipGeo = new THREE.ConeGeometry(0.04, 0.13, 5); tipGeo.rotateX(Math.PI / 2); tipGeo.translate(0, 0, 0.56);
   const featherGeo = new THREE.PlaneGeometry(0.16, 0.06); featherGeo.rotateY(Math.PI / 2); featherGeo.translate(0, 0.04, -0.4);
@@ -14,7 +21,7 @@ const Arrows = (() => {
     const g = new THREE.Group();
     g.add(new THREE.Mesh(shaftGeo, homing ? glowM : shaftM), new THREE.Mesh(tipGeo, tipM));
     for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(featherGeo, featherM); f.rotation.z = i * Math.PI * 2 / 3; g.add(f); }
-    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    g.traverse((o: any) => { if (o.isMesh) o.castShadow = true; });
     return g;
   }
 

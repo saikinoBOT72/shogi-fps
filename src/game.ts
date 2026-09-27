@@ -1,15 +1,31 @@
 // ゲーム状態・移動と当たり判定・武器・プレイヤー
-'use strict';
+import * as THREE from 'three';
+import { gs } from './state';
+import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
+import { SFX } from './audio';
+import { cam, scene } from './render';
+import { colliders } from './world';
+import { PHYS, blockers } from './physics';
+import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
+import { Arrows } from './arrows';
+import { Grenades, Smoke } from './grenades';
+import { keys } from './input';
+import { PERSONAS, aiHear, damagePlayer } from './ai';
+import { killBot, showHitmarker } from './hud';
+import { Replay } from './replay';
 
 // ================= ゲーム状態 =================
-let state = 'title';   // title / countdown / fight / end
-let paused = false, stateT = 0, timeScale = 1, slowmoT = 0;
-let player, bot, playerActor, botActor, stats;
-let matchCtx = null;   // 将棋モードの撃ち合い中：{ myType, foeType, playerIsAttacker }
-const view = { yaw: 0, pitch: 0, shake: 0, fov: 80, bobPhase: 0, dip: 0, dipV: 0, roll: 0 };
-const isPlaying = () => (state === 'countdown' || state === 'fight') && !paused;
+gs.state = 'title';   // title / countdown / fight / end
+gs.paused = false;
+gs.stateT = 0;
+gs.timeScale = 1;
+gs.slowmoT = 0;
+export let player, bot, playerActor, botActor, stats;
+gs.matchCtx = null;   // 将棋モードの撃ち合い中：{ myType, foeType, playerIsAttacker }
+export const view: any = { yaw: 0, pitch: 0, shake: 0, fov: 80, bobPhase: 0, dip: 0, dipV: 0, roll: 0 };
+export const isPlaying = () => (gs.state === 'countdown' || gs.state === 'fight') && !gs.paused;
 
-function makeEntity(type, isBot) {
+export function makeEntity(type, isBot) {
   const def = PIECES[type], w = WEAPONS[def.weapon];
   return {
     type, def, w, skill: SKILLS[def.skill], isBot,
@@ -21,7 +37,7 @@ function makeEntity(type, isBot) {
   };
 }
 // 駒の見た目を用意（種類が変わったときだけ作り直す）
-function ensureActors(pType, bType) {
+export function ensureActors(pType, bType) {
   const make = (old, type, isBot) => {
     if (old && old.type === type) return old;
     if (old) scene.remove(old.root);
@@ -32,15 +48,15 @@ function ensureActors(pType, bType) {
   playerActor = make(playerActor, pType, false);
   botActor = make(botActor, bType, true);
 }
-const pieceKeys = () => Object.keys(PIECES);
-function resolveFoe() {
+export const pieceKeys = () => Object.keys(PIECES);
+export function resolveFoe() {
   const k = settings.foePiece;
   return k === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : (PIECES[k] ? k : 'P');
 }
 
-function resetMatch(foeType) {
-  const myType = matchCtx ? matchCtx.myType : PIECES[settings.myPiece] ? settings.myPiece : 'P';
-  foeType = foeType || (matchCtx && matchCtx.foeType) || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
+export function resetMatch(foeType?) {
+  const myType = gs.matchCtx ? gs.matchCtx.myType : PIECES[settings.myPiece] ? settings.myPiece : 'P';
+  foeType = foeType || (gs.matchCtx && gs.matchCtx.foeType) || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
   ensureActors(myType, foeType);
   player = makeEntity(myType, false);
   bot = makeEntity(foeType, true);
@@ -60,16 +76,16 @@ function resetMatch(foeType) {
   botActor.wood.emissive.setHex(0);
   Decals.clear();
   PHYS.reset();
-  timeScale = 1; slowmoT = 0;
+  gs.timeScale = 1; gs.slowmoT = 0;
   VM.equip = 1;
   document.querySelectorAll('.dd').forEach(e => e.remove());
 }
 
 // ================= 物理・当たり判定 =================
-const ray = new THREE.Raycaster();
-const eyeOf = e => new V3(e.pos.x, e.pos.y + e.eyeH, e.pos.z);
+export const ray = new THREE.Raycaster();
+export const eyeOf = e => new V3(e.pos.x, e.pos.y + e.eyeH, e.pos.z);
 
-function collide(e) {
+export function collide(e) {
   const R = e.radius;
   e.onGround = false; e.wallN = null;
   if (e.pos.y <= GROUND) { e.pos.y = GROUND; if (e.vy < 0) e.vy = 0; e.onGround = true; }
@@ -103,7 +119,7 @@ function collide(e) {
   if (Math.abs(e.pos.x) > lim) { e.pos.x = clamp(e.pos.x, -lim, lim); e.vel.x = 0; }
   if (Math.abs(e.pos.z) > lim) { e.pos.z = clamp(e.pos.z, -lim, lim); e.vel.z = 0; }
 }
-function hasLOS(a, b, ignoreSmoke) {
+export function hasLOS(a, b, ignoreSmoke?) {
   if (!ignoreSmoke && Smoke.blocks(a, b)) return false;   // 煙の向こうは見えない
   const d = b.clone().sub(a), dist = d.length();
   ray.set(a, d.normalize()); ray.far = dist;
@@ -113,7 +129,7 @@ function hasLOS(a, b, ignoreSmoke) {
 }
 
 // 移動（加速・摩擦・コヨーテタイム）
-function moveEntity(e, wish, dt) {
+export function moveEntity(e, wish, dt) {
   wish = wish.clone();
   const sk = e.skill;
   // 横移動が遅い駒（香）：向いている方向に対して横の成分を縮める
@@ -150,12 +166,12 @@ function moveEntity(e, wish, dt) {
   if (sk.type === 'leap' && e.skillT > 0 && e.onGround && sk.duration - e.skillT > 0.15) { e.skillT = 0; leapLand(e); }
   e.moving = Math.hypot(e.vel.x, e.vel.z) > 1;
 }
-function tryJump(e) {
+export function tryJump(e) {
   if (e.airT < 0.1 && !e.jumped) { e.vy = e.def.jump; e.jumped = true; e.onGround = false; e.airT = 1; return true; }
   return false;
 }
 // 桂跳びの着地：周りの相手と小物を吹き飛ばす
-function leapLand(e) {
+export function leapLand(e) {
   const sk = e.skill, foe = e === player ? bot : player;
   Particles.dust(e.pos, 22, 2.2);
   PHYS.blast(e.pos.clone().setY(0.3), sk.radius * 1.3, 7);
@@ -168,12 +184,12 @@ function leapLand(e) {
   foe.vel.add(foe.pos.clone().sub(e.pos).setY(0).normalize().multiplyScalar(10)); foe.vy = 6; foe.onGround = false;
   if (foe.isBot) damageBot({ dmg, head: false, point: eyeOf(foe) }); else damagePlayer(dmg, e.pos);
 }
-function onLand(e, v) {
+export function onLand(e, v) {
   SFX.play('land', e.pos);
   Particles.dust(e.pos, 5, 0.8);
   if (!e.isBot) { view.dipV -= v * 0.012; VM.dip = Math.min(1, v * 0.05); }
 }
-function separate(a, b) {
+export function separate(a, b) {
   const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz), min = a.radius + b.radius;
   if (d >= min || d < 1e-6) return;
   if (a.pos.y + a.height < b.pos.y || b.pos.y + b.height < a.pos.y) return;
@@ -182,7 +198,7 @@ function separate(a, b) {
 }
 
 // ================= 武器 =================
-function currentSpread(e) {
+export function currentSpread(e) {
   const w = e.w;
   let s = w.spread + e.bloom + (w.kind === 'bow' ? (1 - (e.draw || 0)) * w.drawSpread : 0);
   if (e.moving) s += w.move * clamp(Math.hypot(e.vel.x, e.vel.z) / e.def.speed, 0, 1);
@@ -191,13 +207,13 @@ function currentSpread(e) {
   else if (w.zoom) s *= w.ads;
   return s;
 }
-const canFire = e => e.cd <= 0 && e.reloading <= 0 && e.ammo > 0 && !e.dead;
-function startReload(e) {
+export const canFire = e => e.cd <= 0 && e.reloading <= 0 && e.ammo > 0 && !e.dead;
+export function startReload(e) {
   if (e.reloading > 0 || e.ammo >= e.w.mag) return;
   e.reloading = e.w.reload;
   if (!e.isBot) SFX.play('reloadStart');
 }
-function weaponTick(e, dt) {
+export function weaponTick(e, dt) {
   e.cd -= dt;
   e.bloom = Math.max(0, e.bloom - e.w.bloomRecover * dt);
   if (e.reloading > 0) {
@@ -207,12 +223,12 @@ function weaponTick(e, dt) {
 }
 
 // 向いている方向（盾の判定用）
-function facingOf(e) {
+export function facingOf(e) {
   if (e.isBot) { const y = botActor.root.rotation.y; return new V3(Math.sin(y), 0, Math.cos(y)); }
   return new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw));
 }
 // スキルによる被ダメージ倍率（守りの構えは前からの弾だけ減らす）
-function skillDamageMul(target, from) {
+export function skillDamageMul(target, from) {
   if (!(target.skillT > 0)) return 1;
   const sk = target.skill;
   if (sk.type !== 'guard') return sk.damageTaken;
@@ -221,7 +237,7 @@ function skillDamageMul(target, from) {
 }
 
 // 撃つ：origin から dir に撃つ。ショットガンは粒ごとに判定して合計する
-function fire(shooter, target, origin, muzzle, dir) {
+export function fire(shooter, target, origin, muzzle, dir) {
   const w = shooter.w, sp = currentSpread(shooter);
   let dmg = 0, head = false, point = null, miss = null, wallDist = 300, blocked = false, first = true;
   for (let i = 0; i < (w.pellets || 1); i++) {
@@ -237,7 +253,7 @@ function fire(shooter, target, origin, muzzle, dir) {
   if (shooter.skillT > 0 && shooter.skill.type === 'pierce') shooter.skillT = 0;   // 貫きは1発で終わり
   return { dmg, head, point, blocked, miss: dmg > 0 ? null : miss, wallDist };
 }
-function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
+export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
   const w = shooter.w;
   const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
   ray.set(origin, d); ray.far = 300;
@@ -256,7 +272,7 @@ function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
     const hp = ray.ray.intersectBox(box, new V3());
     if (hp && hp.distanceTo(origin) < wallDist) hit = { point: hp, dist: hp.distanceTo(origin) };
   }
-  let res = { dmg: 0, head: false, point: null };
+  let res: any = { dmg: 0, head: false, point: null };
   if (hit) {
     const [f0, f1, fm] = w.falloff;
     let dmg = w.dmg * lerp(1, fm, clamp((hit.dist - f0) / (f1 - f0), 0, 1));
@@ -286,7 +302,7 @@ function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
 
 // ================= プレイヤー =================
 // 使える回数（charges）を1つ使い、待ち時間で1つずつ戻る
-function skillTick(e, dt) {
+export function skillTick(e, dt) {
   const sk = e.skill;
   if (e.skillT > 0 && (sk.type === 'homing' || sk.type === 'pierce' || sk.type === 'heal')) {
     e.skillT -= dt;
@@ -300,7 +316,7 @@ function skillTick(e, dt) {
   e.skillCd -= dt;
   if (e.skillCd <= 0) { e.charges++; e.skillCd = e.charges < max ? e.skill.cooldown : 0; }
 }
-function useSkill(e, dir) {
+export function useSkill(e, dir) {
   if (e.charges <= 0 || e.dead || e.skillT > 0) return false;
   e.skillDir.copy(dir).setY(0).normalize();
   e.charges--; if (e.skillCd <= 0) e.skillCd = e.skill.cooldown;
@@ -336,17 +352,17 @@ function useSkill(e, dir) {
   return true;
 }
 // 構えを解く（撃ったとき）
-function endGuard(e) { if (e.skillT > 0 && e.skill.type === 'guard') e.skillT = 0; }
+export function endGuard(e) { if (e.skillT > 0 && e.skill.type === 'guard') e.skillT = 0; }
 
-function updatePlayer(dt) {
+export function updatePlayer(dt) {
   const p = player;
   const fwd = new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw)), right = new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw));
   const wish = new V3();
-  if (state === 'fight' && !p.dead) {
+  if (gs.state === 'fight' && !p.dead) {
     if (keys.KeyW) wish.add(fwd); if (keys.KeyS) wish.sub(fwd);
     if (keys.KeyD) wish.add(right); if (keys.KeyA) wish.sub(right);
     if (wish.lengthSq() > 0) wish.normalize();
-    if (jumpPressed > 0 && tryJump(p)) jumpPressed = 0;
+    if (gs.jumpPressed > 0 && tryJump(p)) gs.jumpPressed = 0;
     if (keys[p.skill.key] && !p.skillHeld) {
       // すり足は A/D の方向（押していなければ右）、他は前
       let sdir = fwd;
@@ -355,11 +371,11 @@ function updatePlayer(dt) {
     }
     p.skillHeld = !!keys[p.skill.key];
   }
-  jumpPressed -= dt;
+  gs.jumpPressed -= dt;
   const guardOrDash = p.skillT > 0 && ['guard', 'dash', 'step', 'leap'].includes(p.skill.type);   // 覗き込めないスキル中
-  p.adsT = damp(p.adsT || 0, rightDown && !p.dead && p.reloading <= 0 && !guardOrDash ? 1 : 0, p.w.adsSpeed || 14, dt);
+  p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash ? 1 : 0, p.w.adsSpeed || 14, dt);
   // 壁に向かってジャンプ長押しで登る
-  p.wantClimb = !!(keys.Space && p.wallN && wish.dot(p.wallN) < -0.2 && state === 'fight');
+  p.wantClimb = !!(keys.Space && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
   if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('step', null, 0.6); p.climbSnd = 0.22; }
   p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1);
   moveEntity(p, wish, dt);
@@ -374,30 +390,30 @@ function updatePlayer(dt) {
   }
 
   weaponTick(p, dt);
-  if (state !== 'fight' || p.dead) return;
+  if (gs.state !== 'fight' || p.dead) return;
   // 弓：押している間は引き絞り、離したら放つ
   if (p.w.kind === 'bow') {
-    if (mouseDown && p.cd <= 0) {
+    if (gs.mouseDown && p.cd <= 0) {
       if (!p.drawing) SFX.play('bowDraw');
       p.drawing = true;
       const was = p.draw;
       p.draw = Math.min(1, p.draw + dt / p.w.drawTime);
       if (was < 1 && p.draw >= 1) SFX.play('bowReady');   // 引き切った合図
-    } else if (p.drawing && !mouseDown) {
+    } else if (p.drawing && !gs.mouseDown) {
       p.drawing = false;
       if (p.draw > 0.12) shootPlayerArrow(); else p.draw = 0;
     }
     return;
   }
   if (keys.KeyR) startReload(p);
-  if (mouseDown && !triggerUsed) {
-    triggerUsed = !p.w.auto;
+  if (gs.mouseDown && !gs.triggerUsed) {
+    gs.triggerUsed = !p.w.auto;
     if (p.ammo <= 0 && p.reloading <= 0) { SFX.play('empty'); startReload(p); }
     else if (canFire(p)) shootPlayer();
   }
 }
 
-function shootPlayer() {
+export function shootPlayer() {
   const p = player;
   cam.updateMatrixWorld();
   const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
@@ -421,7 +437,7 @@ function shootPlayer() {
 }
 
 // グレネードを撃つ（プレイヤー・CPU共通）
-function fireGrenade(e, dir, origin) {
+export function fireGrenade(e, dir, origin) {
   const w = e.w, sp = currentSpread(e);
   const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
   e.ammo--; e.cd = w.rate;
@@ -430,7 +446,7 @@ function fireGrenade(e, dir, origin) {
   SFX.play('launcher', e.isBot ? origin : null);
 }
 // 矢を放つ（プレイヤー・CPU共通）
-function shootArrow(e, dir, origin) {
+export function shootArrow(e, dir, origin) {
   const w = e.w, k = (e.draw * e.draw + 2 * e.draw) / 3;   // マイクラと同じ引きの効き方
   const sp = currentSpread(e);
   const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
@@ -445,7 +461,7 @@ function shootArrow(e, dir, origin) {
   SFX.play('bow', e.isBot ? origin : null);
   if (!e.isBot) aiHear(e.pos, 20);
 }
-function shootPlayerArrow() {
+export function shootPlayerArrow() {
   const p = player;
   cam.updateMatrixWorld();
   const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
@@ -454,13 +470,13 @@ function shootPlayerArrow() {
   VM.kick = 0.6; view.shake = Math.max(view.shake, 0.08);
 }
 // しばらく被弾しないと回復
-function regenTick(e, dt) {
+export function regenTick(e, dt) {
   e.sinceHit += dt;
   if (!e.dead && e.sinceHit > RULES.regenDelay && e.hp < e.def.hp) { e.hp = Math.min(e.def.hp, e.hp + RULES.regenRate * dt); e.regen = true; }
   else e.regen = false;
 }
 
-function damageBot(res) {
+export function damageBot(res) {
   bot.hp -= res.dmg; bot.sinceHit = 0;
   // 撃たれたら横移動の向きを変え、撃ってきた場所を覚える
   bot.strafe *= -1; bot.strafeT = rand(0.4, 1); bot.hurtT = 1.2;

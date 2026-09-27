@@ -1,7 +1,15 @@
 // キルカム：倒されたとき、直前の数秒を相手の視点で再生する
-'use strict';
+import { gs } from './state';
+import { $, V3, damp } from './core';
+import { SFX } from './audio';
+import { cam, sky } from './render';
+import { PHYS } from './physics';
+import { Particles, Tracers } from './effects';
+import { Arrows } from './arrows';
+import { bot, botActor, player, playerActor, view } from './game';
+import { animateActor } from './camera';
 
-const Replay = (() => {
+export const Replay = (() => {
   const KEEP = 6;                         // 覚えておく秒数
   const PLAYER_TRACER = 0xffe9a8;
   let frames = [], events = [], t = 0, play = null;
@@ -41,7 +49,7 @@ const Replay = (() => {
       look: frames[i].b.aim.clone(),
       fake: { pos: new V3(), vel: new V3(), vy: 0, onGround: true, def: player.def, skillT: 0, stepPhase: 0, flashT: 0, isBot: false },
     };
-    state = 'killcam';
+    gs.state = 'killcam';
     playerActor.root.visible = true; playerActor.dead = null; playerActor.body.rotation.set(0, 0, 0);
     botActor.root.visible = false;
     Arrows.setLiveVisible(false);
@@ -93,7 +101,7 @@ const Replay = (() => {
     Arrows.showGhosts([]); Arrows.setLiveVisible(true);
     ui.style.display = 'none';
     play = null;
-    state = 'end';
+    gs.state = 'end';
     done();
   }
 

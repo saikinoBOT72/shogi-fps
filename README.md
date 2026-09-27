@@ -4,9 +4,7 @@
 
 ## 遊び方
 
-`index.html` をダブルクリックしてブラウザで開く。
-
-開発中は `node tools/serve.js` で http://localhost:8123 からも開ける。
+`dist/index.html` をダブルクリックしてブラウザで開く（1ファイルに全部入っているので、ネットにつながっていなくても遊べる）。
 
 タイトル画面でモードを選ぶ。数値は一時停止・結果画面の「調整パネル」から変えられる。
 
@@ -35,32 +33,47 @@
 ## マップ
 
 中央の将棋盤は外周より1.5m高い台で、各辺の階段か壁登りで上がる。外周には出撃地点の塀（開始時にお互いが見えない）、段々の丘、見張り台（大きな駒箱。壁登りで上がる）、岩、木、塀がある。置き物はすべて点対称に置いて公平にしている。
-CPUはマップをマス目にした経路探索（`js/nav.js`）で段差や塀を回り込む。
+CPUはマップをマス目にした経路探索（`src/nav.ts`）で段差や塀を回り込む。
 
-駒を足すときは `js/core.js` の `PIECES`・`WEAPONS`・`SKILLS` に追加し、CPUのスキルの使い方を `js/ai.js` の `SKILL_AI` に書く。
+駒を足すときは `src/core.ts` の `PIECES`・`WEAPONS`・`SKILLS` に追加し、CPUのスキルの使い方を `src/ai.ts` の `SKILL_AI` に書く。
+
+## 開発
+
+Vite + TypeScript。three.js と cannon-es（物理）は npm のパッケージ。
+
+```
+npm install        # 最初に1回
+npm run dev        # 開発用サーバー（http://localhost:5173、保存すると即反映）
+npm run build      # 型チェックして dist/index.html を作る（ダブルクリックで遊べる1ファイル）
+npm run typecheck  # 型チェックだけ
+```
+
+開発中はブラウザのコンソールで `dev` から中身を触れる（例：`dev.game.player.hp`、`dev.step(60)` で60フレーム進める）。配布用の `dist` には入らない。
 
 ## ファイル構成
 
-読み込み順＝実行順（普通の `<script>` なので、上のファイルで定義したものを下のファイルで使う）。
+各ファイルは ES モジュールで、使うものを `import` している。複数のファイルから書き換えるゲームの状態（`state`・`paused` など）は `src/state.ts` の `gs` にまとめてある。
 
 | ファイル | 中身 |
 |---|---|
-| `js/core.js` | 共通の道具、**駒・武器・スキル・CPUの強さのデータ**、設定 |
-| `js/tune.js` | 調整パネル（数値をスライダーで変える。変えた値は保存） |
-| `js/audio.js` | 効果音（Web Audio で合成） |
-| `js/render.js` | レンダラー、空、光、テクスチャ、駒と銃の形 |
-| `js/world.js` | 盤（中央の高台）、外周エリア、背景、動かない障害物と当たり判定 |
-| `js/nav.js` | CPUの経路探索（マス目の A*） |
-| `js/physics.js` | 物理演算で動く小物（cannon.js） |
-| `js/effects.js` | 破片・弾痕・光跡・ダメージ数字、一人称の銃、駒のキャラクター |
-| `js/arrows.js` | 矢（重力で落ちる飛び道具、刺さる、追尾） |
-| `js/grenades.js` | グレネード（跳ねて爆発）と煙幕 |
-| `js/input.js` | キーボード・マウス・フルスクリーン |
-| `js/game.js` | ゲーム状態、移動、武器、プレイヤー |
-| `js/ai.js` | CPU |
-| `js/hud.js` | 勝敗、HUD |
-| `js/camera.js` | カメラと一人称の銃の動き |
-| `js/replay.js` | キルカム（倒された直前を相手の視点で再生） |
-| `js/screens.js` | タイトル・一時停止・結果画面 |
-| `js/boardmode.js` | 将棋モード（盤・ルール・CPUの指し手・撃ち合いへの切り替え） |
-| `js/main.js` | メインループ |
+| `src/core.ts` | 共通の道具、**駒・武器・スキル・CPUの強さのデータ**、設定 |
+| `src/state.ts` | 複数のファイルから書き換えるゲームの状態（`gs`） |
+| `src/tune.ts` | 調整パネル（数値をスライダーで変える。変えた値は保存） |
+| `src/audio.ts` | 効果音（Web Audio で合成） |
+| `src/render.ts` | レンダラー、空、光、テクスチャ、駒と銃の形 |
+| `src/world.ts` | 盤（中央の高台）、外周エリア、背景、動かない障害物と当たり判定 |
+| `src/nav.ts` | CPUの経路探索（マス目の A*） |
+| `src/physics.ts` | 物理演算で動く小物（cannon-es） |
+| `src/effects.ts` | 破片・弾痕・光跡・ダメージ数字、一人称の銃、駒のキャラクター |
+| `src/arrows.ts` | 矢（重力で落ちる飛び道具、刺さる、追尾） |
+| `src/grenades.ts` | グレネード（当たったら爆発）と煙幕 |
+| `src/input.ts` | キーボード・マウス・フルスクリーン |
+| `src/game.ts` | ゲーム状態、移動、武器、プレイヤー |
+| `src/ai.ts` | CPU |
+| `src/hud.ts` | 勝敗、HUD |
+| `src/camera.ts` | カメラと一人称の銃の動き |
+| `src/replay.ts` | キルカム（倒された直前を相手の視点で再生） |
+| `src/screens.ts` | タイトル・一時停止・結果画面 |
+| `src/boardmode.ts` | 将棋モード（盤・ルール・CPUの指し手・撃ち合いへの切り替え） |
+| `src/main.ts` | メインループ（ここから全部を読み込む） |
+| `src/style.css` | 画面の見た目 |

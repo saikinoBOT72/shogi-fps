@@ -1,8 +1,16 @@
 // CPU
-'use strict';
+import { gs } from './state';
+import { DIFFS, V3, clamp, lerp, rand, settings } from './core';
+import { SFX } from './audio';
+import { cam } from './render';
+import { insideCollider, propMeshes } from './world';
+import { Nav } from './nav';
+import { Smoke } from './grenades';
+import { bot, botActor, canFire, eyeOf, fire, fireGrenade, hasLOS, moveEntity, player, ray, regenTick, shootArrow, skillTick, startReload, stats, tryJump, useSkill, view, weaponTick } from './game';
+import { addDamageDir, hud, killPlayer } from './hud';
 
 // ================= CPU =================
-function steer(e, dir) {
+export function steer(e, dir) {
   if (dir.lengthSq() < 1e-6) return dir;
   const o = new V3(e.pos.x, e.pos.y + 0.5, e.pos.z);
   const free = d => { ray.set(o, d); ray.far = 1.8; const h = ray.intersectObjects(propMeshes, true).length === 0; ray.far = Infinity; return h; };
@@ -14,7 +22,7 @@ function steer(e, dir) {
   return dir;
 }
 // まっすぐ歩いて行けるか
-function reachable(e, from, to) {
+export function reachable(e, from, to) {
   const d = to.clone().sub(from); d.y = 0;
   const len = d.length();
   if (len < 0.01) return true;
@@ -24,7 +32,7 @@ function reachable(e, from, to) {
   return !hit;
 }
 // 障害物を回り込むための中継地点（相手が見える場所を優先）
-function pickWaypoint(e, target, targetEye) {
+export function pickWaypoint(e, target, targetEye) {
   let best = null, bs = Infinity;
   for (let i = 0; i < 16; i++) {
     const a = i / 16 * Math.PI * 2;
@@ -41,14 +49,14 @@ function pickWaypoint(e, target, targetEye) {
   return best;
 }
 // その位置に立ったとき、体のどこか（頭・胸・足・左右の端）が from から見えるか（煙は隠れ場所にならない）
-function bodyVisible(pos, e, from) {
+export function bodyVisible(pos, e, from) {
   const side = new V3(-(from.z - pos.z), 0, from.x - pos.x).normalize().multiplyScalar(e.radius * 0.9);
   const pts = [0.92, 0.6, 0.25].map(k => new V3(pos.x, pos.y + e.height * k, pos.z));
   pts.push(pts[1].clone().add(side), pts[1].clone().sub(side));
   return pts.some(p => hasLOS(from, p, true));
 }
 // 経路探索で次に向かう点（まっすぐ行けるなら null）
-function navNext(b, tgt, dt, pEye) {
+export function navNext(b, tgt, dt, pEye) {
   if (Math.abs(tgt.y - b.pos.y) < 0.6 && reachable(b, b.pos, tgt)) { b.path = null; return null; }
   b.pathT = (b.pathT || 0) - dt;
   if (!b.path || b.pathT <= 0 || !b.pathGoal || b.pathGoal.distanceTo(tgt) > 3) {
@@ -69,7 +77,7 @@ function navNext(b, tgt, dt, pEye) {
   }
   return b.path[b.pathI];
 }
-function findCover(e, from) {
+export function findCover(e, from) {
   let best = null, bd = Infinity;
   for (let i = 0; i < 22; i++) {
     const a = rand(0, Math.PI * 2), r = rand(2.5, 11);
@@ -81,10 +89,10 @@ function findCover(e, from) {
   return best;
 }
 
-function updateBot(dt) {
+export function updateBot(dt) {
   const b = bot, D = DIFFS[settings.diff];
   const wish = new V3();
-  if (state === 'fight' && !b.dead) {
+  if (gs.state === 'fight' && !b.dead) {
     const pEye = eyeOf(player), bEye = eyeOf(b);
     const toP = player.pos.clone().sub(b.pos); toP.y = 0;
     const dist = toP.length(); toP.normalize();
@@ -177,7 +185,7 @@ function updateBot(dt) {
           aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
           shootArrow(b, aim, bEye.clone().addScaledVector(aim, 0.7));
           b.drawGoal = 0;
-          b.cd += rand(...D.gap) * 1.2;   // 次の矢を番えるまで少し間を置く
+          b.cd += rand(D.gap[0], D.gap[1]) * 1.2;   // 次の矢を番えるまで少し間を置く
         }
       } else if (!canShoot) b.draw = Math.max(0, b.draw - dt * 2);
     } else if (b.w.kind === 'grenade') {
@@ -191,7 +199,7 @@ function updateBot(dt) {
         const aim = p.sub(bEye).normalize(), err = D.err * 0.6;
         aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
         fireGrenade(b, aim, bEye.clone().addScaledVector(aim, 0.7));
-        b.fireDelay = rand(...D.gap) + 0.5;
+        b.fireDelay = rand(D.gap[0], D.gap[1]) + 0.5;
       }
     } else if (((los && b.seen > D.react + (b.w.zoom ? 0.35 : 0)) || (b.skillT > 0 && b.skill.type === 'pierce' && b.lostT < 3)) && canFire(b) && b.fireDelay <= 0 && !b.coverPt && !busy) {
       // 貫き準備中は、見えていなくても最後に見た場所へ撃ち込む
@@ -207,9 +215,9 @@ function updateBot(dt) {
         if (!(b.burst > 0)) { b.burst = 3 + Math.floor(Math.random() * 5); b.burstN = b.burst; }
         b.burst--;
         // バーストの合間も、1秒あたりのダメージが上限を超えないよう間を空ける
-        b.fireDelay = b.burst > 0 ? rand(0, 0.03) : Math.max(rand(...D.gap) + 0.15, b.burstN * b.w.dmg / D.dps - b.burstN * b.w.rate);
+        b.fireDelay = b.burst > 0 ? rand(0, 0.03) : Math.max(rand(D.gap[0], D.gap[1]) + 0.15, b.burstN * b.w.dmg / D.dps - b.burstN * b.w.rate);
       } else {
-        b.fireDelay = rand(...D.gap) + (b.w.zoom ? 0.9 : 0);
+        b.fireDelay = rand(D.gap[0], D.gap[1]) + (b.w.zoom ? 0.9 : 0);
         // 1発が重い武器は、1秒あたりのダメージが上限を超えないよう間を空ける
         const perShot = b.w.dmg * (b.w.pellets ? b.w.pellets * 0.5 : 1);
         b.fireDelay = Math.max(b.fireDelay, perShot / D.dps - b.w.rate);
@@ -229,11 +237,11 @@ function updateBot(dt) {
     moveEntity(b, wish, dt);
   }
   skillTick(b, dt);
-  if (state === 'fight') regenTick(b, dt);
+  if (gs.state === 'fight') regenTick(b, dt);
 }
 
 // スキルごとのCPUの使い方
-const SKILL_AI = {
+export const SKILL_AI = {
   // 突撃：相手がリロード中、または遠いときに一気に詰める（突撃型ほど積極的）
   charge(b, c) {
     if (c.los && c.dist > 5 && b.seen > 0.5 && (player.reloading > 0 || c.dist > c.pref + 8 / b.persona.eager)) useSkill(b, c.toP);
@@ -270,19 +278,19 @@ const SKILL_AI = {
   },
 };
 // CPUの性格（対局ごとにランダム）：prefAdd 間合いの増減 / coverHp 隠れ始めるHP / eager スキルの積極さ / jump ジャンプの多さ
-const PERSONAS = {
+export const PERSONAS = {
   rush:    { name: '突撃型',     prefAdd: -4, coverHp: 15, eager: 1.8, jump: 1.6 },
   careful: { name: '慎重型',     prefAdd: 4,  coverHp: 45, eager: 0.6, jump: 0.6 },
   normal:  { name: 'バランス型', prefAdd: 0,  coverHp: 30, eager: 1,   jump: 1 },
 };
 // 音で気づく：見えていなくても、聞こえた位置を「最後に見た場所」にする
-function aiHear(pos, radius) {
-  if (!bot || bot.dead || state !== 'fight') return;
+export function aiHear(pos, radius) {
+  if (!bot || bot.dead || gs.state !== 'fight') return;
   if (bot.pos.distanceTo(pos) > radius || bot.lostT === 0) return;
   bot.lastKnown.copy(pos); bot.lostT = 0.01; bot.wp = null;
 }
 
-function damagePlayer(dmg, from) {
+export function damagePlayer(dmg, from) {
   player.hp -= dmg; stats.taken += dmg; player.sinceHit = 0;
   hud.hurt = 0.85;
   view.shake = Math.max(view.shake, 0.35);
@@ -293,7 +301,7 @@ function damagePlayer(dmg, from) {
 }
 
 // 体当たり
-function checkRam(a, b, onHit) {
+export function checkRam(a, b, onHit) {
   if (a.skillT <= 0 || a.skill.type !== 'dash' || a.rammed || a.dead || b.dead) return;
   const d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
   if (d > a.radius + b.radius + 0.35) return;
