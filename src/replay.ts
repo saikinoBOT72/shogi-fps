@@ -12,7 +12,7 @@ import { bot, botActor, player, playerActor, view } from './game';
 import { animateActor, poseViewModel } from './camera';
 
 export const Replay = (() => {
-  const KEEP = 7, BEFORE = 4, AFTER = 1.4;   // 覚えておく秒数・決着の何秒前から・何秒後まで
+  const KEEP = 9, BEFORE = 6, AFTER = 1.4;   // 覚えておく秒数・決着の何秒前から・何秒後まで
   let frames = [], events = [], t = 0, play = null;
   const recording = () => !play && (gs.state === 'fight' || gs.state === 'end');
   const cl = a => a && a.isVector3 ? a.clone() : a;

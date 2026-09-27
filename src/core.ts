@@ -29,7 +29,8 @@ export const PIECES = {
   K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',      skill: 'rally' },
 };
 // 全体のルール：しばらく被弾しないとHPが回復する
-export const RULES = { regenDelay: 5, regenRate: 12 };
+// speed: 走る速さの倍率（駒の speed に掛ける）、walk: 歩く速さ（走りに対する割合）
+export const RULES = { regenDelay: 5, regenRate: 12, speed: 0.8, walk: 0.6 };
 export const WEAPONS = {
   // dmg: ダメージ / head: 頭の倍率 / rate: 連射間隔 / spread: 基本ブレ / bloom*: 連射でブレが広がる量
   // move/air: 移動中・空中のブレ / ads: 右クリック時のブレ倍率 / recoil: 反動 / falloff: [減衰開始, 最大減衰距離, 最小倍率]
@@ -118,6 +119,16 @@ export const H = 44, BH = 22, GROUND = -1.5, G = 22, TIME_LIMIT = 120;
 // ---------- 設定 ----------
 export const settings = { sens: 1, diff: 'normal', vol: 0.7, quality: 'mid', showFps: false, myPiece: 'P', foePiece: 'P', gunSkin: 'kurogane' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('shogifps') || '{}')); } catch (e) {}
+// キー割り当て（e.code）。マウスの撃つ・覗き込みは固定
+export const KEY_ACTIONS: [string, string][] = [
+  ['forward', '前'], ['back', '後ろ'], ['left', '左'], ['right', '右'], ['run', '走る（押している間）'], ['jump', 'ジャンプ（壁に向かって長押しで登る）'],
+  ['reload', 'リロード'], ['skill', 'スキル'], ['inspect', '銃を眺める'], ['fullscreen', 'フルスクリーン'],
+];
+export const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', run: 'ShiftLeft', jump: 'Space', reload: 'KeyR', skill: 'KeyE', inspect: 'KeyV', fullscreen: 'KeyF' };
+(settings as any).keys = Object.assign({}, DEFAULT_KEYS, (settings as any).keys || {});
+// e.code を読みやすい名前に
+export const keyName = (code: string) => ({ Space: 'Space', ShiftLeft: '左Shift', ShiftRight: '右Shift', ControlLeft: '左Ctrl', ControlRight: '右Ctrl', AltLeft: '左Alt', AltRight: '右Alt', Tab: 'Tab', CapsLock: 'CapsLock', Backquote: '`' } as any)[code]
+  || code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'テンキー').replace(/^Arrow/, '矢印');
 export const saveSettings = () => { try { localStorage.setItem('shogifps', JSON.stringify(settings)); } catch (e) {} };
 // 画質（pr: 描画解像度の倍率 / shadow: 影の解像度, 0 で影なし / aa: アンチエイリアス）
 export const QUALITIES = {

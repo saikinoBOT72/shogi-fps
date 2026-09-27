@@ -245,3 +245,8 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .vs-line { display: flex; align-items: center; gap: 14px; font-size: 15px }
 .vs-line em { font: 900 italic 28px var(--font-ui); color: var(--accent) }
 .bm-koma { width: 52px; height: 60px; display: flex; align-items: center; justify-content: center; font: 900 34px var(--font-koma); color: var(--sumi-0); background: var(--kiji-2); clip-path: var(--koma-shape) }
+
+/* キー設定のボタン */
+.keys .kbd-btn { font: 700 13px var(--font-ui); min-width: 64px; padding: 4px 10px; border-radius: 6px; cursor: pointer; color: var(--text); background: color-mix(in srgb, var(--sumi-2) 80%, transparent); border: 1px solid var(--line) }
+.keys .kbd-btn:hover { border-color: var(--accent) }
+.keys .kbd-btn.wait { color: var(--accent); border-color: var(--accent) }

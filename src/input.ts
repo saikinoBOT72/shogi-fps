@@ -1,5 +1,6 @@
 // キーボード・マウス・フルスクリーン
 import { gs } from './state';
+import { settings } from './core';
 import { cam, renderer } from './render';
 import { vmCam } from './effects';
 import { isPlaying } from './game';
@@ -7,6 +8,8 @@ import { onLocked, pause } from './screens';
 
 // ================= 入力 =================
 export const keys: any = {};
+// 割り当てたキーが押されているか（action は core.ts の KEY_ACTIONS）
+export const down = (action: string) => !!keys[(settings as any).keys[action]];
 gs.mouseDown = false;
 gs.rightDown = false;
 gs.triggerUsed = false;
@@ -15,8 +18,11 @@ export let lockGrace = 0, lockFailed = false;
 gs.mdx = 0;
 gs.mdy = 0;
 addEventListener('keydown', e => {
-  if (e.code === 'Space') { e.preventDefault(); if (!keys.Space) gs.jumpPressed = 0.15; }
-  if (e.code === 'KeyF' && !e.repeat) toggleFullscreen();
+  if (gs.rebinding) return;   // キー設定の入力待ち
+  const K = (settings as any).keys;
+  if (e.code === K.jump) { e.preventDefault(); if (!keys[e.code]) gs.jumpPressed = 0.15; }
+  if (e.code === 'Space' || e.code === 'Tab') e.preventDefault();
+  if (e.code === K.fullscreen && !e.repeat) toggleFullscreen();
   keys[e.code] = true;
 });
 addEventListener('keyup', e => { keys[e.code] = false; });

@@ -10,7 +10,7 @@ import { PHYS, blockers } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
-import { keys } from './input';
+import { down, keys } from './input';
 import { PERSONAS, aiHear, damagePlayer } from './ai';
 import { killBot, showHitmarker } from './hud';
 import { Replay } from './replay';
@@ -151,7 +151,7 @@ export function moveEntity(e, wish, dt) {
   } else {
     let slow = 1;
     if (e.skillT > 0 && sk.type === 'guard') { e.skillT -= dt; slow = sk.slow; }
-    const target = wish.clone().multiplyScalar(e.def.speed * (e.speedMul || 1) * slow);
+    const target = wish.clone().multiplyScalar(e.def.speed * RULES.speed * (e.isBot || e.running ? 1 : RULES.walk) * (e.speedMul || 1) * slow);
     const dv = target.sub(e.vel); dv.y = 0;
     const acc = (e.onGround ? 75 : 22) * dt;
     if (dv.length() > acc) dv.setLength(acc);
@@ -365,27 +365,28 @@ export function updatePlayer(dt) {
   const fwd = new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw)), right = new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw));
   const wish = new V3();
   if (gs.state === 'fight' && !p.dead) {
-    if (keys.KeyW) wish.add(fwd); if (keys.KeyS) wish.sub(fwd);
-    if (keys.KeyD) wish.add(right); if (keys.KeyA) wish.sub(right);
+    if (down('forward')) wish.add(fwd); if (down('back')) wish.sub(fwd);
+    if (down('right')) wish.add(right); if (down('left')) wish.sub(right);
     if (wish.lengthSq() > 0) wish.normalize();
     if (gs.jumpPressed > 0 && tryJump(p)) gs.jumpPressed = 0;
-    if (keys[p.skill.key] && !p.skillHeld) {
+    if (down('skill') && !p.skillHeld) {
       // すり足は A/D の方向（押していなければ右）、他は前
       let sdir = fwd;
-      if (p.skill.type === 'step') sdir = keys.KeyA ? right.clone().negate() : keys.KeyD ? right : keys.KeyS ? fwd.clone().negate() : right;
+      if (p.skill.type === 'step') sdir = down('left') ? right.clone().negate() : down('right') ? right : down('back') ? fwd.clone().negate() : right;
       useSkill(p, sdir);
     }
-    p.skillHeld = !!keys[p.skill.key];
+    p.skillHeld = down('skill');
     // V：銃を眺める
-    if (keys.KeyV && !p.inspectHeld) VM.inspect();
-    p.inspectHeld = !!keys.KeyV;
+    if (down('inspect') && !p.inspectHeld) VM.inspect();
+    p.inspectHeld = down('inspect');
   }
   gs.jumpPressed -= dt;
   const guardOrDash = p.skillT > 0 && ['guard', 'dash', 'step', 'leap'].includes(p.skill.type);   // 覗き込めないスキル中
   p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash ? 1 : 0, p.w.adsSpeed || 14, dt);
   // 壁に向かってジャンプ長押しで登る
-  p.wantClimb = !!(keys.Space && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
+  p.wantClimb = !!(down('jump') && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
   if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('step', null, 0.6); p.climbSnd = 0.22; }
+  p.running = down('run');
   p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1);
   moveEntity(p, wish, dt);
   skillTick(p, dt);
@@ -414,7 +415,7 @@ export function updatePlayer(dt) {
     }
     return;
   }
-  if (keys.KeyR) startReload(p);
+  if (down('reload')) startReload(p);
   if (gs.mouseDown && !gs.triggerUsed) {
     gs.triggerUsed = !p.w.auto;
     if (p.ammo <= 0 && p.reloading <= 0) { SFX.play('empty'); startReload(p); }

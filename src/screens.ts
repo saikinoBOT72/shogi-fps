@@ -1,6 +1,6 @@
 // タイトル・駒選択・設定・操作方法・一時停止・結果画面
 import { gs } from './state';
-import { $, DIFFS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, saveSettings, settings } from './core';
+import { $, DEFAULT_KEYS, DIFFS, KEY_ACTIONS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, keyName, saveSettings, settings } from './core';
 import { openTune } from './tune';
 import { SFX } from './audio';
 import { requestLock } from './input';
@@ -58,14 +58,38 @@ function showSettings(back: () => void) {
 
 // ================= 操作方法 =================
 // 操作説明（スキルは今の駒に合わせる）
-export const keysHTML = () => {
+export const keysHTML = (edit = false) => {
   const sk = SKILLS[(PIECES[gs.matchCtx ? gs.matchCtx.myType : settings.myPiece] || PIECES.P).skill];
+  const K = (settings as any).keys;
   const k = (key, what) => `<div><kbd>${key}</kbd><span>${what}</span></div>`;
+  const bind = ([a, what]) => edit
+    ? `<div><button class="kbd-btn" data-a="${a}">${keyName(K[a])}</button><span>${a === 'skill' ? `スキル（${sk.name}：${sk.help}）` : what}</span></div>`
+    : k(keyName(K[a]), a === 'skill' ? `${sk.name}：${sk.help}` : what);
   return `<div class="keys">
-    ${k('WASD', '移動')}${k('マウス', '狙う')}${k('左クリック', '撃つ（弓は長押しで引く）')}${k('右クリック', '覗き込み')}
-    ${k('Space', 'ジャンプ（壁に向かって長押しで登る）')}${k('R', 'リロード')}${k('E', `${sk.name}：${sk.help}`)}${k('V', '銃を眺める')}${k('F', 'フルスクリーン')}${k('ESC', '一時停止')}
+    ${KEY_ACTIONS.map(bind).join('')}${k('マウス', '狙う')}${k('左クリック', '撃つ（弓は長押しで引く）')}${k('右クリック', '覗き込み')}${k('ESC', '一時停止')}
   </div>`;
 };
+// キー設定：ボタンを押してから、割り当てたいキーを押す（ESC でやめる）。同じキーを使っていた操作とは入れ替える
+function bindKeys(rerender: () => void) {
+  document.querySelectorAll<HTMLElement>('.kbd-btn').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    if (gs.rebinding) return;
+    gs.rebinding = true; b.textContent = 'キーを押す…'; b.classList.add('wait');
+    const onKey = (ev: KeyboardEvent) => {
+      ev.preventDefault(); ev.stopPropagation();
+      removeEventListener('keydown', onKey, true);
+      gs.rebinding = false;
+      const K = (settings as any).keys, a = b.dataset.a;
+      if (ev.code !== 'Escape') {
+        const other = Object.keys(K).find(x => x !== a && K[x] === ev.code);
+        if (other) K[other] = K[a];
+        K[a] = ev.code; saveSettings();
+      }
+      rerender();
+    };
+    addEventListener('keydown', onKey, true);
+  });
+}
 function showControls(back: () => void) {
   const rows = Object.values(PIECES).map((p: any) => {
     const sk = SKILLS[p.skill], w = WEAPONS[p.weapon];
@@ -73,10 +97,12 @@ function showControls(back: () => void) {
   }).join('');
   overlay(`<div class="screen wide">
     <h2 class="h">操作方法</h2>
-    <div class="panel">${keysHTML()}</div>
+    <div class="panel">${keysHTML(true)}<p class="note">キーをクリックして、割り当てたいキーを押すと変えられます</p></div>
     <div class="panel"><table class="skills">${rows}</table></div>
-    <div class="menu"><button class="btn sub" id="back">戻る</button></div>
+    <div class="menu"><button class="btn sub" id="resetKeys">キーを初期設定に</button><button class="btn sub" id="back">戻る</button></div>
   </div>`, true);
+  bindKeys(() => showControls(back));
+  on('resetKeys', () => { (settings as any).keys = Object.assign({}, DEFAULT_KEYS); saveSettings(); showControls(back); });
   on('back', back);
 }
 
