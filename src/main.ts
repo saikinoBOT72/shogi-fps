@@ -148,7 +148,7 @@ if (import.meta.env.DEV) {
     (window as any).dev = {
       core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, gs: state.gs,
       // 画面が非表示でも、テストからゲームを n フレーム進められるように
-      step(n: number, each?: (i: number) => void) { for (let i = 0; i < n; i++) { loop(last + 1000 / 60); if (each) each(i); } },
+      step(n: number, each?: (i: number) => void, ms = 1000 / 60) { for (let i = 0; i < n; i++) { loop(last + ms); if (each) each(i); } },
     };
   });
 }

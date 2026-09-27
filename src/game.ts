@@ -99,7 +99,10 @@ export function collide(e) {
     }
     const dx = e.pos.x - cx, dz = e.pos.z - cz, d2 = dx * dx + dz * dz;
     if (d2 >= R * R) continue;
-    if (e.pos.y >= top - 0.4 && e.vy <= 0) { e.pos.y = top; e.vy = 0; e.onGround = true; continue; }
+    // 上面より上にいる間は何もしない（ジャンプ中に上面へ吸い寄せられないように）
+    if (e.pos.y > top) continue;
+    // 着地：上面を上から通り過ぎたか、上面のすぐ下（低い段差は自動で上がる）
+    if (e.vy <= 0 && (e.pos.y >= top - 0.4 || (e.prevY ?? e.pos.y) >= top)) { e.pos.y = top; e.vy = 0; e.onGround = true; continue; }
     if (e.pos.y + e.height <= bottom || e.pos.y >= top) continue;
     let nx, nz, push;
     if (d2 > 1e-8) { const d = Math.sqrt(d2); nx = dx / d; nz = dz / d; push = R - d; }
@@ -158,6 +161,7 @@ export function moveEntity(e, wish, dt) {
   e.climbing = !!(e.wantClimb && e.wallN && e.climbT > 0 && e.pos.y < e.wallTop);
   if (e.climbing) { e.vy = Math.max(e.vy, 5.5); e.climbT -= dt; e.airT = 1; e.jumped = true; }
   const prevVy = e.vy;
+  e.prevY = e.pos.y;
   e.vy -= G * dt; e.pos.y += e.vy * dt;
   const was = e.onGround;
   collide(e);
