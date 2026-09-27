@@ -111,3 +111,16 @@ button.small:hover{background:rgba(255,255,255,.22)}
 #killcam .kc-top b{font:900 italic 34px "Yu Gothic",sans-serif;color:#ff5b4b;letter-spacing:3px}
 #killcam .kc-top span{font-size:18px;font-weight:bold}
 #killcam .kc-skip{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);font-size:14px;opacity:.7}
+
+/* 駒選択 */
+.picks{display:flex;align-items:center;gap:22px}
+.picks h3{margin:0 0 8px;font-size:14px;opacity:.8;font-weight:normal}
+.pick{display:flex;gap:8px}
+.pick button{display:flex;flex-direction:column;align-items:center;gap:2px;width:112px;padding:10px 6px;border-radius:10px;cursor:pointer;
+  background:rgba(0,0,0,.45);color:#fff;border:2px solid rgba(255,255,255,.18);font:12px "Yu Gothic",sans-serif}
+.pick button:hover{border-color:rgba(255,207,107,.6)}
+.pick button.on{border-color:#ffcf6b;background:rgba(255,207,107,.16)}
+.pick .pc-name{font:900 30px "Yu Mincho",serif;width:44px;height:50px;display:flex;align-items:center;justify-content:center;margin-bottom:4px;
+  background:#e8c27a;color:#1a1008;clip-path:polygon(50% 0,94% 22%,88% 100%,12% 100%,6% 22%)}
+.pick span{opacity:.85;white-space:nowrap}
+.vs-mark{font:900 italic 30px "Yu Gothic",sans-serif;color:#ffcf6b;margin-top:22px}

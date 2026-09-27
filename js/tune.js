@@ -96,7 +96,7 @@ function openTune() {
   $('tuneCopy').onclick = () => {
     const text = tuneExport(), out = $('tuneOut');
     out.value = text; out.style.display = 'block'; out.select();
-    try { navigator.clipboard.writeText(text); $('tuneCopy').textContent = 'コピーしました'; } catch (e) {}
+    try { navigator.clipboard.writeText(text).then(() => { $('tuneCopy').textContent = 'コピーしました'; }).catch(() => {}); } catch (e) {}
     setTimeout(() => { if ($('tuneCopy')) $('tuneCopy').textContent = '変更点をコピー'; }, 1500);
   };
   $('tuneReset').onclick = () => { tuneReset(); openTune(); };

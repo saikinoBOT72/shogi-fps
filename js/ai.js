@@ -76,7 +76,11 @@ function updateBot(dt) {
       if (!b.coverPt || b.coverT <= 0) { b.coverPt = findCover(b, pEye); b.coverT = 0.6; }
     } else b.coverPt = null;
 
-    if (b.coverPt) {
+    const guarding = b.skillT > 0 && b.skill.type === 'guard';
+    if (guarding) {
+      // 構えている間はまっすぐ詰める
+      wish.copy(toP);
+    } else if (b.coverPt) {
       wish.copy(b.coverPt).sub(b.pos).setY(0);
       if (wish.length() < 0.5) wish.set(0, 0, 0);
     } else if (los) {
@@ -90,7 +94,7 @@ function updateBot(dt) {
       wish.copy(b.wp || tgt).sub(b.pos).setY(0);
       if (!b.wp && wish.length() < 1.5) wish.copy(toP).add(side);
     }
-    if (b.skillCd <= 0 && SKILL_AI[b.def.skill]) SKILL_AI[b.def.skill](b, { los, dist, toP, pref });
+    if (b.skillCd <= 0 && SKILL_AI[b.def.skill]) SKILL_AI[b.def.skill](b, { los, dist, toP, pref, dt });
     b.hurtT = Math.max(0, (b.hurtT || 0) - dt);
     if (wish.lengthSq() > 0) wish.normalize();
     const steered = steer(b, wish);
@@ -107,14 +111,14 @@ function updateBot(dt) {
     b.fireDelay -= dt;
     if (los && b.seen > D.react && canFire(b) && b.fireDelay <= 0 && !b.coverPt && b.skillT <= 0) {
       const aim = b.aimPt.clone().sub(bEye).normalize();
-      const err = D.err + (player.skillT > 0 ? 0.08 : 0) + (player.onGround ? 0 : 0.02);
+      const err = D.err + (player.skillT > 0 && player.skill.type === 'dash' ? 0.08 : 0) + (player.onGround ? 0 : 0.02);
       aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
       botActor.root.updateMatrixWorld(true);
       const muzzle = botActor.gun.muzzle.getWorldPosition(new V3());
       const res = fire(b, player, bEye, muzzle, aim);
       b.fireDelay = rand(...D.gap);
       b.flashT = 0.05;
-      SFX.play('shot', muzzle);
+      SFX.play('shot', muzzle, b.w.model === 'shotgun');
       if (res.dmg > 0) damagePlayer(res.dmg, b.pos);
       else if (res.miss) {
         ray.set(bEye, res.miss);
@@ -135,6 +139,10 @@ const SKILL_AI = {
   // 突撃：相手がリロード中、または遠いときに一気に詰める（突撃型ほど積極的）
   charge(b, c) {
     if (c.los && c.dist > 5 && b.seen > 0.5 && (player.reloading > 0 || c.dist > c.pref + 8 / b.persona.eager)) useSkill(b, c.toP);
+  },
+  // 守りの構え：撃たれているのに遠いとき、構えて距離を詰める
+  guard(b, c) {
+    if (c.los && c.dist > c.pref + 2 && b.seen > 0.3 && (b.hurtT > 0 || Math.random() < c.dt * 0.4 * b.persona.eager)) useSkill(b, c.toP);
   },
 };
 // CPUの性格（対局ごとにランダム）：prefAdd 間合いの増減 / coverHp 隠れ始めるHP / eager スキルの積極さ / jump ジャンプの多さ
@@ -162,7 +170,7 @@ function damagePlayer(dmg, from) {
 
 // 体当たり
 function checkRam(a, b, onHit) {
-  if (a.skillT <= 0 || a.rammed || a.dead || b.dead) return;
+  if (a.skillT <= 0 || a.skill.type !== 'dash' || a.rammed || a.dead || b.dead) return;
   const d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
   if (d > a.radius + b.radius + 0.35) return;
   a.rammed = true; a.skillT = 0; a.vel.multiplyScalar(-0.2);

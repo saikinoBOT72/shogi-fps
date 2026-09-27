@@ -36,24 +36,49 @@ function bindSettings() {
   ['sens', 'vol'].forEach(id => $(id).onclick = e => e.stopPropagation());
   $('tuneBtn').onclick = e => { e.stopPropagation(); openTune(); };
 }
-const KEYS = `<div class="keys"><b>WASD</b>移動　<b>マウス</b>照準　<b>左クリック</b>射撃　<b>右クリック</b>覗き込み　<b>R</b>リロード<br><b>Space</b>ジャンプ　<b>E</b>突撃（前方ダッシュ・被ダメ半減・体当たり）　<b>F</b>フルスクリーン　<b>ESC</b>一時停止</div>`;
+// 操作説明（スキルは選んだ駒に合わせる）
+const keysHTML = () => {
+  const sk = SKILLS[(PIECES[settings.myPiece] || PIECES.P).skill];
+  return `<div class="keys"><b>WASD</b>移動　<b>マウス</b>照準　<b>左クリック</b>射撃　<b>右クリック</b>覗き込み　<b>R</b>リロード<br><b>Space</b>ジャンプ　<b>E</b>${sk.name}（${sk.help}）　<b>F</b>フルスクリーン　<b>ESC</b>一時停止</div>`;
+};
+// 駒の紹介カード
+function pieceCard(k) {
+  const p = PIECES[k], w = WEAPONS[p.weapon], sk = SKILLS[p.skill];
+  return `<b class="pc-name">${p.name}</b><span>HP ${p.hp}　速さ ${p.speed}</span><span>${w.name}</span><span>「${sk.name}」</span>`;
+}
+function pieceSelectHTML() {
+  const opts = (sel, id, withRandom) => `<div class="pick" id="${id}">${Object.keys(PIECES).map(k =>
+    `<button data-k="${k}" class="${sel === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}${withRandom
+    ? `<button data-k="random" class="${sel === 'random' ? 'on' : ''}"><b class="pc-name">？</b><span>ランダム</span></button>` : ''}</div>`;
+  return `<div class="picks"><div><h3>あなたの駒</h3>${opts(settings.myPiece, 'pickMe', false)}</div>
+    <div class="vs-mark">VS</div>
+    <div><h3>相手の駒</h3>${opts(settings.foePiece, 'pickFoe', true)}</div></div>`;
+}
+function bindPieceSelect() {
+  const bind = (id, key) => document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    settings[key] = b.dataset.k; saveSettings();
+    resetMatch(); showTitle();
+  });
+  bind('pickMe', 'myPiece'); bind('pickFoe', 'foePiece');
+}
 
 function showTitle() {
   state = 'title'; $('hud').style.display = 'none';
-  const p = PIECES.P, w = WEAPONS[p.weapon];
   overlay(`<div class="logo">将棋<span>FPS</span></div>
-    <div class="sub">― 歩 VS 歩 ―　HP ${p.hp} ／ ${w.name} ／ スキル「${SKILLS[p.skill].name}」</div>
+    ${pieceSelectHTML()}
     ${settingsHTML()}
     <button class="btn" id="go">対局開始</button>
-    ${KEYS}`);
+    ${keysHTML()}`);
   bindSettings();
+  bindPieceSelect();
   $('go').onclick = e => { e.stopPropagation(); startMatch(); };
 }
 function showPause() {
   overlay(`<div class="res" style="font-size:56px">一時停止</div>
     ${settingsHTML()}
     <button class="btn" id="resume">再開</button>
-    <button class="btn ghost" id="quit">タイトルへ</button>${KEYS}`, true);
+    <button class="btn ghost" id="quit">タイトルへ</button>${keysHTML()}`, true);
   bindSettings();
   $('resume').onclick = e => { e.stopPropagation(); SFX.init(); requestLock(); };
   $('quit').onclick = e => { e.stopPropagation(); paused = false;
@@ -81,7 +106,7 @@ function showResult(win) {
 
 function startMatch() {
   SFX.init();
-  resetMatch();
+  resetMatch(resolveFoe());
   initPips();
   $('meName').textContent = `あなた：${player.def.name}　${player.w.name}`;
   $('foeTag').textContent = bot.def.name;

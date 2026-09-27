@@ -104,10 +104,12 @@ const PHYS = (() => {
   // プレイヤーとCPUは「押す側」の見えない体（キネマティック）として参加
   const kin = {};
   function kinFor(key, e) {
+    if (kin[key] && (kin[key].r !== e.radius || kin[key].h !== e.height)) { world.removeBody(kin[key]); kin[key] = null; }
     if (!kin[key]) {
       const b = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
       b.allowSleep = false;
       [e.radius, e.height / 2, e.height - e.radius].forEach(y => b.addShape(new CANNON.Sphere(e.radius), new CANNON.Vec3(0, y, 0)));
+      b.r = e.radius; b.h = e.height;
       world.addBody(b); kin[key] = b;
     }
     return kin[key];

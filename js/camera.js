@@ -35,10 +35,11 @@ function updateCamera(dt, rdt) {
     const r = new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw));
     cam.position.copy(eye).addScaledVector(r, bobX);
     cam.position.y += bobY + view.dip;
-    cam.rotation.set(view.pitch + sy, view.yaw + sx, sr + (p.skillT > 0 ? 0 : 0));
+    cam.rotation.set(view.pitch + sy, view.yaw + sx, sr);
   }
-  const targetFov = lerp(80, 56, p.adsT || 0) + (p.skillT > 0 ? 14 : 0);
-  view.fov = damp(view.fov, targetFov, p.skillT > 0 ? 20 : 12, rdt);
+  const dashing = p.skillT > 0 && p.skill.type === 'dash', guarding = p.skillT > 0 && p.skill.type === 'guard';
+  const targetFov = lerp(80, 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0);
+  view.fov = damp(view.fov, targetFov, dashing ? 20 : 12, rdt);
   cam.fov = view.fov; cam.updateProjectionMatrix();
   sky.position.copy(cam.position);
   SFX.listener(cam);
@@ -51,17 +52,21 @@ function updateCamera(dt, rdt) {
   VM.dip = Math.max(0, VM.dip - rdt * 4);
   VM.equip = Math.max(0, VM.equip - rdt * 2.2);
   const rl = p.reloading > 0 ? Math.sin(Math.PI * (1 - p.reloading / p.w.reload)) : 0;
-  const dash = p.skillT > 0 ? 1 : 0;
-  VM.dash = damp(VM.dash || 0, dash, 12, rdt);
-  const base = HIP.clone().lerp(ADS, ads);
+  VM.dash = damp(VM.dash || 0, dashing ? 1 : 0, 12, rdt);
+  VM.guard = damp(VM.guard || 0, guarding ? 1 : 0, 14, rdt);
+  const base = HIP.clone().lerp(VM.pist.ads, ads);
   const r = VM.root;
   r.position.set(
     base.x + VM.sway.x * (1 - ads * 0.7) + bobX * 0.6 * (1 - ads),
-    base.y - VM.sway.y * (1 - ads * 0.7) + bobY * 0.7 * (1 - ads) - rl * 0.12 - VM.dip * 0.05 - VM.equip * 0.35 - VM.dash * 0.08,
+    base.y - VM.sway.y * (1 - ads * 0.7) + bobY * 0.7 * (1 - ads) - rl * 0.12 - VM.dip * 0.05 - VM.equip * 0.35 - VM.dash * 0.08 - VM.guard * 0.1,
     base.z + VM.kick * 0.07
   );
   r.rotation.set(VM.kick * 0.22 - rl * 0.55 - VM.equip * 0.6 - VM.dash * 0.3, VM.sway.x * 1.5, VM.sway.x * 1.2 + rl * 0.45 + VM.dash * 0.35);
-  VM.pist.slide.position.z = VM.pist.slideZ + VM.slideT * 0.05;
+  VM.pist.slide.position.z = VM.pist.slideZ + VM.slideT * VM.pist.slideAmt;
+  // 盾（守りの構え）：下からせり上がる
+  VM.shield.visible = VM.guard > 0.02;
+  VM.shield.position.set(-0.04 + VM.sway.x, lerp(-0.75, -0.3, VM.guard) + bobY * 0.5, -0.56);
+  VM.shield.rotation.set(-0.12, 0.1, 0);
   VM.flashT -= rdt;
   VM.flash.visible = VM.flashT > 0;
   if (VM.flash.visible) { VM.flash.rotation.z = rand(0, 6); VM.flash.scale.setScalar(rand(0.8, 1.3)); }
@@ -97,7 +102,12 @@ function animateActor(A, e, dt, lookAt) {
   const lf = e.vel.x * Math.sin(inv) + e.vel.z * Math.cos(inv);  // 前後
   const ls = e.vel.x * Math.cos(inv) - e.vel.z * Math.sin(inv);  // 左右
   A.flinch = Math.max(0, (A.flinch || 0) - dt * 3);
-  A.body.rotation.x = damp(A.body.rotation.x, lf * 0.025 - A.flinch * 0.6 + (e.skillT > 0 ? 0.35 : 0), 12, dt);
+  const sType = SKILLS[e.def.skill].type, active = e.skillT > 0;
+  A.body.rotation.x = damp(A.body.rotation.x, lf * 0.025 - A.flinch * 0.6 + (active && sType === 'dash' ? 0.35 : 0), 12, dt);
+  // 盾
+  A.shieldT = damp(A.shieldT || 0, active && sType === 'guard' ? 1 : 0, 14, dt);
+  A.shield.visible = A.shieldT > 0.02;
+  A.shield.scale.set(1, Math.max(0.01, A.shieldT), 1);
   A.body.rotation.z = damp(A.body.rotation.z, Math.sin(e.stepPhase) * 0.13 * mk - ls * 0.02, 14, dt);
   A.body.position.y = Math.abs(Math.sin(e.stepPhase)) * 0.14 * mk;
   A.wood.emissive.multiplyScalar(Math.max(0, 1 - dt * 10));

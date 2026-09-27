@@ -43,8 +43,18 @@ const SFX = (() => {
     o.connect(g).connect(dest); o.start(t); o.stop(t + dur + 0.02);
   }
   const sounds = {
-    shot(pos) {
+    shot(pos, heavy) {
       const d = out(pos), r = rand(0.92, 1.08);
+      if (heavy) {
+        noise(d, { dur: 0.35, f0: 3000 * r, f1: 250, gain: 0.8 });
+        tone(d, { f0: 110 * r, f1: 30, dur: 0.25, gain: 1 });
+        noise(d, { dur: 0.04, type: 'highpass', f0: 2500, gain: 0.4 });
+        noise(d, { dur: 0.8, f0: 700, f1: 120, gain: 0.12, delay: 0.04 });
+        // ポンプの音
+        noise(d, { dur: 0.05, type: 'bandpass', f0: 1600, q: 2, gain: 0.3, delay: 0.3 });
+        noise(d, { dur: 0.05, type: 'bandpass', f0: 1300, q: 2, gain: 0.3, delay: 0.45 });
+        return;
+      }
       noise(d, { dur: 0.2, f0: 5000 * r, f1: 500, gain: 0.55 });
       tone(d, { f0: 160 * r, f1: 42, dur: 0.16, gain: 0.8 });
       noise(d, { dur: 0.025, type: 'highpass', f0: 3500, gain: 0.35 });
@@ -101,6 +111,16 @@ const SFX = (() => {
       const d = out(pos);
       tone(d, { type: 'triangle', f0: rand(520, 680) * pitch, f1: 300 * pitch, dur: 0.07, gain: 0.32 * v });
       noise(d, { dur: 0.03, type: 'bandpass', f0: 1800 * pitch, q: 1.5, gain: 0.22 * v });
+    },
+    guardUp(pos) {
+      const d = out(pos);
+      tone(d, { type: 'triangle', f0: 300, f1: 180, dur: 0.12, gain: 0.4 });
+      noise(d, { dur: 0.08, type: 'bandpass', f0: 900, q: 1.5, gain: 0.35 });
+    },
+    guard(pos) {
+      const d = out(pos);
+      tone(d, { type: 'triangle', f0: 420, f1: 260, dur: 0.1, gain: 0.35 });
+      noise(d, { dur: 0.05, type: 'bandpass', f0: 1200, q: 2, gain: 0.3 });
     },
     beep(hi) { tone(master, { f0: hi ? 988 : 659, dur: hi ? 0.45 : 0.16, gain: 0.22 }); },
   };

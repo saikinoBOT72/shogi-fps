@@ -18,12 +18,31 @@ function makeEntity(type, isBot) {
     skillCd: 0, skillT: 0, skillDir: new V3(), rammed: false, stepPhase: 0, flashT: 0,
   };
 }
-playerActor = buildActor(PIECES.P.name, PIECES.P.size);
-botActor = buildActor(PIECES.P.name, PIECES.P.size);
+// 駒の見た目を用意（種類が変わったときだけ作り直す）
+function ensureActors(pType, bType) {
+  const make = (old, type) => {
+    if (old && old.type === type) return old;
+    if (old) scene.remove(old.root);
+    const d = PIECES[type], a = buildActor(d.name, d.size, WEAPONS[d.weapon].model);
+    a.type = type;
+    return a;
+  };
+  playerActor = make(playerActor, pType);
+  botActor = make(botActor, bType);
+}
+const pieceKeys = () => Object.keys(PIECES);
+function resolveFoe() {
+  const k = settings.foePiece;
+  return k === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : (PIECES[k] ? k : 'P');
+}
 
-function resetMatch() {
-  player = makeEntity('P', false);
-  bot = makeEntity('P', true);
+function resetMatch(foeType) {
+  const myType = PIECES[settings.myPiece] ? settings.myPiece : 'P';
+  foeType = foeType || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
+  ensureActors(myType, foeType);
+  player = makeEntity(myType, false);
+  bot = makeEntity(foeType, true);
+  VM.setWeapon(player.w.model);
   player.pos.set(rand(-4, 4), 0, H - 3);
   bot.pos.set(rand(-4, 4), 0, -(H - 3));
   Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
@@ -90,12 +109,14 @@ function hasLOS(a, b) {
 // 移動（加速・摩擦・コヨーテタイム）
 function moveEntity(e, wish, dt) {
   const sk = e.skill;
-  if (e.skillT > 0) {
+  if (e.skillT > 0 && sk.type === 'dash') {
     e.skillT -= dt;
     e.vel.copy(e.skillDir).multiplyScalar(sk.speed);
     if (e.skillT <= 0) e.vel.multiplyScalar(0.35);
   } else {
-    const target = wish.clone().multiplyScalar(e.def.speed * (e.speedMul || 1));
+    let slow = 1;
+    if (e.skillT > 0 && sk.type === 'guard') { e.skillT -= dt; slow = sk.slow; }
+    const target = wish.clone().multiplyScalar(e.def.speed * (e.speedMul || 1) * slow);
     const dv = target.sub(e.vel); dv.y = 0;
     const acc = (e.onGround ? 75 : 22) * dt;
     if (dv.length() > acc) dv.setLength(acc);
@@ -151,9 +172,38 @@ function weaponTick(e, dt) {
   }
 }
 
-// 撃つ：origin から dir に撃ち、target に当たったら結果を返す
+// 向いている方向（盾の判定用）
+function facingOf(e) {
+  if (e.isBot) { const y = botActor.root.rotation.y; return new V3(Math.sin(y), 0, Math.cos(y)); }
+  return new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw));
+}
+// スキルによる被ダメージ倍率（守りの構えは前からの弾だけ減らす）
+function skillDamageMul(target, from) {
+  if (!(target.skillT > 0)) return 1;
+  const sk = target.skill;
+  if (sk.type !== 'guard') return sk.damageTaken;
+  const to = from.clone().sub(target.pos).setY(0).normalize();
+  return facingOf(target).dot(to) > 0.2 ? sk.damageTaken : 1;
+}
+
+// 撃つ：origin から dir に撃つ。ショットガンは粒ごとに判定して合計する
 function fire(shooter, target, origin, muzzle, dir) {
   const w = shooter.w, sp = currentSpread(shooter);
+  let dmg = 0, head = false, point = null, miss = null, wallDist = 300, blocked = false, first = true;
+  for (let i = 0; i < (w.pellets || 1); i++) {
+    const r = castShot(shooter, target, origin, muzzle, dir, sp, first);
+    first = false;
+    if (r.dmg > 0) { dmg += r.dmg; head = head || r.head; point = point || r.point; blocked = blocked || r.blocked; }
+    else if (!miss) { miss = r.miss; wallDist = r.wallDist; }
+  }
+  shooter.ammo--; shooter.cd = w.rate;
+  shooter.bloom = Math.min(w.bloomMax, shooter.bloom + w.bloomShot);
+  if (shooter.ammo <= 0) startReload(shooter);
+  if (blocked) { SFX.play('guard', point); Particles.wood(point, new V3(0, 1, 0), 5, 0.6); }
+  return { dmg, head, point, blocked, miss: dmg > 0 ? null : miss, wallDist };
+}
+function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
+  const w = shooter.w;
   const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
   ray.set(origin, d); ray.far = 300;
   const wall = ray.intersectObjects(blockers, true)[0];
@@ -168,18 +218,15 @@ function fire(shooter, target, origin, muzzle, dir) {
     const hp = ray.ray.intersectBox(box, new V3());
     if (hp && hp.distanceTo(origin) < wallDist) hit = { point: hp, dist: hp.distanceTo(origin) };
   }
-  shooter.ammo--; shooter.cd = w.rate;
-  shooter.bloom = Math.min(w.bloomMax, shooter.bloom + w.bloomShot);
-  if (shooter.ammo <= 0) startReload(shooter);
-
   let res = { dmg: 0, head: false, point: null };
   if (hit) {
     const [f0, f1, fm] = w.falloff;
     let dmg = w.dmg * lerp(1, fm, clamp((hit.dist - f0) / (f1 - f0), 0, 1));
     const head = hit.point.y > target.pos.y + target.height * 0.76;
     if (head) dmg *= w.head;
-    if (target.skillT > 0) dmg *= target.skill.damageTaken;
-    res = { dmg, head, point: hit.point };
+    const mul = skillDamageMul(target, shooter.pos);
+    dmg *= mul;
+    res = { dmg, head, point: hit.point, blocked: mul < 1 && target.skill.type === 'guard' };
     Tracers.add(muzzle, hit.point, shooter.isBot ? 0xff8a70 : 0xffe9a8);
   } else {
     const end = wall ? wall.point : origin.clone().addScaledVector(d, 150);
@@ -190,8 +237,7 @@ function fire(shooter, target, origin, muzzle, dir) {
       const ph = wall.object.userData.phys;
       if (ph) { PHYS.hit(ph, wall.point, d, w.dmg * 0.15); Particles.wood(wall.point, n, 4, 0.5); }
       else Decals.add(wall.point, n);
-      if (Math.random() < 0.3) SFX.play('ricochet', wall.point);
-      else SFX.play('thud', wall.point);
+      if (sound) SFX.play(Math.random() < 0.3 ? 'ricochet' : 'thud', wall.point);
     }
     res.miss = d; res.wallDist = wallDist;
   }
@@ -200,15 +246,22 @@ function fire(shooter, target, origin, muzzle, dir) {
 
 // ================= プレイヤー =================
 function useSkill(e, dir) {
-  if (e.skillCd > 0 || e.dead) return false;
+  if (e.skillCd > 0 || e.dead || e.skillT > 0) return false;
   e.skillDir.copy(dir).setY(0).normalize();
   e.skillT = e.skill.duration; e.skillCd = e.skill.cooldown; e.rammed = false;
-  e.vy = Math.max(e.vy, 2);
-  SFX.play('dash', e.pos);
-  Particles.dust(e.pos, 8, 1.3);
-  if (!e.isBot) view.shake = Math.max(view.shake, 0.25);
+  if (e.skill.type === 'dash') {
+    e.vy = Math.max(e.vy, 2);
+    SFX.play('dash', e.pos);
+    Particles.dust(e.pos, 8, 1.3);
+    if (!e.isBot) view.shake = Math.max(view.shake, 0.25);
+  } else {
+    SFX.play('guardUp', e.pos);
+    if (!e.isBot) view.shake = Math.max(view.shake, 0.12);
+  }
   return true;
 }
+// 構えを解く（撃ったとき）
+function endGuard(e) { if (e.skillT > 0 && e.skill.type === 'guard') e.skillT = 0; }
 
 function updatePlayer(dt) {
   const p = player;
@@ -249,11 +302,12 @@ function shootPlayer() {
   cam.updateMatrixWorld();
   const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   const muzzle = cam.localToWorld(new V3(lerp(0.19, 0, p.adsT) * 0.9, -0.14, -0.9));
+  endGuard(p);
   const res = fire(p, bot, eyeOf(p), muzzle, dir);
   aiHear(p.pos, 45);
   stats.shots++;
-  SFX.play('shot');
-  VM.kick = 1; VM.slideT = 1; VM.flashT = 0.05;
+  SFX.play('shot', null, p.w.model === 'shotgun');
+  VM.kick = clamp(p.w.recoil / 0.022, 1, 2.2); VM.slideT = 1; VM.flashT = 0.05;
   view.pitch += p.w.recoil * lerp(1, 0.6, p.adsT); view.yaw += rand(-0.006, 0.006);
   view.shake = Math.max(view.shake, 0.12);
   if (res.dmg > 0) damageBot(res);

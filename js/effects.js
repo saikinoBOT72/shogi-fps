@@ -142,21 +142,33 @@ vmScene.add(new THREE.HemisphereLight(C(0xdcecff), C(0x806040), 0.8));
 const vmSun = new THREE.DirectionalLight(C(0xfff0d6), 1.6); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
 const vmFlashLight = new THREE.PointLight(C(0xffc870), 0, 2); vmScene.add(vmFlashLight);
 const VM = (() => {
-  const root = new THREE.Group(), pist = buildPistol();
-  pist.g.scale.setScalar(0.85);
-  root.add(pist.g); vmScene.add(root);
+  const root = new THREE.Group();
+  const models = { pistol: buildGun('pistol'), shotgun: buildGun('shotgun') };
+  for (const m of Object.values(models)) { m.g.scale.setScalar(0.85); m.g.visible = false; root.add(m.g); }
+  vmScene.add(root);
+  const pist = models.pistol;
   const flash = new THREE.Group();
   const fm = new THREE.MeshBasicMaterial({ map: starTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const f1 = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), fm);
   const f2 = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.34), fm); f2.rotation.x = Math.PI / 2;
   const f3 = f2.clone(); f3.rotation.set(Math.PI / 2, 0, Math.PI / 2);
-  flash.add(f1, f2, f3); flash.visible = false; pist.muzzle.add(flash);
-  return { root, pist, flash, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0 };
+  flash.add(f1, f2, f3); flash.visible = false;
+  const shield = makeShield(0.56, 0.44); shield.visible = false; vmScene.add(shield);
+  const vm = {
+    root, models, pist, flash, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
+    // 持っている銃の見た目を切り替える
+    setWeapon(model) {
+      for (const [k, m] of Object.entries(models)) m.g.visible = k === model;
+      vm.pist = models[model]; vm.pist.muzzle.add(flash);
+    },
+  };
+  vm.setWeapon('pistol');
+  return vm;
 })();
 const HIP = new V3(0.21, -0.2, -0.46), ADS = new V3(0, -0.086, -0.33);
 
 // ================= 駒のキャラクター =================
-function buildActor(ch, size) {
+function buildActor(ch, size, model = 'pistol') {
   const root = new THREE.Group(), body = new THREE.Group();
   const w = 1.2 * size, h = 1.85 * size, t = 0.42 * size;
   const wood = pieceWoodMat.clone();
@@ -164,12 +176,15 @@ function buildActor(ch, size) {
   piece.position.set(0, h / 2, t / 2);
   body.position.z = -t / 2;
   body.add(piece); root.add(body);
-  const gun = buildPistol();
-  gun.g.scale.setScalar(2.2 * size); gun.g.rotation.y = Math.PI;
+  const gun = buildGun(model);
+  gun.g.scale.setScalar((model === 'shotgun' ? 1.6 : 2.2) * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(w * 0.52, h * 0.5, t + 0.12);
   body.add(gun.g);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   flash.scale.setScalar(0.7); flash.visible = false; gun.muzzle.add(flash);
+  const shield = makeShield(w * 1.05, h * 0.7);
+  shield.position.set(0, h * 0.45, t + 0.45); shield.visible = false;
+  body.add(shield);
   scene.add(root);
-  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, w, h, t };
+  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, w, h, t };
 }

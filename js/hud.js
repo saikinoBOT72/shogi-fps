@@ -82,7 +82,7 @@ function updateHUD(dt) {
   setStyle($('foeBar').children[0], 'transform', `scaleX(${bk.toFixed(3)})`);
   setStyle($('lowhp'), 'opacity', hpk < 0.35 && !p.dead ? (0.55 + Math.sin(performance.now() / 180) * 0.35).toFixed(2) : '0');
   hud.hurt = Math.max(0, hud.hurt - dt * 2.2); setStyle($('hurt'), 'opacity', hud.hurt.toFixed(2));
-  hud.dash = p.skillT > 0 ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
+  hud.dash = p.skillT > 0 && p.skill.type === 'dash' ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
 
   if (hud.ammo !== p.ammo) {
     hud.ammo = p.ammo;
