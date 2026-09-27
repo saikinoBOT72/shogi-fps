@@ -146,3 +146,32 @@ button.small:hover{background:rgba(255,255,255,.22)}
 /* 画面が低いときはスクロールできるように */
 #overlay{overflow-y:auto;justify-content:safe center;padding:16px 0;box-sizing:border-box}
 .logo{font-size:64px}
+
+/* タイトルのモード選択 */
+.modes{display:flex;gap:14px}
+.modes .btn{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:22px;padding:12px 30px}
+.modes .btn small{font-size:12px;font-weight:normal;letter-spacing:0;opacity:.8}
+.btn.ghost-btn{background:rgba(255,255,255,.12);color:#fff;border:2px solid rgba(255,255,255,.4)}
+.btn.ghost-btn:hover{background:rgba(255,255,255,.22)}
+/* 将棋モードの盤面 */
+#bmUI{position:fixed;inset:0;pointer-events:none;display:none}
+#bmMsg{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:24px;font-weight:900;white-space:nowrap}
+.bm-panel{position:absolute;background:rgba(0,0,0,.5);border-radius:10px;padding:10px 14px;pointer-events:auto;max-width:300px}
+.bm-panel h4{margin:0 0 6px;font-size:13px;font-weight:normal;opacity:.8}
+.bm-e{left:18px;top:18px;font:bold 20px "Yu Mincho",serif;letter-spacing:2px}
+.bm-p{right:18px;bottom:18px}
+#bmHandP{display:flex;flex-wrap:wrap;gap:6px;min-height:24px}
+.bm-hand{font:bold 22px "Yu Mincho",serif;background:#e8c27a;color:#1a1008;border:2px solid #8a5a2b;border-radius:6px;padding:3px 9px;cursor:pointer}
+.bm-hand.sel{background:#7ec8ff}
+.bm-hand small{font-size:12px}
+.bm-btns{position:absolute;left:18px;bottom:18px;display:flex;gap:8px;pointer-events:auto}
+.bm-help{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:13px;opacity:.7;white-space:nowrap}
+.vs-line{display:flex;align-items:center;gap:14px;font-size:16px}
+.vs-line em{font:900 italic 30px "Yu Gothic",sans-serif;color:#ffcf6b}
+.bm-koma{font:900 34px "Yu Mincho",serif;background:#e8c27a;color:#1a1008;width:52px;height:60px;display:flex;align-items:center;justify-content:center;
+  clip-path:polygon(50% 0,94% 22%,88% 100%,12% 100%,6% 22%)}
+/* 弓の引き具合のリング */
+#drawRing{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;opacity:0;--p:0%;
+  background:conic-gradient(rgba(255,255,255,.85) var(--p),rgba(255,255,255,.12) 0);
+  -webkit-mask:radial-gradient(circle,transparent 19px,#000 20px);mask:radial-gradient(circle,transparent 19px,#000 20px)}
+#drawRing.full{background:#ffe27a;box-shadow:0 0 12px #ffcf6b}

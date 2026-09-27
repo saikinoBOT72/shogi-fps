@@ -43,7 +43,8 @@ const WEAPONS = {
   // 弓：長押しで引き絞り、離して撃つ。引くほど速く・強く・まっすぐ。矢は重力で落ちる
   // dmgMin〜dmg: 引き具合で変わるダメージ / drawTime: 引き切るまでの秒 / speedMin〜speedMax: 矢の速さ / drawSpread: 引きが浅いときのブレ
   bow: {
-    name: '弓', model: 'bow', kind: 'bow', dmgMin: 18, dmg: 62, head: 1.6, drawTime: 0.9, speedMin: 14, speedMax: 42, gravity: 20,
+    // drag: 空気抵抗（遠くほど失速して落ちる）。引きの効き方はマイクラと同じ曲線（少し引くだけでも威力が出る）
+    name: '弓', model: 'bow', kind: 'bow', dmgMin: 12, dmg: 62, head: 1.6, drawTime: 1.0, speedMin: 10, speedMax: 55, gravity: 20, drag: 0.6,
     rate: 0.45, spread: 0.002, drawSpread: 0.03, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.012, air: 0.03, ads: 0.6, mag: 1, reload: 0.45, auto: false, recoil: 0.012, falloff: [999, 1000, 1], pref: 16,
   },

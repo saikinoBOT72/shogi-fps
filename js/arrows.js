@@ -45,6 +45,7 @@ const Arrows = (() => {
     SFX.play('arrowHit', point);
     if (t.isBot) {
       damageBot({ dmg, head, point });
+      SFX.play('ding');   // 当たった「ピン」
       // 駒に刺さったまま残る
       a.mesh.position.copy(point).addScaledVector(dir, 0.25 - TIP);
       botActor.body.attach(a.mesh); keepStuck(a.mesh);
@@ -78,7 +79,12 @@ const Arrows = (() => {
         if (ang > 1e-4) cur.lerp(want, Math.min(1, max / ang)).normalize();
         a.vel.copy(cur).multiplyScalar(spd);
         if (Math.random() < 0.8) Particles.glow(a.pos, 0x39c6ff);
-      } else a.vel.y -= a.gravity * dt;
+      } else {
+        a.vel.y -= a.gravity * dt;
+        a.vel.multiplyScalar(Math.max(0, 1 - a.drag * dt));
+        // 飛んだ弧が見えるように白い尾を残す
+        if (Math.random() < 0.85) Particles.trail(a.pos, a.full ? 0xfff2c0 : 0xffffff);
+      }
 
       const step = a.vel.clone().multiplyScalar(dt), len = step.length(), dir = step.clone().normalize();
       ray.set(a.pos, dir); ray.far = len + TIP;

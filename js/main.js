@@ -13,6 +13,13 @@ function loop(now) {
 
   clouds.forEach(c => { c.position.x += dt * 2; if (c.position.x > 450) c.position.x = -450; });
 
+  // 将棋モードの盤面
+  if (state === 'board') {
+    BoardMode.update(rdt);
+    renderer.clear(); renderer.render(BoardMode.scene, BoardMode.cam);
+    return;
+  }
+
   if (state === 'title') {
     titleT += rdt;
     const a = titleT * 0.07;

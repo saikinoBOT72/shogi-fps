@@ -58,6 +58,12 @@ function updateHUD(dt) {
   xh[2].style.left = (-gap - 9) + 'px'; xh[3].style.left = gap + 'px';
   $('xh').style.opacity = p.dead || VM.scoped ? 0 : 1;
   setStyle($('scope'), 'display', VM.scoped ? 'block' : 'none');
+  // 弓の引き具合のリング
+  const dr = p.w.kind === 'bow' && !p.dead ? p.draw || 0 : 0;
+  setStyle($('drawRing'), 'opacity', dr > 0 ? '1' : '0');
+  const dp = (dr * 100).toFixed(0) + '%';
+  if (changed('drawP', dp)) $('drawRing').style.setProperty('--p', dp);
+  if (changed('drawFull', dr >= 1)) $('drawRing').classList.toggle('full', dr >= 1);
 
   hmT -= dt;
   const hm = $('hm');

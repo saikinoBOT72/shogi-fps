@@ -45,6 +45,8 @@ const Particles = (() => {
     wood(point, dir, n = 10, power = 1) {
       for (let i = 0; i < n; i++) spawn(false, point, dir.clone().multiplyScalar(rand(2, 6) * power).add(new V3(rand(-3, 3), rand(1, 5), rand(-3, 3)).multiplyScalar(power)), { size: rand(0.05, 0.15), life: rand(0.9, 1.8), color: WOOD[i % 3], grav: 18, bounce: 0.35 });
     },
+    // 矢の軌跡
+    trail(point, color) { spawn(true, point, new V3(0, 0, 0), { size: 0.045, life: 0.5, color: C(color).multiplyScalar(1.6), grav: 0, bounce: 0 }); },
     // 追尾の矢の光の尾
     glow(point, color) { spawn(true, point, new V3(rand(-0.3, 0.3), rand(-0.3, 0.3), rand(-0.3, 0.3)), { size: rand(0.05, 0.09), life: rand(0.2, 0.35), color: C(color).multiplyScalar(2.5), grav: 0, bounce: 0 }); },
     // 爆発：火花・閃光・黒い煙

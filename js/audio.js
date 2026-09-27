@@ -152,6 +152,8 @@ const SFX = (() => {
     heal() { tone(master, { f0: 660, dur: 0.25, gain: 0.15 }); tone(master, { f0: 990, dur: 0.35, gain: 0.12, delay: 0.1 }); tone(master, { f0: 1320, dur: 0.5, gain: 0.1, delay: 0.2 }); },
     smoke(pos) { noise(out(pos), { dur: 1.5, type: 'highpass', f0: 1500, f1: 600, gain: 0.35 }); },
     pierce() { tone(master, { type: 'sawtooth', f0: 200, f1: 900, dur: 0.4, gain: 0.06 }); tone(master, { f0: 400, f1: 1800, dur: 0.4, gain: 0.1 }); },
+    bowReady() { tone(master, { type: 'triangle', f0: 1400, dur: 0.05, gain: 0.12 }); noise(master, { dur: 0.03, type: 'highpass', f0: 3000, gain: 0.15 }); },
+    ding() { tone(master, { f0: 2093, dur: 0.35, gain: 0.16 }); tone(master, { f0: 3136, dur: 0.25, gain: 0.07 }); },
     bowDraw() { noise(master, { dur: 0.5, type: 'bandpass', f0: 300, f1: 700, q: 6, gain: 0.12 }); },
     bow(pos) {
       const d = out(pos);

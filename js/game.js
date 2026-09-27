@@ -5,6 +5,7 @@
 let state = 'title';   // title / countdown / fight / end
 let paused = false, stateT = 0, timeScale = 1, slowmoT = 0;
 let player, bot, playerActor, botActor, stats;
+let matchCtx = null;   // 将棋モードの撃ち合い中：{ myType, foeType, playerIsAttacker }
 const view = { yaw: 0, pitch: 0, shake: 0, fov: 80, bobPhase: 0, dip: 0, dipV: 0, roll: 0 };
 const isPlaying = () => (state === 'countdown' || state === 'fight') && !paused;
 
@@ -38,8 +39,8 @@ function resolveFoe() {
 }
 
 function resetMatch(foeType) {
-  const myType = PIECES[settings.myPiece] ? settings.myPiece : 'P';
-  foeType = foeType || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
+  const myType = matchCtx ? matchCtx.myType : PIECES[settings.myPiece] ? settings.myPiece : 'P';
+  foeType = foeType || (matchCtx && matchCtx.foeType) || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
   ensureActors(myType, foeType);
   player = makeEntity(myType, false);
   bot = makeEntity(foeType, true);
@@ -370,7 +371,9 @@ function updatePlayer(dt) {
     if (mouseDown && p.cd <= 0) {
       if (!p.drawing) SFX.play('bowDraw');
       p.drawing = true;
+      const was = p.draw;
       p.draw = Math.min(1, p.draw + dt / p.w.drawTime);
+      if (was < 1 && p.draw >= 1) SFX.play('bowReady');   // 引き切った合図
     } else if (p.drawing && !mouseDown) {
       p.drawing = false;
       if (p.draw > 0.12) shootPlayerArrow(); else p.draw = 0;
@@ -419,7 +422,7 @@ function fireGrenade(e, dir, origin) {
 }
 // 矢を放つ（プレイヤー・CPU共通）
 function shootArrow(e, dir, origin) {
-  const w = e.w, k = e.draw;
+  const w = e.w, k = (e.draw * e.draw + 2 * e.draw) / 3;   // マイクラと同じ引きの効き方
   const sp = currentSpread(e);
   const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
   const homing = e.skillT > 0 && e.skill.type === 'homing';
@@ -427,7 +430,7 @@ function shootArrow(e, dir, origin) {
   Arrows.fire({
     owner: e, target: e === player ? bot : player, pos: origin,
     vel: d.multiplyScalar(homing ? Math.min(e.skill.speed, lerp(w.speedMin, w.speedMax, k)) : lerp(w.speedMin, w.speedMax, k)),
-    dmg: lerp(w.dmgMin, w.dmg, k), head: w.head, gravity: w.gravity, homing, turn: e.skill.turn || 0,
+    dmg: lerp(w.dmgMin, w.dmg, k), head: w.head, gravity: w.gravity, drag: w.drag || 0, homing, turn: e.skill.turn || 0, full: e.draw >= 1,
   });
   e.cd = w.rate; e.draw = 0;
   SFX.play('bow', e.isBot ? origin : null);

@@ -38,7 +38,7 @@ function bindSettings() {
 }
 // 操作説明（スキルは選んだ駒に合わせる）
 const keysHTML = () => {
-  const sk = SKILLS[(PIECES[settings.myPiece] || PIECES.P).skill];
+  const sk = SKILLS[(PIECES[matchCtx ? matchCtx.myType : settings.myPiece] || PIECES.P).skill];
   return `<div class="keys"><b>WASD</b>移動　<b>マウス</b>照準　<b>左クリック</b>射撃　<b>右クリック</b>覗き込み　<b>R</b>リロード<br><b>Space</b>ジャンプ　<b>E</b>${sk.name}（${sk.help}）　<b>F</b>フルスクリーン　<b>ESC</b>一時停止</div>`;
 };
 // 駒の紹介カード
@@ -66,13 +66,17 @@ function bindPieceSelect() {
 function showTitle() {
   state = 'title'; $('hud').style.display = 'none';
   overlay(`<div class="logo">将棋<span>FPS</span></div>
+    <div class="modes">
+      <button class="btn" id="goBoard">将棋モード<small>盤で指して、駒を取るときは撃ち合い</small></button>
+      <button class="btn ghost-btn" id="go">撃ち合い（1対1）<small>下で選んだ駒どうしで対戦</small></button>
+    </div>
     ${pieceSelectHTML()}
     ${settingsHTML()}
-    <button class="btn" id="go">対局開始</button>
     ${keysHTML()}`);
   bindSettings();
   bindPieceSelect();
   $('go').onclick = e => { e.stopPropagation(); startMatch(); };
+  $('goBoard').onclick = e => { e.stopPropagation(); BoardMode.start(); };
 }
 function showPause() {
   overlay(`<div class="res" style="font-size:56px">一時停止</div>
@@ -82,12 +86,14 @@ function showPause() {
   bindSettings();
   $('resume').onclick = e => { e.stopPropagation(); SFX.init(); requestLock(); };
   $('quit').onclick = e => { e.stopPropagation(); paused = false;
+    if (matchCtx) BoardMode.abort();
     if (settings.quality !== QUALITY_AT_LOAD) { location.reload(); return; }
     resetMatch(); showTitle();
   };
 }
 function showResult(win) {
   $('hud').style.display = 'none';
+  if (matchCtx) { BoardMode.battleResult(win); return; }   // 将棋モードなら盤面へ
   const acc = stats.shots ? Math.round(stats.hits / stats.shots * 100) : 0;
   overlay(`<div class="res" style="color:${win === true ? '#ffd23a' : win === false ? '#ff6b5b' : '#fff'}">${win === true ? '勝利' : win === false ? '敗北' : '引き分け'}</div>
     <div class="stats">
@@ -106,7 +112,7 @@ function showResult(win) {
 
 function startMatch() {
   SFX.init();
-  resetMatch(resolveFoe());
+  resetMatch(matchCtx ? matchCtx.foeType : resolveFoe());
   initPips();
   $('meName').textContent = `あなた：${player.def.name}　${player.w.name}`;
   $('foeTag').textContent = bot.def.name;

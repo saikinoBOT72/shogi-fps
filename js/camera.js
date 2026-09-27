@@ -38,7 +38,7 @@ function updateCamera(dt, rdt) {
     cam.rotation.set(view.pitch + sy, view.yaw + sx, sr);
   }
   const dashing = p.skillT > 0 && p.skill.type === 'dash', guarding = p.skillT > 0 && p.skill.type === 'guard';
-  const targetFov = lerp(80, p.w.zoom || 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 8;
+  const targetFov = lerp(80, p.w.zoom || 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
   // すり足：ステップした方向へ少し傾く
   view.stepRoll = damp(view.stepRoll || 0, 0, 6, rdt);
   if (p.skillT > 0 && p.skill.type === 'step') cam.rotation.z += (view.stepRoll || 0) * 0.06;
@@ -58,6 +58,10 @@ function updateCamera(dt, rdt) {
   VM.dash = damp(VM.dash || 0, dashing ? 1 : 0, 12, rdt);
   VM.guard = damp(VM.guard || 0, guarding ? 1 : 0, 14, rdt);
   const base = (VM.pist.hip || HIP).clone().lerp(VM.pist.ads, ads);
+  if (VM.pist.isBow && p.draw > 0) {
+    base.lerp(new V3(0.11, -0.17, -0.4), p.draw * (1 - ads));
+    if (p.draw >= 1) base.add(new V3(rand(-0.003, 0.003), rand(-0.003, 0.003), 0));
+  }
   // スナイパーを覗いている間は銃を消してスコープ画面に
   VM.scoped = !!p.w.zoom && ads > 0.8 && !p.dead;
   VM.root.visible = !VM.scoped;
