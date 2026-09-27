@@ -17,8 +17,13 @@ const C = hex => new THREE.Color(hex).convertSRGBToLinear();
 const PIECES = {
   P: { name: '歩', value: 1, hp: 80,  size: 0.8,  speed: 7,   jump: 7.5, weapon: 'pistol',  skill: 'charge' },
   L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'bow',     skill: 'homing', strafe: 0.6 },
+  N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'revolver', skill: 'leap' },
   S: { name: '銀', value: 5, hp: 115, size: 0.85, speed: 7,   jump: 7.5, weapon: 'smg',     skill: 'step' },
   G: { name: '金', value: 6, hp: 140, size: 0.9,  speed: 6,   jump: 7,   weapon: 'shotgun', skill: 'guard' },
+  B: { name: '角', value: 8, hp: 150, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skill: 'smoke' },
+  R: { name: '飛', value: 10, hp: 160, size: 0.95, speed: 6.5, jump: 7,  weapon: 'sniper',  skill: 'pierce' },
+  // 王は取られたら負けの駒。価値は ∞（99 以上は ∞ と表示）
+  K: { name: '王', value: 99, hp: 200, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',      skill: 'rally' },
 };
 // 全体のルール：しばらく被弾しないとHPが回復する
 const RULES = { regenDelay: 5, regenRate: 12 };
@@ -38,9 +43,29 @@ const WEAPONS = {
   // 弓：長押しで引き絞り、離して撃つ。引くほど速く・強く・まっすぐ。矢は重力で落ちる
   // dmgMin〜dmg: 引き具合で変わるダメージ / drawTime: 引き切るまでの秒 / speedMin〜speedMax: 矢の速さ / drawSpread: 引きが浅いときのブレ
   bow: {
-    name: '弓', model: 'bow', kind: 'bow', dmgMin: 18, dmg: 62, head: 1.6, drawTime: 0.9, speedMin: 28, speedMax: 80, gravity: 14,
+    name: '弓', model: 'bow', kind: 'bow', dmgMin: 18, dmg: 62, head: 1.6, drawTime: 0.9, speedMin: 14, speedMax: 42, gravity: 20,
     rate: 0.45, spread: 0.002, drawSpread: 0.03, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.012, air: 0.03, ads: 0.6, mag: 1, reload: 0.45, auto: false, recoil: 0.012, falloff: [999, 1000, 1], pref: 16,
+  },
+  // 1発が重い6連発。空中でもほとんどブレない（桂向け）
+  revolver: {
+    name: 'リボルバー', model: 'revolver', dmg: 38, head: 1.8, rate: 0.42, spread: 0.006, bloomShot: 0.02, bloomMax: 0.05, bloomRecover: 0.12,
+    move: 0.012, air: 0.004, ads: 0.4, mag: 6, reload: 2.0, auto: false, recoil: 0.04, falloff: [16, 35, 0.7], pref: 12,
+  },
+  // 覗き込むとスコープ（zoom: 覗いたときの視野）。覗かないとほぼ当たらない
+  sniper: {
+    name: 'スナイパー', model: 'sniper', dmg: 85, head: 2, rate: 1.3, spread: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    move: 0.03, air: 0.08, ads: 0.02, zoom: 22, mag: 5, reload: 2.4, auto: false, recoil: 0.07, falloff: [999, 1000, 1], pref: 26,
+  },
+  // 万能の連射銃（王向け）
+  ar: {
+    name: 'アサルトライフル', model: 'ar', dmg: 17, head: 1.5, rate: 0.1, spread: 0.008, bloomShot: 0.005, bloomMax: 0.035, bloomRecover: 0.14,
+    move: 0.012, air: 0.035, ads: 0.45, mag: 30, reload: 2.0, auto: true, recoil: 0.012, falloff: [20, 40, 0.7], pref: 14,
+  },
+  // 放物線で飛び、跳ねて爆発。radius: 爆風の範囲 / fuse: 爆発までの秒 / speed: 撃ち出す速さ
+  launcher: {
+    name: 'グレネード', model: 'launcher', kind: 'grenade', dmg: 75, radius: 4, speed: 24, gravity: 16, fuse: 1.4, rate: 0.9, spread: 0.01,
+    bloomShot: 0, bloomMax: 0, bloomRecover: 0.1, move: 0.01, air: 0.02, ads: 0.6, mag: 4, reload: 2.6, auto: false, recoil: 0.05, falloff: [999, 1000, 1], pref: 13,
   },
   // 近いほど強い。8粒 × 9 ダメージ
   shotgun: {
@@ -60,16 +85,28 @@ const SKILLS = {
   // speed: 追尾の矢の速さ（速いと曲がり切れないので抑える）
   homing: { name: '追尾', type: 'homing', key: 'KeyE', cooldown: 10, duration: 6, turn: 7, speed: 30, damageTaken: 1,
     help: '次の1本が相手を追いかける' },
+  // 桂跳び：斜め前へ大ジャンプ。着地の衝撃で周りを吹き飛ばす（up: 上へ / fwd: 前へ / radius, dmg: 衝撃）
+  leap: { name: '桂跳び', type: 'leap', key: 'KeyE', cooldown: 8, duration: 2.5, up: 12, fwd: 11, radius: 3.5, dmg: 25, damageTaken: 1,
+    help: '斜め前へ大ジャンプ・着地で周りを吹き飛ばす' },
+  // 煙幕：その場に煙を張って視界を遮る
+  smoke: { name: '煙幕', type: 'smoke', key: 'KeyE', cooldown: 12, duration: 0, radius: 5, life: 8, damageTaken: 1,
+    help: 'その場に煙を張って視界を遮る' },
+  // 貫き：次の1発が壁や盾を貫通。準備中は相手が透けて見える
+  pierce: { name: '貫き', type: 'pierce', key: 'KeyE', cooldown: 12, duration: 6, damageTaken: 1,
+    help: '次の1発が壁や盾を貫通（相手が透けて見える）' },
+  // 王の意地：短時間でHPを回復し、その間は被ダメージ軽減
+  rally: { name: '王の意地', type: 'heal', key: 'KeyE', cooldown: 14, duration: 2, amount: 60, damageTaken: 0.7,
+    help: '2秒でHPを60回復・その間の被ダメ0.7倍' },
   // 守りの構え：将棋盤を盾にして、前からのダメージを減らす。構え中は遅く、撃つと解除
   guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 9, duration: 2.5, damageTaken: 0.25, slow: 0.55,
     help: '盾を構えて前からの被ダメ1/4・撃つと解除' },
 };
 const skillType = e => SKILLS[e.def.skill].type;
 const DIFFS = {
-  // react: 見つけてから撃つまで / err: 狙いのブレ / track: 照準の追従の速さ / gap: 撃つ間隔の追加ランダム / lead: 矢の偏差撃ちの正確さ
-  easy:   { name: 'かんたん',   react: 0.7,  err: 0.13,  track: 3.5, gap: [0.35, 0.7], lead: 0.3 },
-  normal: { name: 'ふつう',     react: 0.45, err: 0.09,  track: 5.5, gap: [0.22, 0.5], lead: 0.65 },
-  hard:   { name: 'むずかしい', react: 0.28, err: 0.06,  track: 9,   gap: [0.08, 0.3], lead: 0.9 },
+  // react: 見つけてから撃つまで / err: 狙いのブレ / track: 照準の追従の速さ / gap: 撃つ間隔の追加ランダム / lead: 矢の偏差撃ちの正確さ / dps: 1発が重い武器の撃つペースの上限（1秒あたりのダメージの目安）
+  easy:   { name: 'かんたん',   react: 0.7,  err: 0.13,  track: 3.5, gap: [0.35, 0.7], lead: 0.3, dps: 18 },
+  normal: { name: 'ふつう',     react: 0.45, err: 0.09,  track: 5.5, gap: [0.22, 0.5], lead: 0.65, dps: 28 },
+  hard:   { name: 'むずかしい', react: 0.28, err: 0.06,  track: 9,   gap: [0.08, 0.3], lead: 0.9, dps: 40 },
 };
 const H = 22, G = 22, TIME_LIMIT = 90;
 

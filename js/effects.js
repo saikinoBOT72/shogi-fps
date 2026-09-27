@@ -47,6 +47,12 @@ const Particles = (() => {
     },
     // 追尾の矢の光の尾
     glow(point, color) { spawn(true, point, new V3(rand(-0.3, 0.3), rand(-0.3, 0.3), rand(-0.3, 0.3)), { size: rand(0.05, 0.09), life: rand(0.2, 0.35), color: C(color).multiplyScalar(2.5), grav: 0, bounce: 0 }); },
+    // 爆発：火花・閃光・黒い煙
+    explosion(p) {
+      for (let i = 0; i < 26; i++) spawn(true, p, new V3(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize().multiplyScalar(rand(6, 16)), { size: rand(0.05, 0.12), life: rand(0.2, 0.5), color: C(0xffa040).multiplyScalar(3), grav: 10, bounce: 0.3 });
+      for (let i = 0; i < 8; i++) spawn(true, p, new V3(rand(-2, 2), rand(0, 2), rand(-2, 2)), { size: rand(0.5, 0.9), life: rand(0.08, 0.16), color: C(0xffe0a0).multiplyScalar(3), grav: 0, bounce: 0, grow: 1.5 });
+      for (let i = 0; i < 16; i++) spawn(false, p.clone().add(new V3(rand(-0.5, 0.5), rand(0, 0.5), rand(-0.5, 0.5))), new V3(rand(-3, 3), rand(0.5, 4), rand(-3, 3)), { size: rand(0.35, 0.7), life: rand(0.8, 1.4), color: C(0x5a524a), grav: -0.5, drag: 2.5, grow: 2 });
+    },
     dust(point, n = 6, power = 1) {
       for (let i = 0; i < n; i++) spawn(false, point.clone().add(new V3(rand(-0.3, 0.3), 0.05, rand(-0.3, 0.3))), new V3(rand(-2, 2), rand(0.3, 1.5), rand(-2, 2)).multiplyScalar(power), { size: rand(0.12, 0.22), life: rand(0.35, 0.6), color: C(0xd8bf8e), grav: 0.5, drag: 4, grow: 1.8 });
     },
@@ -145,8 +151,9 @@ const vmSun = new THREE.DirectionalLight(C(0xfff0d6), 1.6); vmSun.position.set(0
 const vmFlashLight = new THREE.PointLight(C(0xffc870), 0, 2); vmScene.add(vmFlashLight);
 const VM = (() => {
   const root = new THREE.Group();
-  const models = { pistol: buildGun('pistol'), shotgun: buildGun('shotgun'), smg: buildGun('smg'), bow: buildGun('bow') };
-  for (const [k, m] of Object.entries(models)) { m.g.scale.setScalar(k === 'bow' ? 0.42 : 0.85); m.g.visible = false; root.add(m.g); }
+  const models = {};
+  for (const k of Object.keys(GUN_BUILDERS)) models[k] = buildGun(k);
+  for (const [k, m] of Object.entries(models)) { m.g.scale.setScalar(k === 'bow' ? 0.34 : 0.85); m.g.visible = false; root.add(m.g); }
   vmScene.add(root);
   const pist = models.pistol;
   const flash = new THREE.Group();
@@ -167,7 +174,8 @@ const VM = (() => {
   vm.setWeapon('pistol');
   return vm;
 })();
-const HIP = new V3(0.21, -0.2, -0.46), ADS = new V3(0, -0.086, -0.33);
+// 構えの位置（低めに構え、照準で狙う）。覗き込みも画面の下へ下げてズームするだけ
+const HIP = new V3(0.2, -0.24, -0.48);
 
 // ================= 駒のキャラクター =================
 function buildActor(ch, size, model = 'pistol') {
@@ -176,11 +184,14 @@ function buildActor(ch, size, model = 'pistol') {
   const wood = pieceWoodMat.clone();
   const piece = makePiece(ch, w, h, t, wood, true);
   const eyes = makeEyes(w, h, t / 2 + 0.008); piece.add(eyes);
+  // 貫きの準備中に壁越しに見える姿
+  const xray = new THREE.Mesh(pieceGeo, new THREE.MeshBasicMaterial({ color: 0xff3050, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
+  xray.scale.copy(piece.userData.body.scale); xray.renderOrder = 20; xray.visible = false; piece.add(xray);
   piece.position.set(0, h / 2, t / 2);
   body.position.z = -t / 2;
   body.add(piece); root.add(body);
   const gun = buildGun(model);
-  gun.g.scale.setScalar(({ shotgun: 1.6, smg: 1.9, bow: 1.5 }[model] || 2.2) * size); gun.g.rotation.y = Math.PI;
+  gun.g.scale.setScalar(({ shotgun: 1.6, smg: 1.9, bow: 1.5, revolver: 2.0, sniper: 1.3, ar: 1.6, launcher: 1.5 }[model] || 2.2) * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(w * 0.52, h * 0.5, t + 0.12);
   body.add(gun.g);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
@@ -189,5 +200,5 @@ function buildActor(ch, size, model = 'pistol') {
   shield.position.set(0, h * 0.45, t + 0.45); shield.visible = false;
   body.add(shield);
   scene.add(root);
-  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, w, h, t };
+  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, xray, w, h, t };
 }

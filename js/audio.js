@@ -43,9 +43,23 @@ const SFX = (() => {
     o.connect(g).connect(dest); o.start(t); o.stop(t + dur + 0.02);
   }
   const sounds = {
-    shot(pos, heavy) {
+    shot(pos, model) {
       const d = out(pos), r = rand(0.92, 1.08);
-      if (heavy) {
+      if (model === 'sniper') {
+        noise(d, { dur: 0.3, f0: 6000 * r, f1: 400, gain: 0.8 });
+        tone(d, { f0: 140 * r, f1: 35, dur: 0.3, gain: 1 });
+        noise(d, { dur: 1.4, f0: 600, f1: 80, gain: 0.18, delay: 0.05 });
+        noise(d, { dur: 0.06, type: 'bandpass', f0: 1100, q: 3, gain: 0.3, delay: 0.55 });
+        noise(d, { dur: 0.06, type: 'bandpass', f0: 900, q: 3, gain: 0.3, delay: 0.75 });
+        return;
+      }
+      if (model === 'revolver') {
+        noise(d, { dur: 0.25, f0: 4200 * r, f1: 350, gain: 0.7 });
+        tone(d, { f0: 120 * r, f1: 38, dur: 0.2, gain: 0.9 });
+        noise(d, { dur: 0.6, f0: 800, f1: 150, gain: 0.1, delay: 0.03 });
+        return;
+      }
+      if (model === 'shotgun') {
         noise(d, { dur: 0.35, f0: 3000 * r, f1: 250, gain: 0.8 });
         tone(d, { f0: 110 * r, f1: 30, dur: 0.25, gain: 1 });
         noise(d, { dur: 0.04, type: 'highpass', f0: 2500, gain: 0.4 });
@@ -122,6 +136,22 @@ const SFX = (() => {
       tone(d, { type: 'triangle', f0: 420, f1: 260, dur: 0.1, gain: 0.35 });
       noise(d, { dur: 0.05, type: 'bandpass', f0: 1200, q: 2, gain: 0.3 });
     },
+    launcher(pos) {
+      const d = out(pos);
+      tone(d, { f0: 90, f1: 45, dur: 0.2, gain: 0.9 });
+      noise(d, { dur: 0.15, type: 'bandpass', f0: 500, q: 1, gain: 0.5 });
+    },
+    clunk(pos) { const d = out(pos); tone(d, { type: 'triangle', f0: rand(300, 380), f1: 180, dur: 0.07, gain: 0.3 }); },
+    boom(pos) {
+      const d = out(pos);
+      tone(d, { f0: 70, f1: 25, dur: 0.9, gain: 1 });
+      noise(d, { dur: 1.2, f0: 2500, f1: 60, gain: 0.9 });
+      noise(d, { dur: 0.08, type: 'highpass', f0: 1500, gain: 0.5 });
+    },
+    leap(pos) { noise(out(pos), { dur: 0.4, type: 'bandpass', f0: 250, f1: 1600, q: 1.2, gain: 0.5 }); },
+    heal() { tone(master, { f0: 660, dur: 0.25, gain: 0.15 }); tone(master, { f0: 990, dur: 0.35, gain: 0.12, delay: 0.1 }); tone(master, { f0: 1320, dur: 0.5, gain: 0.1, delay: 0.2 }); },
+    smoke(pos) { noise(out(pos), { dur: 1.5, type: 'highpass', f0: 1500, f1: 600, gain: 0.35 }); },
+    pierce() { tone(master, { type: 'sawtooth', f0: 200, f1: 900, dur: 0.4, gain: 0.06 }); tone(master, { f0: 400, f1: 1800, dur: 0.4, gain: 0.1 }); },
     bowDraw() { noise(master, { dur: 0.5, type: 'bandpass', f0: 300, f1: 700, q: 6, gain: 0.12 }); },
     bow(pos) {
       const d = out(pos);

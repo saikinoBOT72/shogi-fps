@@ -153,7 +153,7 @@ function buildPistol() {
   hand.scale.set(1.05, 1.35, 1.15); hand.position.set(0.006, -0.1, 0.07); hand.castShadow = true;
   g.add(hand);
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.034, -0.24); g.add(muzzle);
-  return { g, slide, muzzle, slideZ: slide.position.z, slideAmt: 0.05, ads: new V3(0, -0.075, -0.33) };
+  return { g, slide, muzzle, slideZ: slide.position.z, slideAmt: 0.05, ads: new V3(0.13, -0.27, -0.44) };
 }
 function buildShotgun() {
   const g = new THREE.Group();
@@ -176,7 +176,7 @@ function buildShotgun() {
     h.scale.set(1.05, 1.2, 1.15); h.position.set(x, y, z); h.castShadow = true; g.add(h);
   });
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.03, -0.66); g.add(muzzle);
-  return { g, slide: pump, muzzle, slideZ: pump.position.z, slideAmt: 0.09, ads: new V3(0, -0.055, -0.4) };
+  return { g, slide: pump, muzzle, slideZ: pump.position.z, slideAmt: 0.09, ads: new V3(0.15, -0.3, -0.5) };
 }
 function buildSMG() {
   const g = new THREE.Group();
@@ -201,7 +201,7 @@ function buildSMG() {
     h.scale.set(1.05, 1.2, 1.1); h.position.set(x, y, z); h.castShadow = true; g.add(h);
   });
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.02, -0.32); g.add(muzzle);
-  return { g, slide: bolt, muzzle, slideZ: bolt.position.z, slideAmt: 0.04, ads: new V3(0, -0.058, -0.34) };
+  return { g, slide: bolt, muzzle, slideZ: bolt.position.z, slideAmt: 0.04, ads: new V3(0.14, -0.28, -0.46) };
 }
 // 弓：setDraw(0〜1) で弦を引く。arrow は番えている矢
 function buildBow() {
@@ -239,9 +239,69 @@ function buildBow() {
   }
   setDraw(0);
   return { g, slide: new THREE.Object3D(), muzzle, slideZ: 0, slideAmt: 0, setDraw, arrow, arrowM,
-    hip: new V3(0.09, -0.08, -0.4), ads: new V3(0, -0.012, -0.36), isBow: true };
+    hip: new V3(0.17, -0.2, -0.42), ads: new V3(0.2, -0.28, -0.42), isBow: true };
 }
-const buildGun = model => model === 'shotgun' ? buildShotgun() : model === 'smg' ? buildSMG() : model === 'bow' ? buildBow() : buildPistol();
+// 銃を組み立てる共通の道具
+function gunKit() {
+  const dark = mat(0x2a2c30, { roughness: 0.45, metalness: 0.35, flatShading: false });
+  const mid = mat(0x44474d, { roughness: 0.55, metalness: 0.25, flatShading: false });
+  const wood = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.7 });
+  const handM = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.7, flatShading: true });
+  const g = new THREE.Group();
+  const box = (w, h, d, m, x, y, z, rx = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.x = rx; b.castShadow = true; g.add(b); return b; };
+  const cyl = (r, len, m, x, y, z, seg = 8) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, seg), m); c.rotation.x = Math.PI / 2; c.position.set(x, y, z); c.castShadow = true; g.add(c); return c; };
+  const hand = (x, y, z) => { const h = new THREE.Mesh(new THREE.IcosahedronGeometry(0.066, 0), handM); h.scale.set(1.05, 1.2, 1.1); h.position.set(x, y, z); h.castShadow = true; g.add(h); return h; };
+  const muzzleAt = (x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); g.add(o); return o; };
+  return { g, dark, mid, wood, box, cyl, hand, muzzleAt };
+}
+function buildRevolver() {
+  const K = gunKit();
+  K.box(0.05, 0.07, 0.16, K.dark, 0, 0.02, 0);
+  K.cyl(0.018, 0.2, K.mid, 0, 0.035, -0.17, 8);
+  K.cyl(0.04, 0.07, K.mid, 0, 0.01, -0.02, 6);            // 回転弾倉
+  K.box(0.045, 0.13, 0.06, K.wood, 0, -0.07, 0.07, 0.35);
+  const hammer = K.box(0.014, 0.03, 0.02, K.dark, 0, 0.06, 0.08);
+  K.box(0.01, 0.016, 0.012, K.dark, 0, 0.058, -0.25);
+  K.hand(0, -0.09, 0.08);
+  return { g: K.g, slide: hammer, muzzle: K.muzzleAt(0, 0.035, -0.28), slideZ: hammer.position.z, slideAmt: 0.02, ads: new V3(0.13, -0.27, -0.44) };
+}
+function buildSniper() {
+  const K = gunKit();
+  K.box(0.06, 0.07, 0.34, K.dark, 0, 0.01, 0);
+  K.cyl(0.017, 0.62, K.mid, 0, 0.025, -0.47, 8);
+  K.cyl(0.03, 0.26, K.dark, 0, 0.085, -0.02, 10);         // スコープ
+  K.cyl(0.036, 0.04, K.dark, 0, 0.085, -0.15, 10); K.cyl(0.036, 0.04, K.dark, 0, 0.085, 0.11, 10);
+  K.box(0.056, 0.1, 0.34, K.wood, 0, -0.04, 0.3, 0.1);
+  K.box(0.045, 0.1, 0.05, K.wood, 0, -0.07, 0.1, 0.3);
+  const bolt = K.box(0.05, 0.014, 0.014, K.mid, 0.045, 0.03, 0.08);
+  K.hand(0, -0.09, 0.1); K.hand(0, -0.04, -0.22);
+  return { g: K.g, slide: bolt, muzzle: K.muzzleAt(0, 0.025, -0.8), slideZ: bolt.position.z, slideAmt: 0.06, ads: new V3(0.15, -0.32, -0.5) };
+}
+function buildAR() {
+  const K = gunKit();
+  K.box(0.06, 0.08, 0.36, K.dark, 0, 0.01, -0.02);
+  K.box(0.066, 0.066, 0.2, K.mid, 0, 0.012, -0.28);
+  K.cyl(0.014, 0.12, K.dark, 0, 0.02, -0.44, 6);
+  K.box(0.036, 0.15, 0.06, K.mid, 0, -0.1, -0.06, -0.3);
+  K.box(0.045, 0.11, 0.055, K.wood, 0, -0.08, 0.1, 0.3);
+  K.box(0.05, 0.08, 0.2, K.wood, 0, -0.01, 0.28);
+  K.box(0.02, 0.02, 0.2, K.dark, 0, 0.06, -0.04);
+  const bolt = K.box(0.014, 0.022, 0.05, K.mid, 0.036, 0.025, 0.02);
+  K.hand(0, -0.09, 0.1); K.hand(0, -0.05, -0.28);
+  return { g: K.g, slide: bolt, muzzle: K.muzzleAt(0, 0.02, -0.5), slideZ: bolt.position.z, slideAmt: 0.04, ads: new V3(0.15, -0.29, -0.5) };
+}
+function buildLauncher() {
+  const K = gunKit();
+  K.cyl(0.05, 0.5, K.dark, 0, 0.03, -0.18, 10);
+  const drum = K.cyl(0.075, 0.12, K.mid, 0, -0.01, 0.06, 6);   // 回転弾倉
+  K.box(0.045, 0.11, 0.055, K.wood, 0, -0.08, 0.15, 0.3);
+  K.box(0.05, 0.07, 0.2, K.wood, 0, 0, 0.3);
+  K.box(0.04, 0.04, 0.12, K.wood, 0, -0.04, -0.25);
+  K.hand(0, -0.09, 0.15); K.hand(0, -0.07, -0.25);
+  return { g: K.g, slide: drum, muzzle: K.muzzleAt(0, 0.03, -0.45), slideZ: drum.position.z, slideAmt: 0.02, ads: new V3(0.17, -0.31, -0.52) };
+}
+const GUN_BUILDERS = { pistol: buildPistol, shotgun: buildShotgun, smg: buildSMG, bow: buildBow, revolver: buildRevolver, sniper: buildSniper, ar: buildAR, launcher: buildLauncher };
+const buildGun = model => (GUN_BUILDERS[model] || buildPistol)();
 // 動く駒の目：縦長のゆるい目。まばたき・倒れると×目
 const eyeMat = new THREE.MeshBasicMaterial({ color: 0x241408 });
 const eyeGeo = new THREE.CircleGeometry(0.5, 14);

@@ -100,7 +100,8 @@ function updateBot(dt) {
       wish.copy(b.wp || tgt).sub(b.pos).setY(0);
       if (!b.wp && wish.length() < 1.5) wish.copy(toP).add(side);
     }
-    if (b.charges > 0 && SKILL_AI[b.def.skill]) SKILL_AI[b.def.skill](b, { los, dist, toP, pref, dt, aimedAt, side });
+    const skAI = SKILL_AI[b.def.skill] || SKILL_AI[b.skill.type];
+    if (b.charges > 0 && skAI) skAI(b, { los, dist, toP, pref, dt, aimedAt, side });
     b.hurtT = Math.max(0, (b.hurtT || 0) - dt);
     if (wish.lengthSq() > 0) wish.normalize();
     const steered = steer(b, wish);
@@ -143,8 +144,23 @@ function updateBot(dt) {
           b.cd += rand(...D.gap) * 1.2;   // 次の矢を番えるまで少し間を置く
         }
       } else if (!canShoot) b.draw = Math.max(0, b.draw - dt * 2);
-    } else if (los && b.seen > D.react && canFire(b) && b.fireDelay <= 0 && !b.coverPt && !busy) {
-      const aim = b.aimPt.clone().sub(bEye).normalize();
+    } else if (b.w.kind === 'grenade') {
+      // グレネード：相手の足元へ、動きと落ちを見越して撃つ（近すぎると自分も巻き込むので撃たない）
+      if (los && b.seen > D.react && canFire(b) && b.fireDelay <= 0 && !b.coverPt && !busy && dist > 3.5) {
+        const tgt = player.pos.clone().setY(player.pos.y + 0.3), speed = b.w.speed;
+        const lead = player.vel.clone().multiplyScalar(D.lead);
+        let t = bEye.distanceTo(tgt) / speed;
+        for (let k = 0; k < 2; k++) t = bEye.distanceTo(tgt.clone().addScaledVector(lead, t)) / speed;
+        const p = tgt.clone().addScaledVector(lead, t); p.y += 0.5 * b.w.gravity * t * t;
+        const aim = p.sub(bEye).normalize(), err = D.err * 0.6;
+        aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
+        fireGrenade(b, aim, bEye.clone().addScaledVector(aim, 0.7));
+        b.fireDelay = rand(...D.gap) + 0.5;
+      }
+    } else if (((los && b.seen > D.react + (b.w.zoom ? 0.35 : 0)) || (b.skillT > 0 && b.skill.type === 'pierce' && b.lostT < 3)) && canFire(b) && b.fireDelay <= 0 && !b.coverPt && !busy) {
+      // 貫き準備中は、見えていなくても最後に見た場所へ撃ち込む
+      const aimTgt = los ? b.aimPt : b.lastKnown.clone().setY(b.lastKnown.y + player.height * 0.6);
+      const aim = aimTgt.clone().sub(bEye).normalize();
       const err = D.err + (player.skillT > 0 && player.skill.type === 'dash' ? 0.08 : 0) + (player.onGround ? 0 : 0.02);
       aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
       botActor.root.updateMatrixWorld(true);
@@ -152,12 +168,18 @@ function updateBot(dt) {
       const res = fire(b, player, bEye, muzzle, aim);
       // 連射武器は数発ずつ撃つ（バースト）
       if (b.w.auto) {
-        if (!(b.burst > 0)) b.burst = 4 + Math.floor(Math.random() * 7);
+        if (!(b.burst > 0)) { b.burst = 3 + Math.floor(Math.random() * 5); b.burstN = b.burst; }
         b.burst--;
-        b.fireDelay = b.burst > 0 ? rand(0, 0.03) : rand(...D.gap) + 0.15;
-      } else b.fireDelay = rand(...D.gap);
+        // バーストの合間も、1秒あたりのダメージが上限を超えないよう間を空ける
+        b.fireDelay = b.burst > 0 ? rand(0, 0.03) : Math.max(rand(...D.gap) + 0.15, b.burstN * b.w.dmg / D.dps - b.burstN * b.w.rate);
+      } else {
+        b.fireDelay = rand(...D.gap) + (b.w.zoom ? 0.9 : 0);
+        // 1発が重い武器は、1秒あたりのダメージが上限を超えないよう間を空ける
+        const perShot = b.w.dmg * (b.w.pellets ? b.w.pellets * 0.5 : 1);
+        b.fireDelay = Math.max(b.fireDelay, perShot / D.dps - b.w.rate);
+      }
       b.flashT = 0.05;
-      SFX.play('shot', muzzle, b.w.model === 'shotgun');
+      SFX.play('shot', muzzle, b.w.model);
       if (res.dmg > 0) damagePlayer(res.dmg, b.pos);
       else if (res.miss) {
         ray.set(bEye, res.miss);
@@ -188,6 +210,23 @@ const SKILL_AI = {
   homing(b, c) {
     if (b.skillT > 0) return;
     if ((!c.los && b.lostT > 0.4 && b.lostT < 2.5) || (c.los && c.dist > 10 && Math.random() < c.dt * 0.25 * b.persona.eager)) useSkill(b, c.toP);
+  },
+  // 桂跳び：中距離から飛びかかって着地の衝撃を当てる。見失ったときも跳んで回り込む
+  leap(b, c) {
+    if (b.skillT > 0 || !b.onGround) return;
+    if ((c.los && c.dist > 5 && c.dist < 15 && Math.random() < c.dt * 0.7 * b.persona.eager) || (!c.los && b.stuck > 0.4)) useSkill(b, c.toP);
+  },
+  // 煙幕：撃たれてHPが減ってきたら煙を張って身を隠す
+  smoke(b, c) {
+    if (c.los && b.hurtT > 0 && b.hp < b.def.hp * 0.6) useSkill(b, c.toP);
+  },
+  // 貫き：物陰に隠れた相手を壁越しに撃つ
+  pierce(b, c) {
+    if (b.skillT <= 0 && !c.los && b.lostT > 0.3 && b.lostT < 2.5) useSkill(b, c.toP);
+  },
+  // 王の意地：HPが減ったら回復
+  heal(b, c) {
+    if (b.skillT <= 0 && b.hp < b.def.hp * 0.45) useSkill(b, c.toP);
   },
   // 守りの構え：撃たれているのに遠いとき、構えて距離を詰める
   guard(b, c) {

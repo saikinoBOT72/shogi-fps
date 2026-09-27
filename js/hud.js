@@ -56,7 +56,8 @@ function updateHUD(dt) {
   const gap = 4 + px, xh = $('xh').children;
   xh[0].style.top = (-gap - 9) + 'px'; xh[1].style.top = gap + 'px';
   xh[2].style.left = (-gap - 9) + 'px'; xh[3].style.left = gap + 'px';
-  $('xh').style.opacity = p.dead ? 0 : lerp(1, 0.25, p.adsT || 0);
+  $('xh').style.opacity = p.dead || VM.scoped ? 0 : 1;
+  setStyle($('scope'), 'display', VM.scoped ? 'block' : 'none');
 
   hmT -= dt;
   const hm = $('hm');
@@ -104,7 +105,7 @@ function updateHUD(dt) {
   setAttr($('skillArc'), 'stroke-dashoffset', (144.5 * (1 - k)).toFixed(1));
   const ready = p.charges > 0;
   if (hud.ready !== ready) { hud.ready = ready; $('skill').classList.toggle('ready', ready); }
-  const armed = p.skillT > 0 && p.skill.type === 'homing';
+  const armed = p.skillT > 0 && (p.skill.type === 'homing' || p.skill.type === 'pierce');
   setText('skillName', (armed ? `${p.skill.name} 準備OK` : p.charges > 0 ? p.skill.name : `${p.skill.name} ${p.skillCd.toFixed(1)}`) + (max > 1 ? ` ×${p.charges}` : ''));
   if (changed('regen', !!p.regen)) $('meBar').classList.toggle('regen', !!p.regen);
   setText('timer', Math.max(0, Math.ceil(TIME_LIMIT - stats.time)));

@@ -5,7 +5,7 @@
 function updateCamera(dt, rdt) {
   const p = player;
   // マウス（感度は ADS 中に下げる）
-  const sens = 0.0021 * settings.sens * lerp(1, 0.65, p.adsT || 0);
+  const sens = 0.0021 * settings.sens * (view.fov / 80);   // 拡大しているほど感度を下げる
   const canLook = (state === 'fight' || (state === 'countdown' && stateT > 1.3)) && !p.dead;
   if (canLook) { view.yaw -= mdx * sens; view.pitch = clamp(view.pitch - mdy * sens, -1.52, 1.52); }
   const swayX = clamp(-mdx * 0.00035, -0.05, 0.05), swayY = clamp(mdy * 0.00035, -0.05, 0.05);
@@ -38,7 +38,7 @@ function updateCamera(dt, rdt) {
     cam.rotation.set(view.pitch + sy, view.yaw + sx, sr);
   }
   const dashing = p.skillT > 0 && p.skill.type === 'dash', guarding = p.skillT > 0 && p.skill.type === 'guard';
-  const targetFov = lerp(80, 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 8;
+  const targetFov = lerp(80, p.w.zoom || 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 8;
   // すり足：ステップした方向へ少し傾く
   view.stepRoll = damp(view.stepRoll || 0, 0, 6, rdt);
   if (p.skillT > 0 && p.skill.type === 'step') cam.rotation.z += (view.stepRoll || 0) * 0.06;
@@ -58,6 +58,11 @@ function updateCamera(dt, rdt) {
   VM.dash = damp(VM.dash || 0, dashing ? 1 : 0, 12, rdt);
   VM.guard = damp(VM.guard || 0, guarding ? 1 : 0, 14, rdt);
   const base = (VM.pist.hip || HIP).clone().lerp(VM.pist.ads, ads);
+  // スナイパーを覗いている間は銃を消してスコープ画面に
+  VM.scoped = !!p.w.zoom && ads > 0.8 && !p.dead;
+  VM.root.visible = !VM.scoped;
+  // 貫きの準備中は相手が壁越しに見える
+  botActor.xray.visible = p.skillT > 0 && p.skill.type === 'pierce' && !bot.dead;
   // 弓：弦を引く・追尾が準備できたら矢が光る
   if (VM.pist.isBow) {
     VM.pist.setDraw(p.draw || 0);

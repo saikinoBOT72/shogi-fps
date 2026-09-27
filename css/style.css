@@ -129,3 +129,20 @@ button.small:hover{background:rgba(255,255,255,.22)}
 .pick .pc-val{color:#ffcf6b;font-weight:bold}
 #meBar.regen{box-shadow:0 0 10px 2px rgba(120,255,160,.7);animation:regen .8s ease-in-out infinite alternate}
 @keyframes regen{from{border-color:rgba(255,255,255,.85)}to{border-color:#8ff0a6}}
+
+/* 駒が増えたので選択を2段に */
+.picks{flex-direction:column;gap:4px}
+.picks > div{display:flex;flex-direction:column;align-items:center}
+.vs-mark{margin:0;font-size:22px}
+.pick{gap:5px}
+.pick button{width:74px;padding:6px 3px;font-size:11px}
+.pick .pc-name{font-size:24px;width:34px;height:40px;margin-bottom:2px}
+/* スナイパーのスコープ */
+#scope{position:absolute;inset:0;display:none;background:radial-gradient(circle at center,transparent 0,transparent 36vh,rgba(0,0,0,.4) 36.5vh,#000 37.5vh)}
+#scope:before,#scope:after{content:"";position:absolute;background:rgba(0,0,0,.85)}
+#scope:before{left:50%;top:14vh;bottom:14vh;width:2px;margin-left:-1px}
+#scope:after{top:50%;left:calc(50% - 36vh);right:calc(50% - 36vh);height:2px;margin-top:-1px}
+
+/* 画面が低いときはスクロールできるように */
+#overlay{overflow-y:auto;justify-content:safe center;padding:16px 0;box-sizing:border-box}
+.logo{font-size:64px}

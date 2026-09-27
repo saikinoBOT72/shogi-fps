@@ -60,7 +60,7 @@ function loop(now) {
   const pdt = paused ? 0 : dt;
   animateActor(botActor, bot, pdt, bot.dead ? null : bot.aimPt || player.pos);
   PHYS.step(pdt, [['player', player], ['bot', bot]]);
-  if (!paused) Arrows.update(dt);
+  if (!paused) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); }
   if (!paused && (state === 'fight' || state === 'end')) Replay.record(dt);
   Particles.update(pdt); Tracers.update(pdt); DmgNums.update(pdt);
   if (!paused) updateCamera(dt, rdt); else { mdx = mdy = 0; }
