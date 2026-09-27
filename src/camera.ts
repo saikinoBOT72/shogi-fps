@@ -58,9 +58,6 @@ export function updateCamera(dt, rdt) {
   poseViewModel(p, rdt, swayX, swayY, bobX, bobY);
 }
 
-// 撃ったときの銃の跳ね上がり
-export const kickOf = w => w.kind === 'bow' ? 0.6 : w.kind === 'grenade' ? 1.6 : clamp(w.recoil / 0.022, 1, 2.2);
-
 // 一人称の銃の構え・揺れ・反動（リプレイでも同じ動きを使う）
 // p: adsT, draw, reloading, w, skillT, skill, cd, dead を持つもの
 export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
@@ -71,7 +68,9 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   VM.slideT = Math.max(0, VM.slideT - rdt * 14);
   VM.dip = Math.max(0, VM.dip - rdt * 4);
   VM.equip = Math.max(0, VM.equip - rdt * 2.2);
-  const rl = p.reloading > 0 ? Math.sin(Math.PI * (1 - p.reloading / p.w.reload)) : 0;
+  // リロード：部品が動く銃は、その動き（弾倉の抜き差し）に任せる
+  VM.animate(rdt);
+  const rl = p.reloading > 0 && !VM.pist.anim ? Math.sin(Math.PI * (1 - p.reloading / p.w.reload)) : 0;
   VM.dash = damp(VM.dash || 0, dashing ? 1 : 0, 12, rdt);
   VM.guard = damp(VM.guard || 0, guarding ? 1 : 0, 14, rdt);
   const base = (VM.pist.hip || HIP).clone().lerp(VM.pist.ads, ads);
@@ -95,7 +94,7 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
     base.z + VM.kick * 0.07
   );
   r.rotation.set(VM.kick * 0.22 - rl * 0.55 - VM.equip * 0.6 - VM.dash * 0.3, VM.sway.x * 1.5, VM.sway.x * 1.2 + rl * 0.45 + VM.dash * 0.35);
-  VM.pist.slide.position.z = VM.pist.slideZ + VM.slideT * VM.pist.slideAmt;
+  if (!VM.pist.anim) VM.pist.slide.position.z = VM.pist.slideZ + VM.slideT * VM.pist.slideAmt;
   // 盾（守りの構え）：下からせり上がる
   VM.shield.visible = VM.guard > 0.02;
   VM.shield.position.set(-0.04 + VM.sway.x, lerp(-0.75, -0.3, VM.guard) + bobY * 0.5, -0.56);

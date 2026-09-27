@@ -4,7 +4,9 @@ import { $, DIFFS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, saveSett
 import { openTune } from './tune';
 import { SFX } from './audio';
 import { requestLock } from './input';
-import { bot, player, playerActor, resetMatch, resolveFoe, stats } from './game';
+import { bot, botActor, player, playerActor, resetMatch, resolveFoe, stats } from './game';
+import { VM } from './effects';
+import { SKINS } from './guns/skins';
 import { initPips } from './hud';
 import { BoardMode } from './boardmode';
 
@@ -25,6 +27,7 @@ export function settingsHTML() {
     <div class="row"><span>マウス感度 <b id="sensV">${settings.sens.toFixed(2)}</b></span><input id="sens" type="range" min="0.2" max="3" step="0.05" value="${settings.sens}"></div>
     <div class="row"><span>画質<small>重いときは「低」</small></span>${seg('qSeg', Object.entries(QUALITIES).map(([k, q]: any) => [k, q.name]), settings.quality)}</div>
     <div class="row"><span>FPS表示</span>${seg('fpsSeg', [['1', 'ON'], ['0', 'OFF']], settings.showFps ? '1' : '0')}</div>
+    <div class="row"><span>ハンドガンの塗装</span>${seg('skinSeg', Object.entries(SKINS).map(([k, s]) => [k, s.name]), settings.gunSkin)}</div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
     <div class="row"><span>数値の調整<small>ダメージ・速さなど</small></span><button class="btn small" id="tuneBtn">調整パネル</button></div>
   </div>`;
@@ -36,6 +39,7 @@ export function bindSettings() {
   });
   segBind('diffSeg', v => { settings.diff = v; });
   segBind('qSeg', v => { settings.quality = v; if (gs.state === 'title') location.reload(); });   // 画質は作り直しが必要なので再読み込み
+  segBind('skinSeg', v => { settings.gunSkin = v; VM.setSkin(v); [playerActor, botActor].forEach(a => a && a.gun.setSkin && a.gun.setSkin(v)); });
   segBind('fpsSeg', v => { settings.showFps = v === '1'; if (!settings.showFps) $('fps').textContent = ''; });
   $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').textContent = settings.sens.toFixed(2); saveSettings(); };
   $('vol').oninput = e => { settings.vol = +e.target.value; SFX.setVol(settings.vol); saveSettings(); };
@@ -59,7 +63,7 @@ export const keysHTML = () => {
   const k = (key, what) => `<div><kbd>${key}</kbd><span>${what}</span></div>`;
   return `<div class="keys">
     ${k('WASD', '移動')}${k('マウス', '狙う')}${k('左クリック', '撃つ（弓は長押しで引く）')}${k('右クリック', '覗き込み')}
-    ${k('Space', 'ジャンプ（壁に向かって長押しで登る）')}${k('R', 'リロード')}${k('E', `${sk.name}：${sk.help}`)}${k('F', 'フルスクリーン')}${k('ESC', '一時停止')}
+    ${k('Space', 'ジャンプ（壁に向かって長押しで登る）')}${k('R', 'リロード')}${k('E', `${sk.name}：${sk.help}`)}${k('V', '銃を眺める')}${k('F', 'フルスクリーン')}${k('ESC', '一時停止')}
   </div>`;
 };
 function showControls(back: () => void) {

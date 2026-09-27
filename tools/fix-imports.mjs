@@ -13,9 +13,13 @@ if (!missing.length) { console.log('足りない import はありません'); pr
 
 // どのファイルが何を export しているか
 const exportsOf = {};
-for (const f of fs.readdirSync(src).filter(f => f.endsWith('.ts'))) {
-  const s = fs.readFileSync(path.join(src, f), 'utf8');
-  for (const m of s.matchAll(/^export (?:const|let|function|class) (\w+)/gm)) exportsOf[m[1]] = f.replace(/\.ts$/, '');
+// src と src/guns（銃）の中を見る
+for (const sub of ['', 'guns']) {
+  const d = path.join(src, sub);
+  for (const f of fs.readdirSync(d).filter(f => f.endsWith('.ts'))) {
+    const s = fs.readFileSync(path.join(d, f), 'utf8');
+    for (const m of s.matchAll(/^export (?:const|let|function|class) (\w+)/gm)) exportsOf[m[1]] = exportsOf[m[1]] || (sub ? sub + '/' : '') + f.replace(/\.ts$/, '');
+  }
 }
 const need = {};
 for (const [, file, name] of missing) {
@@ -27,7 +31,7 @@ for (const [file, froms] of Object.entries(need)) {
   const p = path.join(src, file + '.ts');
   let s = fs.readFileSync(p, 'utf8');
   for (const [from, names] of Object.entries(froms)) {
-    const re = new RegExp(`import \\{ ([^}]*) \\} from '\\./${from}';`);
+    const re = new RegExp(`import \\{ ([^}]*) \\} from '\\./${from.replace('/', '\\/')}';`);
     const m = s.match(re);
     if (m) {
       const all = new Set(m[1].split(',').map(x => x.trim()).filter(Boolean)); names.forEach(n => all.add(n));

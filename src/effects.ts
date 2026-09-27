@@ -1,7 +1,7 @@
 // エフェクト・一人称の銃・駒のキャラクター
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
-import { C, LIGHT, V3, lerp, rand } from './core';
+import { C, LIGHT, V3, clamp, lerp, rand } from './core';
 import { GUN_BUILDERS, buildGun, cam, flatten, makeEyes, makePiece, makeShield, outlineMat, pieceGeo, pieceWoodMat, scene, starTex, toon } from './render';
 import { groundAt } from './world';
 
@@ -159,7 +159,7 @@ export const VM: any = (() => {
   const root = new THREE.Group();
   const models: any = {};
   for (const k of Object.keys(GUN_BUILDERS)) models[k] = buildGun(k);
-  for (const [k, m] of Object.entries(models) as [string, any][]) { m.g.scale.setScalar(k === 'bow' ? 0.34 : 0.85); m.g.visible = false; root.add(m.g); }
+  for (const [k, m] of Object.entries(models) as [string, any][]) { m.g.scale.setScalar(m.vmScale || (k === 'bow' ? 0.34 : 0.85)); m.g.rotation.y = m.vmYaw || 0; m.g.visible = false; root.add(m.g); }
   vmScene.add(root);
   const pist = models.pistol;
   const flash = new THREE.Group();
@@ -169,18 +169,54 @@ export const VM: any = (() => {
   const f3 = f2.clone(); f3.rotation.set(Math.PI / 2, 0, Math.PI / 2);
   flash.add(f1, f2, f3); flash.visible = false;
   const shield = makeShield(0.56, 0.44); shield.visible = false; vmScene.add(shield);
+  // 薬莢：排莢口から右へ飛ぶ（一人称の画面の中だけ）
+  const caseGeo = new THREE.CylinderGeometry(0.0068, 0.0068, 0.033, 6).rotateX(Math.PI / 2);
+  const caseMat = toon({ color: C(P.kin[1]) });
+  const casings = Array.from({ length: 6 }, () => { const m = new THREE.Mesh(caseGeo, caseMat); m.visible = false; vmScene.add(m); return { m, v: new V3(), s: new V3(), t: 0 }; });
+  let caseI = 0;
+  const eject = () => {
+    const c = casings[caseI = (caseI + 1) % casings.length], e = vm.pist.eject;
+    if (!e) return;
+    e.getWorldPosition(c.m.position); c.m.visible = true; c.t = 0;
+    c.v.set(rand(1.1, 1.6), rand(1.3, 1.9), rand(0.1, 0.5)); c.s.set(rand(8, 16), rand(3, 8), rand(10, 20));
+  };
+  for (const m of Object.values(models) as any[]) if (m.anim) m.onEvent = ev => { if (ev === 'eject' && m === vm.pist) eject(); };
   const vm = {
     root, models, pist, flash, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
     // 持っている銃の見た目を切り替える
     setWeapon(model) {
       for (const [k, m] of Object.entries(models) as [string, any][]) m.g.visible = k === model;
       vm.pist = models[model]; vm.pist.muzzle.add(flash);
+      if (vm.pist.anim) vm.pist.anim.clear();
     },
+    // 撃った（反動・光・部品の動き）。empty：最後の1発
+    fire(w, empty = false) {
+      vm.kick = kickOf(w); vm.slideT = 1;
+      if (w.kind !== 'bow') vm.flashT = 0.05;
+      if (vm.pist.fire) vm.pist.fire(empty);
+    },
+    reload(dur) { if (vm.pist.reload) vm.pist.reload(dur); },
+    inspect() { if (vm.pist.inspect) vm.pist.inspect(); },
+    ready() { vm.equip = 1; if (vm.pist.equip) vm.pist.equip(); },   // 構える（対局の始め）
+    // 部品の動きと薬莢を進める
+    animate(dt) {
+      if (vm.pist.anim) vm.pist.anim.update(dt);
+      for (const c of casings) {
+        if (!c.m.visible) continue;
+        c.t += dt; c.v.y -= 9.8 * dt; c.m.position.addScaledVector(c.v, dt);
+        c.m.rotation.x += c.s.x * dt; c.m.rotation.y += c.s.y * dt; c.m.rotation.z += c.s.z * dt;
+        if (c.t > 0.7) c.m.visible = false;
+      }
+    },
+    // 塗装を変える（ハンドガン）
+    setSkin(id) { if (models.pistol.setSkin) models.pistol.setSkin(id); },
   };
   vm.setWeapon('pistol');
   flatten(root);
   return vm;
 })();
+// 撃ったときの銃の跳ね上がり
+export const kickOf = w => w.kind === 'bow' ? 0.6 : w.kind === 'grenade' ? 1.6 : clamp(w.recoil / 0.022, 1, 2.2);
 // 構えの位置（低めに構え、照準で狙う）。覗き込みも画面の下へ下げてズームするだけ
 export const HIP = new V3(0.2, -0.24, -0.48);
 

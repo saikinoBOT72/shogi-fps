@@ -57,6 +57,8 @@ npm run typecheck  # 型チェックだけ
 node tools/fix-imports.mjs  # 型チェックで「名前が見つからない」ものの import を自動で足す
 ```
 
+銃の形・塗装・動きは **http://localhost:5173/guns.html** で確かめられる（開発用）。
+
 開発中はブラウザのコンソールで `dev` から中身を触れる（例：`dev.game.player.hp`、`dev.step(60)` で60フレーム進める）。配布用の `dist` には入らない。
 
 ## ファイル構成
@@ -71,6 +73,9 @@ node tools/fix-imports.mjs  # 型チェックで「名前が見つからない�
 | `src/tune.ts` | 調整パネル（数値をスライダーで変える。変えた値は保存） |
 | `src/audio.ts` | 効果音（Web Audio で合成） |
 | `src/render.ts` | レンダラー、空、光、テクスチャ、駒と銃の形 |
+| `src/materials.ts` | 材質の決まり（トゥーン調・ローポリの面）。描画の準備をしないのでどこからでも使える |
+| `src/guns/` | **実銃を元にした銃**（部品・塗装・動き）。作り方は [docs/guns.md](docs/guns.md) |
+| `src/gunview.ts` | 銃の見本ページ（http://localhost:5173/guns.html、開発用） |
 | `src/world.ts` | 盤（中央の高台）、外周エリア、背景、動かない障害物と当たり判定 |
 | `src/nav.ts` | CPUの経路探索（マス目の A*） |
 | `src/physics.ts` | 物理演算で動く小物（cannon-es） |
@@ -82,7 +87,7 @@ node tools/fix-imports.mjs  # 型チェックで「名前が見つからない�
 | `src/ai.ts` | CPU |
 | `src/hud.ts` | 勝敗、HUD |
 | `src/camera.ts` | カメラと一人称の銃の動き |
-| `src/replay.ts` | キルカム（倒された直前を相手の視点で再生） |
+| `src/replay.ts` | リプレイ（勝っても負けても、決めた側の一人称視点で直前を再生） |
 | `src/screens.ts` | タイトル・一時停止・結果画面 |
 | `src/boardmode.ts` | 将棋モード（盤・ルール・CPUの指し手・撃ち合いへの切り替え） |
 | `src/main.ts` | メインループ（ここから全部を読み込む） |

@@ -78,7 +78,7 @@ export function resetMatch(foeType?) {
   Decals.clear();
   PHYS.reset();
   gs.timeScale = 1; gs.slowmoT = 0;
-  VM.equip = 1;
+  VM.ready();
   document.querySelectorAll('.dd').forEach(e => e.remove());
 }
 
@@ -217,7 +217,7 @@ export const canFire = e => e.cd <= 0 && e.reloading <= 0 && e.ammo > 0 && !e.de
 export function startReload(e) {
   if (e.reloading > 0 || e.ammo >= e.w.mag) return;
   e.reloading = e.w.reload;
-  if (!e.isBot) SFX.play('reloadStart');
+  if (!e.isBot) { SFX.play('reloadStart'); VM.reload(e.w.reload); }
 }
 export function weaponTick(e, dt) {
   e.cd -= dt;
@@ -376,6 +376,9 @@ export function updatePlayer(dt) {
       useSkill(p, sdir);
     }
     p.skillHeld = !!keys[p.skill.key];
+    // V：銃を眺める
+    if (keys.KeyV && !p.inspectHeld) VM.inspect();
+    p.inspectHeld = !!keys.KeyV;
   }
   gs.jumpPressed -= dt;
   const guardOrDash = p.skillT > 0 && ['guard', 'dash', 'step', 'leap'].includes(p.skill.type);   // 覗き込めないスキル中
@@ -428,7 +431,7 @@ export function shootPlayer() {
   if (p.w.kind === 'grenade') {
     fireGrenade(p, dir, eyeOf(p).addScaledVector(dir, 0.6));
     aiHear(p.pos, 45); stats.shots++;
-    VM.kick = 1.6; VM.slideT = 1; VM.flashT = 0.05;
+    VM.fire(p.w, p.ammo <= 0);
     view.pitch += p.w.recoil; view.shake = Math.max(view.shake, 0.15);
     return;
   }
@@ -436,7 +439,7 @@ export function shootPlayer() {
   aiHear(p.pos, 45);
   stats.shots++;
   SFX.play('shot', null, p.w.model);
-  VM.kick = clamp(p.w.recoil / 0.022, 1, 2.2); VM.slideT = 1; VM.flashT = 0.05;
+  VM.fire(p.w, p.ammo <= 0);
   view.pitch += p.w.recoil * lerp(1, 0.6, p.adsT); view.yaw += rand(-0.006, 0.006);
   view.shake = Math.max(view.shake, 0.12);
   if (res.dmg > 0) damageBot(res);

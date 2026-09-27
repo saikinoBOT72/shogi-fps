@@ -8,7 +8,10 @@ THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 import { gs } from './state';
-import { BH, C, LIGHT, Q, V3, rand } from './core';
+import { BH, C, LIGHT, Q, V3, rand, settings } from './core';
+import { buildDeagle } from './guns/deagle';
+import { TOON_RAMP, flatGeo, flatten, mat, outlineMat, toon } from './materials';
+export { TOON_RAMP, flatGeo, flatten, mat, outlineMat, toon };   // 前からの読み込み先を変えずに使えるように
 
 // ================= レンダラー・シーン =================
 export const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
@@ -108,31 +111,7 @@ export const starTex = canvasTex(128, 128, (g) => {
 });
 
 // ---------- 材質ヘルパー ----------
-// 絵柄：トゥーン調（陰影を4段に塗り分ける）でそろえる。光の反射を計算しない分、軽い
-export const TOON_RAMP = new THREE.DataTexture(new Uint8Array([95, 155, 210, 255]), 4, 1, THREE.RedFormat);
-TOON_RAMP.minFilter = TOON_RAMP.magFilter = THREE.NearestFilter; TOON_RAMP.needsUpdate = true;
-export const toon = (o: any = {}) => {
-  const { roughness, metalness, flatShading, ...rest } = o;   // トゥーン材質に無い項目は捨てる
-  return new THREE.MeshToonMaterial(Object.assign({ gradientMap: TOON_RAMP }, rest));
-};
-export const mat = (hex, o: any = {}) => toon(Object.assign({ color: C(hex) }, o));
 export const pieceWoodMat = toon({ map: woodTex });
-// 丸い形（円錐・円柱・多面体）も面ごとに陰影が分かれるローポリ調にする
-const flatCache = new Map();
-export function flatGeo(g) {
-  if (g.userData.flat) return g;
-  if (flatCache.has(g.uuid)) return flatCache.get(g.uuid);
-  const f = g.index ? g.toNonIndexed() : g.clone();
-  f.computeVertexNormals(); f.userData.flat = true;
-  flatCache.set(g.uuid, f);
-  return f;
-}
-const ROUND = new Set(['ConeGeometry', 'CylinderGeometry', 'IcosahedronGeometry', 'TorusGeometry', 'DodecahedronGeometry', 'OctahedronGeometry']);
-export function flatten(root) {
-  root.traverse((o: any) => { if (o.isMesh && !o.isInstancedMesh && ROUND.has(o.geometry.type)) o.geometry = flatGeo(o.geometry); });
-}
-// 動く駒の輪郭線（裏返した一回り大きい形を墨色で描く）
-export const outlineMat = new THREE.MeshBasicMaterial({ color: P.sumi[0], side: THREE.BackSide });
 export const kanjiCache = {};
 // small: 動く駒用（目を描く場所を空けるため、字を小さく下げる）
 export function kanjiMat(ch, red?, small?) {
@@ -170,28 +149,10 @@ export function makePiece(ch, w, h, t, woodMat = pieceWoodMat, small = false) {
 }
 
 // ---------- 銃モデル ----------
+// ハンドガン：デザートイーグル（src/guns/deagle.ts。実銃の寸法から作った見本）
+export const handMat = toon({ map: woodTex, flatShading: true });
 export function buildPistol() {
-  const g = new THREE.Group();
-  const dark = mat(P.sumi[1], { roughness: 0.45, metalness: 0.35, flatShading: false });
-  const mid = mat(P.sumi[2], { roughness: 0.55, metalness: 0.25, flatShading: false });
-  const grip = mat(P.kiji[0]);
-  const box = (w, h, d, m, x, y, z, rx = 0) => {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-    b.position.set(x, y, z); b.rotation.x = rx; b.castShadow = true; g.add(b); return b;
-  };
-  const slide = box(0.07, 0.068, 0.3, dark, 0, 0.034, -0.06);
-  box(0.064, 0.045, 0.26, mid, 0, -0.02, -0.05);
-  box(0.058, 0.15, 0.074, grip, 0, -0.1, 0.05, 0.22);
-  box(0.05, 0.012, 0.07, mid, 0, -0.062, -0.03);
-  box(0.03, 0.03, 0.02, mid, 0, 0.034, -0.215);
-  const fs = box(0.012, 0.018, 0.014, dark, 0, 0.077, -0.2);
-  slide.attach(fs);
-  [-0.018, 0.018].forEach(x => slide.attach(box(0.01, 0.018, 0.014, dark, x, 0.077, 0.075)));
-  const hand = new THREE.Mesh(new THREE.IcosahedronGeometry(0.07, 0), toon({ map: woodTex, roughness: 0.7, flatShading: true }));
-  hand.scale.set(1.05, 1.35, 1.15); hand.position.set(0.006, -0.1, 0.07); hand.castShadow = true;
-  g.add(hand);
-  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.034, -0.24); g.add(muzzle);
-  return { g, slide, muzzle, slideZ: slide.position.z, slideAmt: 0.05, ads: new V3(0.13, -0.27, -0.44) };
+  return buildDeagle({ skin: settings.gunSkin, hand: handMat });
 }
 export function buildShotgun() {
   const g = new THREE.Group();

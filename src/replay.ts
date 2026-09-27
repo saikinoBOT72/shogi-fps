@@ -9,7 +9,7 @@ import { DmgNums, Particles, Tracers, VM, vmFlashLight } from './effects';
 import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
 import { bot, botActor, player, playerActor, view } from './game';
-import { animateActor, kickOf, poseViewModel } from './camera';
+import { animateActor, poseViewModel } from './camera';
 
 export const Replay = (() => {
   const KEEP = 7, BEFORE = 4, AFTER = 1.4;   // 覚えておく秒数・決着の何秒前から・何秒後まで
@@ -51,12 +51,12 @@ export const Replay = (() => {
       cam: [cam.position.x, cam.position.y, cam.position.z, q.x, q.y, q.z, q.w, cam.fov],
       p: {
         pos: p.pos.clone(), vel: p.vel.clone(), yaw: view.yaw, onGround: p.onGround, dead: p.dead, hp: p.hp,
-        skillT: p.skillT, cd: p.cd, draw: p.draw, adsT: p.adsT || 0, reloading: p.reloading,
+        skillT: p.skillT, cd: p.cd, draw: p.draw, adsT: p.adsT || 0, reloading: p.reloading, ammo: p.ammo,
         fired: p.cd > lastPcd + 1e-4, sway: [VM.sway.x, VM.sway.y], bob: [view.bobX || 0, view.bobY || 0],
       },
       b: {
         pos: b.pos.clone(), vel: b.vel.clone(), rotY: botActor.root.rotation.y, aim: (b.aimPt || p.pos).clone(), onGround: b.onGround, dead: b.dead, hp: b.hp,
-        skillT: b.skillT, cd: b.cd, draw: b.draw, reloading: b.reloading, fired: b.cd > lastBcd + 1e-4,
+        skillT: b.skillT, cd: b.cd, draw: b.draw, reloading: b.reloading, ammo: b.ammo, fired: b.cd > lastBcd + 1e-4,
       },
       ph: PHYS.snapshot(), ar: Arrows.snapshot(), gr: Grenades.snapshot(), sm: Smoke.snapshot(),
       ev: events,
@@ -124,7 +124,8 @@ export const Replay = (() => {
     const povK = P.win ? 'p' : 'b', vicK = P.win ? 'b' : 'p';
     const vicA = P.win ? botActor : playerActor, vicFake = P.win ? P.fb : P.fp;
     const shooter = P.win ? player : bot;
-    if (f[povK].fired) { VM.kick = kickOf(shooter.w); VM.slideT = 1; if (shooter.w.kind !== 'bow') VM.flashT = 0.05; }
+    if (f[povK].fired) VM.fire(shooter.w, f[povK].ammo <= 0);
+    if (prev && f[povK].reloading > 0 && !(prev[povK].reloading > 0)) VM.reload(shooter.w.reload);
     if (f[vicK].fired) vicFake.flashT = 0.05;
     if (!prev) return;
     if (f[vicK].hp < prev[vicK].hp - 0.01) {
@@ -210,7 +211,7 @@ export const Replay = (() => {
     Grenades.showGhosts([]); Grenades.setLiveVisible(true);
     Smoke.restore(null);
     // 銃と駒を元の状態へ
-    VM.setWeapon(player.w.model); VM.flashT = 0; VM.flash.visible = false; vmFlashLight.intensity = 0;
+    VM.setWeapon(player.w.model); VM.pist.anim?.update(0); VM.flashT = 0; VM.flash.visible = false; vmFlashLight.intensity = 0;
     playerActor.root.visible = false; playerActor.dead = null; playerActor.body.rotation.set(0, 0, 0);
     botActor.root.visible = true;
     botActor.dead = bot.dead ? { a: Math.PI / 2, v: 0 } : null;
