@@ -16,6 +16,7 @@ function makeEntity(type, isBot) {
     height: 1.85 * def.size, radius: 0.5 * def.size, eyeH: 1.85 * def.size * 0.83,
     hp: def.hp, dead: false, ammo: w.mag, cd: 0, reloading: 0, bloom: 0, moving: false,
     skillCd: 0, skillT: 0, skillDir: new V3(), rammed: false, stepPhase: 0, flashT: 0,
+    charges: SKILLS[def.skill].charges || 1, draw: 0, sinceHit: 99,
   };
 }
 // 駒の見た目を用意（種類が変わったときだけ作り直す）
@@ -53,6 +54,7 @@ function resetMatch(foeType) {
   botActor.body.rotation.set(0, 0, 0); botActor.body.position.y = 0; botActor.dead = null; botActor.root.visible = true;
   playerActor.body.rotation.set(0, 0, 0); playerActor.dead = null;
   Replay.clear();
+  Arrows.clear();
   botActor.wood.emissive.setHex(0);
   Decals.clear();
   PHYS.reset();
@@ -108,8 +110,14 @@ function hasLOS(a, b) {
 
 // 移動（加速・摩擦・コヨーテタイム）
 function moveEntity(e, wish, dt) {
+  wish = wish.clone();
   const sk = e.skill;
-  if (e.skillT > 0 && sk.type === 'dash') {
+  // 横移動が遅い駒（香）：向いている方向に対して横の成分を縮める
+  if (e.def.strafe && wish.lengthSq() > 0) {
+    const f = facingOf(e), along = wish.dot(f);
+    wish = f.clone().multiplyScalar(along).add(wish.clone().addScaledVector(f, -along).multiplyScalar(e.def.strafe));
+  }
+  if (e.skillT > 0 && (sk.type === 'dash' || sk.type === 'step')) {
     e.skillT -= dt;
     e.vel.copy(e.skillDir).multiplyScalar(sk.speed);
     if (e.skillT <= 0) e.vel.multiplyScalar(0.35);
@@ -151,7 +159,7 @@ function separate(a, b) {
 // ================= 武器 =================
 function currentSpread(e) {
   const w = e.w;
-  let s = w.spread + e.bloom;
+  let s = w.spread + e.bloom + (w.kind === 'bow' ? (1 - (e.draw || 0)) * w.drawSpread : 0);
   if (e.moving) s += w.move * clamp(Math.hypot(e.vel.x, e.vel.z) / e.def.speed, 0, 1);
   if (!e.onGround) s += w.air;
   if (!e.isBot) s *= lerp(1, w.ads, e.adsT || 0);
@@ -245,11 +253,25 @@ function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
 }
 
 // ================= プレイヤー =================
+// 使える回数（charges）を1つ使い、待ち時間で1つずつ戻る
+function skillTick(e, dt) {
+  const max = e.skill.charges || 1;
+  if (e.charges >= max) { e.skillCd = 0; return; }
+  e.skillCd -= dt;
+  if (e.skillCd <= 0) { e.charges++; e.skillCd = e.charges < max ? e.skill.cooldown : 0; }
+}
 function useSkill(e, dir) {
-  if (e.skillCd > 0 || e.dead || e.skillT > 0) return false;
+  if (e.charges <= 0 || e.dead || e.skillT > 0) return false;
   e.skillDir.copy(dir).setY(0).normalize();
-  e.skillT = e.skill.duration; e.skillCd = e.skill.cooldown; e.rammed = false;
-  if (e.skill.type === 'dash') {
+  e.charges--; if (e.skillCd <= 0) e.skillCd = e.skill.cooldown;
+  e.skillT = e.skill.duration; e.rammed = false;
+  if (e.skill.type === 'step') {
+    SFX.play('dash', e.pos);
+    Particles.dust(e.pos, 5, 0.9);
+    if (!e.isBot) { view.shake = Math.max(view.shake, 0.15); view.stepRoll = e.skillDir.dot(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw))) > 0 ? -1 : 1; }
+  } else if (e.skill.type === 'homing') {
+    SFX.play('homing', e.isBot ? e.pos : null);
+  } else if (e.skill.type === 'dash') {
     e.vy = Math.max(e.vy, 2);
     SFX.play('dash', e.pos);
     Particles.dust(e.pos, 8, 1.3);
@@ -272,13 +294,21 @@ function updatePlayer(dt) {
     if (keys.KeyD) wish.add(right); if (keys.KeyA) wish.sub(right);
     if (wish.lengthSq() > 0) wish.normalize();
     if (jumpPressed > 0 && tryJump(p)) jumpPressed = 0;
-    if (keys[p.skill.key]) useSkill(p, fwd);
+    if (keys[p.skill.key] && !p.skillHeld) {
+      // すり足は A/D の方向（押していなければ右）、他は前
+      let sdir = fwd;
+      if (p.skill.type === 'step') sdir = keys.KeyA ? right.clone().negate() : keys.KeyD ? right : keys.KeyS ? fwd.clone().negate() : right;
+      useSkill(p, sdir);
+    }
+    p.skillHeld = !!keys[p.skill.key];
   }
   jumpPressed -= dt;
-  p.adsT = damp(p.adsT || 0, rightDown && !p.dead && p.reloading <= 0 && p.skillT <= 0 ? 1 : 0, 14, dt);
-  p.speedMul = lerp(1, 0.6, p.adsT);
+  const guardOrDash = p.skillT > 0 && p.skill.type !== 'homing';
+  p.adsT = damp(p.adsT || 0, rightDown && !p.dead && p.reloading <= 0 && !guardOrDash ? 1 : 0, 14, dt);
+  p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1);
   moveEntity(p, wish, dt);
-  p.skillCd = Math.max(0, p.skillCd - dt);
+  skillTick(p, dt);
+  regenTick(p, dt);
 
   // 足音
   if (p.onGround && p.moving) {
@@ -289,6 +319,18 @@ function updatePlayer(dt) {
 
   weaponTick(p, dt);
   if (state !== 'fight' || p.dead) return;
+  // 弓：押している間は引き絞り、離したら放つ
+  if (p.w.kind === 'bow') {
+    if (mouseDown && p.cd <= 0) {
+      if (!p.drawing) SFX.play('bowDraw');
+      p.drawing = true;
+      p.draw = Math.min(1, p.draw + dt / p.w.drawTime);
+    } else if (p.drawing && !mouseDown) {
+      p.drawing = false;
+      if (p.draw > 0.12) shootPlayerArrow(); else p.draw = 0;
+    }
+    return;
+  }
   if (keys.KeyR) startReload(p);
   if (mouseDown && !triggerUsed) {
     triggerUsed = !p.w.auto;
@@ -313,8 +355,39 @@ function shootPlayer() {
   if (res.dmg > 0) damageBot(res);
 }
 
+// 矢を放つ（プレイヤー・CPU共通）
+function shootArrow(e, dir, origin) {
+  const w = e.w, k = e.draw;
+  const sp = currentSpread(e);
+  const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
+  const homing = e.skillT > 0 && e.skill.type === 'homing';
+  if (homing) e.skillT = 0;
+  Arrows.fire({
+    owner: e, target: e === player ? bot : player, pos: origin,
+    vel: d.multiplyScalar(homing ? Math.min(e.skill.speed, lerp(w.speedMin, w.speedMax, k)) : lerp(w.speedMin, w.speedMax, k)),
+    dmg: lerp(w.dmgMin, w.dmg, k), head: w.head, gravity: w.gravity, homing, turn: e.skill.turn || 0,
+  });
+  e.cd = w.rate; e.draw = 0;
+  SFX.play('bow', e.isBot ? origin : null);
+  if (!e.isBot) aiHear(e.pos, 20);
+}
+function shootPlayerArrow() {
+  const p = player;
+  cam.updateMatrixWorld();
+  const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
+  shootArrow(p, dir, eyeOf(p).addScaledVector(dir, 0.6));
+  stats.shots++;
+  VM.kick = 0.6; view.shake = Math.max(view.shake, 0.08);
+}
+// しばらく被弾しないと回復
+function regenTick(e, dt) {
+  e.sinceHit += dt;
+  if (!e.dead && e.sinceHit > RULES.regenDelay && e.hp < e.def.hp) { e.hp = Math.min(e.def.hp, e.hp + RULES.regenRate * dt); e.regen = true; }
+  else e.regen = false;
+}
+
 function damageBot(res) {
-  bot.hp -= res.dmg;
+  bot.hp -= res.dmg; bot.sinceHit = 0;
   // 撃たれたら横移動の向きを変え、撃ってきた場所を覚える
   bot.strafe *= -1; bot.strafeT = rand(0.4, 1); bot.hurtT = 1.2;
   bot.lastKnown.copy(player.pos); if (bot.lostT > 0) bot.lostT = 0.01;

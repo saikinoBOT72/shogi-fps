@@ -45,6 +45,8 @@ const Particles = (() => {
     wood(point, dir, n = 10, power = 1) {
       for (let i = 0; i < n; i++) spawn(false, point, dir.clone().multiplyScalar(rand(2, 6) * power).add(new V3(rand(-3, 3), rand(1, 5), rand(-3, 3)).multiplyScalar(power)), { size: rand(0.05, 0.15), life: rand(0.9, 1.8), color: WOOD[i % 3], grav: 18, bounce: 0.35 });
     },
+    // 追尾の矢の光の尾
+    glow(point, color) { spawn(true, point, new V3(rand(-0.3, 0.3), rand(-0.3, 0.3), rand(-0.3, 0.3)), { size: rand(0.05, 0.09), life: rand(0.2, 0.35), color: C(color).multiplyScalar(2.5), grav: 0, bounce: 0 }); },
     dust(point, n = 6, power = 1) {
       for (let i = 0; i < n; i++) spawn(false, point.clone().add(new V3(rand(-0.3, 0.3), 0.05, rand(-0.3, 0.3))), new V3(rand(-2, 2), rand(0.3, 1.5), rand(-2, 2)).multiplyScalar(power), { size: rand(0.12, 0.22), life: rand(0.35, 0.6), color: C(0xd8bf8e), grav: 0.5, drag: 4, grow: 1.8 });
     },
@@ -143,8 +145,8 @@ const vmSun = new THREE.DirectionalLight(C(0xfff0d6), 1.6); vmSun.position.set(0
 const vmFlashLight = new THREE.PointLight(C(0xffc870), 0, 2); vmScene.add(vmFlashLight);
 const VM = (() => {
   const root = new THREE.Group();
-  const models = { pistol: buildGun('pistol'), shotgun: buildGun('shotgun') };
-  for (const m of Object.values(models)) { m.g.scale.setScalar(0.85); m.g.visible = false; root.add(m.g); }
+  const models = { pistol: buildGun('pistol'), shotgun: buildGun('shotgun'), smg: buildGun('smg'), bow: buildGun('bow') };
+  for (const [k, m] of Object.entries(models)) { m.g.scale.setScalar(k === 'bow' ? 0.42 : 0.85); m.g.visible = false; root.add(m.g); }
   vmScene.add(root);
   const pist = models.pistol;
   const flash = new THREE.Group();
@@ -172,12 +174,13 @@ function buildActor(ch, size, model = 'pistol') {
   const root = new THREE.Group(), body = new THREE.Group();
   const w = 1.2 * size, h = 1.85 * size, t = 0.42 * size;
   const wood = pieceWoodMat.clone();
-  const piece = makePiece(ch, w, h, t, wood);
+  const piece = makePiece(ch, w, h, t, wood, true);
+  const eyes = makeEyes(w, h, t / 2 + 0.008); piece.add(eyes);
   piece.position.set(0, h / 2, t / 2);
   body.position.z = -t / 2;
   body.add(piece); root.add(body);
   const gun = buildGun(model);
-  gun.g.scale.setScalar((model === 'shotgun' ? 1.6 : 2.2) * size); gun.g.rotation.y = Math.PI;
+  gun.g.scale.setScalar(({ shotgun: 1.6, smg: 1.9, bow: 1.5 }[model] || 2.2) * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(w * 0.52, h * 0.5, t + 0.12);
   body.add(gun.g);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
@@ -186,5 +189,5 @@ function buildActor(ch, size, model = 'pistol') {
   shield.position.set(0, h * 0.45, t + 0.45); shield.visible = false;
   body.add(shield);
   scene.add(root);
-  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, w, h, t };
+  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, w, h, t };
 }

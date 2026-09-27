@@ -11,8 +11,12 @@ const TUNE_FIELDS = {
   cooldown: ['待ち時間（秒）', 1, 20, 0.5], duration: ['効果時間（秒）', 0.1, 5, 0.02], damageTaken: ['受けるダメージの倍率', 0, 1, 0.05],
   ram: ['体当たりダメージ', 0, 80, 1], slow: ['効果中の移動の倍率', 0.2, 1, 0.05],
   react: ['見つけてから撃つまで（秒）', 0.05, 1.5, 0.05], err: ['狙いのブレ', 0, 0.3, 0.005], track: ['照準の追従の速さ', 1, 20, 0.5],
+  lead: ['矢の偏差撃ちの正確さ', 0, 1, 0.05], strafe: ['横移動の速さの倍率', 0.2, 1, 0.05], charges: ['連続で使える回数', 1, 5, 1],
+  dmgMin: ['最小ダメージ（引きが浅い）', 1, 100, 1], drawTime: ['引き切るまで（秒）', 0.2, 2.5, 0.05], speedMin: ['矢の速さ（最小）', 5, 120, 1],
+  speedMax: ['矢の速さ（最大）', 10, 150, 1], gravity: ['矢の落ち方', 0, 40, 1], drawSpread: ['引きが浅いときのブレ', 0, 0.1, 0.002],
+  turn: ['追尾の曲がりやすさ', 0.5, 10, 0.25], regenDelay: ['回復が始まるまで（秒）', 1, 15, 0.5], regenRate: ['1秒の回復量', 0, 60, 1],
 };
-const TUNE_ROOTS = { PIECES, WEAPONS, SKILLS, DIFFS };
+const TUNE_ROOTS = { PIECES, WEAPONS, SKILLS, DIFFS, RULES: { base: RULES } };
 const TUNE_DEFAULTS = JSON.parse(JSON.stringify(TUNE_ROOTS));
 const TUNE_KEY = 'shogifps-tune';
 
@@ -35,6 +39,7 @@ function tuneGroups() {
     add(`スキル：${SKILLS[p.skill].name}（${p.name}）`, 'SKILLS', p.skill);
   }
   add(`CPU：${DIFFS[settings.diff].name}`, 'DIFFS', settings.diff);
+  add('ルール（HP回復）', 'RULES', 'base');
   return groups;
 }
 function tuneSet(root, key, field, v) {

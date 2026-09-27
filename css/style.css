@@ -124,3 +124,8 @@ button.small:hover{background:rgba(255,255,255,.22)}
   background:#e8c27a;color:#1a1008;clip-path:polygon(50% 0,94% 22%,88% 100%,12% 100%,6% 22%)}
 .pick span{opacity:.85;white-space:nowrap}
 .vs-mark{font:900 italic 30px "Yu Gothic",sans-serif;color:#ffcf6b;margin-top:22px}
+
+/* 駒の価値・回復中のHPバー */
+.pick .pc-val{color:#ffcf6b;font-weight:bold}
+#meBar.regen{box-shadow:0 0 10px 2px rgba(120,255,160,.7);animation:regen .8s ease-in-out infinite alternate}
+@keyframes regen{from{border-color:rgba(255,255,255,.85)}to{border-color:#8ff0a6}}

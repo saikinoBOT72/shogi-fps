@@ -70,6 +70,9 @@ function updateBot(dt) {
 
     // 状態の決定
     const P = b.persona, pref = Math.max(3, b.w.pref + P.prefAdd);
+    // HPが減っていて見つかっていないなら回復を待つ。回復したか、見つかったら再開
+    if (!los && b.hp < b.def.hp * 0.5 && P !== PERSONAS.rush) b.healing = true;
+    if (b.hp >= b.def.hp * 0.9 || (los && b.hurtT > 0)) b.healing = false;
     const wantCover = los && (b.reloading > 0 || (b.hp < P.coverHp && player.hp > b.hp && b.ammo < b.w.mag * 0.4));
     if (wantCover) {
       b.coverT -= dt;
@@ -85,6 +88,9 @@ function updateBot(dt) {
       if (wish.length() < 0.5) wish.set(0, 0, 0);
     } else if (los) {
       wish.addScaledVector(toP, dist > pref + 3 ? 1 : dist < pref - 4 ? -0.8 : 0).addScaledVector(side, 0.9);
+    } else if (b.healing) {
+      // 見えていない間に回復を待つ（HPが戻るまでその場で様子見）
+      wish.set(0, 0, 0);
     } else {
       // 見失ったら最後に見た場所へ。まっすぐ行けなければ中継地点を経由
       const tgt = b.lostT < 3 ? b.lastKnown : player.pos;
@@ -94,7 +100,7 @@ function updateBot(dt) {
       wish.copy(b.wp || tgt).sub(b.pos).setY(0);
       if (!b.wp && wish.length() < 1.5) wish.copy(toP).add(side);
     }
-    if (b.skillCd <= 0 && SKILL_AI[b.def.skill]) SKILL_AI[b.def.skill](b, { los, dist, toP, pref, dt });
+    if (b.charges > 0 && SKILL_AI[b.def.skill]) SKILL_AI[b.def.skill](b, { los, dist, toP, pref, dt, aimedAt, side });
     b.hurtT = Math.max(0, (b.hurtT || 0) - dt);
     if (wish.lengthSq() > 0) wish.normalize();
     const steered = steer(b, wish);
@@ -109,14 +115,47 @@ function updateBot(dt) {
     b.aimPt.lerp(chest, 1 - Math.exp(-D.track * dt));
     weaponTick(b, dt);
     b.fireDelay -= dt;
-    if (los && b.seen > D.react && canFire(b) && b.fireDelay <= 0 && !b.coverPt && b.skillT <= 0) {
+    const busy = b.skillT > 0 && b.skill.type !== 'homing' && b.skill.type !== 'step';
+    if (b.w.kind === 'bow') {
+      // 弓：引き絞ってから、相手の動きと矢の落ちを見越して放つ。追尾中は見えていなくても撃つ
+      const armed = b.skillT > 0 && b.skill.type === 'homing';
+      const canShoot = !b.coverPt && ((los && b.seen > D.react) || (armed && b.lostT < 3));
+      if (canShoot && b.cd <= 0) {
+        b.draw = Math.min(1, b.draw + dt / b.w.drawTime);
+        if (!b.drawGoal) b.drawGoal = clamp(dist / 22, 0.55, 1) * rand(0.9, 1);
+        if (b.draw >= b.drawGoal) {
+          const tgt = los ? b.aimPt.clone() : b.lastKnown.clone().setY(b.lastKnown.y + player.height * 0.6);
+          const speed = lerp(b.w.speedMin, b.w.speedMax, b.draw);
+          let aim;
+          if (armed) aim = tgt.sub(bEye).normalize().add(new V3(0, 0.2, 0)).normalize();
+          else {
+            // 偏差撃ち：飛ぶ時間ぶん先を狙い、落ちるぶん上を狙う
+            let t = bEye.distanceTo(tgt) / speed;
+            const lead = player.vel.clone().multiplyScalar(D.lead);
+            for (let k = 0; k < 2; k++) t = bEye.distanceTo(tgt.clone().addScaledVector(lead, t)) / speed;
+            const p = tgt.clone().addScaledVector(lead, t); p.y += 0.5 * b.w.gravity * t * t;
+            aim = p.sub(bEye).normalize();
+          }
+          const err = D.err * 0.75;
+          aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
+          shootArrow(b, aim, bEye.clone().addScaledVector(aim, 0.7));
+          b.drawGoal = 0;
+          b.cd += rand(...D.gap) * 1.2;   // 次の矢を番えるまで少し間を置く
+        }
+      } else if (!canShoot) b.draw = Math.max(0, b.draw - dt * 2);
+    } else if (los && b.seen > D.react && canFire(b) && b.fireDelay <= 0 && !b.coverPt && !busy) {
       const aim = b.aimPt.clone().sub(bEye).normalize();
       const err = D.err + (player.skillT > 0 && player.skill.type === 'dash' ? 0.08 : 0) + (player.onGround ? 0 : 0.02);
       aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
       botActor.root.updateMatrixWorld(true);
       const muzzle = botActor.gun.muzzle.getWorldPosition(new V3());
       const res = fire(b, player, bEye, muzzle, aim);
-      b.fireDelay = rand(...D.gap);
+      // 連射武器は数発ずつ撃つ（バースト）
+      if (b.w.auto) {
+        if (!(b.burst > 0)) b.burst = 4 + Math.floor(Math.random() * 7);
+        b.burst--;
+        b.fireDelay = b.burst > 0 ? rand(0, 0.03) : rand(...D.gap) + 0.15;
+      } else b.fireDelay = rand(...D.gap);
       b.flashT = 0.05;
       SFX.play('shot', muzzle, b.w.model === 'shotgun');
       if (res.dmg > 0) damagePlayer(res.dmg, b.pos);
@@ -125,13 +164,14 @@ function updateBot(dt) {
         const cd = ray.ray.distanceToPoint(pEye);
         if (cd < 1.6 && bEye.distanceTo(pEye) < res.wallDist) SFX.play('whiz', pEye.clone().addScaledVector(res.miss, 1));
       }
-    } else if (b.ammo <= 0) startReload(b);
-    else if (!los && b.ammo < b.w.mag * 0.5) startReload(b);
+    } else if (b.w.kind !== 'bow' && b.ammo <= 0) startReload(b);
+    else if (b.w.kind !== 'bow' && !los && b.ammo < b.w.mag * 0.5) startReload(b);
   } else {
     weaponTick(b, dt);
     moveEntity(b, wish, dt);
   }
-  b.skillCd = Math.max(0, b.skillCd - dt);
+  skillTick(b, dt);
+  if (state === 'fight') regenTick(b, dt);
 }
 
 // スキルごとのCPUの使い方
@@ -139,6 +179,15 @@ const SKILL_AI = {
   // 突撃：相手がリロード中、または遠いときに一気に詰める（突撃型ほど積極的）
   charge(b, c) {
     if (c.los && c.dist > 5 && b.seen > 0.5 && (player.reloading > 0 || c.dist > c.pref + 8 / b.persona.eager)) useSkill(b, c.toP);
+  },
+  // すり足：狙われている・撃たれたときに横へ逃げる
+  step(b, c) {
+    if (c.los && b.skillT <= 0 && (b.hurtT > 0.9 || (c.aimedAt && Math.random() < c.dt * 3 * b.persona.eager))) useSkill(b, c.side);
+  },
+  // 追尾：隠れた相手を曲がる矢で追い出す。見えていても時々使う
+  homing(b, c) {
+    if (b.skillT > 0) return;
+    if ((!c.los && b.lostT > 0.4 && b.lostT < 2.5) || (c.los && c.dist > 10 && Math.random() < c.dt * 0.25 * b.persona.eager)) useSkill(b, c.toP);
   },
   // 守りの構え：撃たれているのに遠いとき、構えて距離を詰める
   guard(b, c) {
@@ -159,7 +208,7 @@ function aiHear(pos, radius) {
 }
 
 function damagePlayer(dmg, from) {
-  player.hp -= dmg; stats.taken += dmg;
+  player.hp -= dmg; stats.taken += dmg; player.sinceHit = 0;
   hud.hurt = 0.85;
   view.shake = Math.max(view.shake, 0.35);
   view.pitch += rand(0.005, 0.015); view.yaw += rand(-0.01, 0.01);

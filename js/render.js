@@ -96,14 +96,15 @@ const starTex = canvasTex(128, 128, (g) => {
 const mat = (hex, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: C(hex), roughness: 0.85, flatShading: true }, o));
 const pieceWoodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.7 });
 const kanjiCache = {};
-function kanjiMat(ch, red) {
-  const k = ch + (red ? 'r' : '');
+// small: 動く駒用（目を描く場所を空けるため、字を小さく下げる）
+function kanjiMat(ch, red, small) {
+  const k = ch + (red ? 'r' : '') + (small ? 's' : '');
   if (kanjiCache[k]) return kanjiCache[k];
   const tex = canvasTex(256, 256, g => {
     g.fillStyle = red ? '#a8161a' : '#1d1208';
-    g.font = '900 136px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif';
+    g.font = `900 ${small ? 104 : 136}px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif`;
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(ch, 128, 150);
+    g.fillText(ch, 128, small ? 172 : 150);
   });
   return kanjiCache[k] = new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2 });
 }
@@ -118,12 +119,12 @@ pieceGeo.translate(-0.5, -0.5, -0.125);
 const planeGeo = new THREE.PlaneGeometry(1, 1);
 
 // 中心が原点、表面(+z)に文字がある駒
-function makePiece(ch, w, h, t, woodMat = pieceWoodMat) {
+function makePiece(ch, w, h, t, woodMat = pieceWoodMat, small = false) {
   const g = new THREE.Group();
   const m = new THREE.Mesh(pieceGeo, woodMat);
   m.scale.set(w, h, t / PIECE_DEPTH);
   m.castShadow = m.receiveShadow = true;
-  const d = new THREE.Mesh(planeGeo, kanjiMat(ch));
+  const d = new THREE.Mesh(planeGeo, kanjiMat(ch, false, small));
   d.scale.set(w, h, 1); d.position.z = t / 2 + 0.004;
   g.add(m, d);
   g.userData.body = m;
@@ -177,7 +178,88 @@ function buildShotgun() {
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.03, -0.66); g.add(muzzle);
   return { g, slide: pump, muzzle, slideZ: pump.position.z, slideAmt: 0.09, ads: new V3(0, -0.055, -0.4) };
 }
-const buildGun = model => model === 'shotgun' ? buildShotgun() : buildPistol();
+function buildSMG() {
+  const g = new THREE.Group();
+  const dark = mat(0x2a2c30, { roughness: 0.45, metalness: 0.35, flatShading: false });
+  const mid = mat(0x44474d, { roughness: 0.55, metalness: 0.25, flatShading: false });
+  const grip = mat(0x5a3a20);
+  const box = (w, h, d, m, x, y, z, rx = 0) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+    b.position.set(x, y, z); b.rotation.x = rx; b.castShadow = true; g.add(b); return b;
+  };
+  box(0.065, 0.075, 0.3, dark, 0, 0.01, -0.02);        // 機関部
+  box(0.028, 0.028, 0.14, mid, 0, 0.02, -0.24);        // 銃身
+  box(0.038, 0.17, 0.05, mid, 0, -0.1, -0.08, -0.15);  // 弾倉
+  box(0.05, 0.12, 0.06, grip, 0, -0.08, 0.08, 0.25);   // グリップ
+  box(0.014, 0.016, 0.22, mid, 0.024, 0, 0.22); box(0.014, 0.016, 0.22, mid, -0.024, 0, 0.22); box(0.07, 0.06, 0.02, mid, 0, -0.01, 0.33);
+  box(0.012, 0.02, 0.012, dark, 0, 0.058, -0.15);
+  [-0.016, 0.016].forEach(x => box(0.008, 0.02, 0.012, dark, x, 0.058, 0.1));
+  const bolt = box(0.014, 0.024, 0.06, mid, 0.04, 0.02, 0);
+  const handM = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.7, flatShading: true });
+  [[0, -0.1, 0.09], [0, -0.13, -0.08]].forEach(([x, y, z]) => {
+    const h = new THREE.Mesh(new THREE.IcosahedronGeometry(0.066, 0), handM);
+    h.scale.set(1.05, 1.2, 1.1); h.position.set(x, y, z); h.castShadow = true; g.add(h);
+  });
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.02, -0.32); g.add(muzzle);
+  return { g, slide: bolt, muzzle, slideZ: bolt.position.z, slideAmt: 0.04, ads: new V3(0, -0.058, -0.34) };
+}
+// 弓：setDraw(0〜1) で弦を引く。arrow は番えている矢
+function buildBow() {
+  const g = new THREE.Group(), bow = new THREE.Group();
+  g.add(bow); bow.rotation.z = -0.28;   // 少し傾けて構える
+  const woodM = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.6 });
+  const R = 0.5, arc = 1.6, tipY = R * Math.sin(arc / 2), tipZ = R * (1 - Math.cos(arc / 2));
+  const limb = new THREE.Mesh(new THREE.TorusGeometry(R, 0.016, 4, 14, arc), woodM);
+  limb.rotation.set(0, Math.PI / 2, -arc / 2); limb.position.z = R;
+  limb.castShadow = true; bow.add(limb);
+  const gripB = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.1, 0.04), mat(0x5a3a20)); bow.add(gripB);
+  const strPos = new Float32Array(9);
+  const strGeo = new THREE.BufferGeometry(); strGeo.setAttribute('position', new THREE.BufferAttribute(strPos, 3));
+  const string = new THREE.Line(strGeo, new THREE.LineBasicMaterial({ color: 0xf2eee0 }));
+  string.frustumCulled = false; bow.add(string);
+  const arrowM = new THREE.MeshStandardMaterial({ color: C(0x8a5a30), emissive: C(0x39c6ff), emissiveIntensity: 0 });
+  const arrow = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.7, 5), arrowM); shaft.rotation.x = Math.PI / 2; shaft.position.z = -0.35;
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.06, 5), mat(0x4a5058, { metalness: 0.4, roughness: 0.4 })); tip.rotation.x = -Math.PI / 2; tip.position.z = -0.72;
+  arrow.add(shaft, tip);
+  [0, 2.09, 4.19].forEach(a => {
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.09), new THREE.MeshStandardMaterial({ color: C(0xd8402e), side: THREE.DoubleSide }));
+    f.position.set(Math.cos(a) * 0.012, Math.sin(a) * 0.012, -0.06); f.rotation.set(Math.PI / 2, 0, a); arrow.add(f);
+  });
+  bow.add(arrow);
+  const hand = new THREE.Mesh(new THREE.IcosahedronGeometry(0.07, 0), new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.7, flatShading: true }));
+  hand.scale.set(1.05, 1.3, 1.1); bow.add(hand);
+  const pull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.06, 0), hand.material); bow.add(pull);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0, -0.7); bow.add(muzzle);
+  function setDraw(k) {
+    const nz = tipZ + 0.3 * k;
+    strPos.set([0, tipY, tipZ, 0, 0, nz, 0, -tipY, tipZ]); strGeo.attributes.position.needsUpdate = true;
+    arrow.position.z = nz; pull.position.set(0, -0.02, nz + 0.03);
+    limb.scale.set(1, 1, 1 - 0.12 * k);   // 引くとしなる
+  }
+  setDraw(0);
+  return { g, slide: new THREE.Object3D(), muzzle, slideZ: 0, slideAmt: 0, setDraw, arrow, arrowM,
+    hip: new V3(0.09, -0.08, -0.4), ads: new V3(0, -0.012, -0.36), isBow: true };
+}
+const buildGun = model => model === 'shotgun' ? buildShotgun() : model === 'smg' ? buildSMG() : model === 'bow' ? buildBow() : buildPistol();
+// 動く駒の目：縦長のゆるい目。まばたき・倒れると×目
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0x241408 });
+const eyeGeo = new THREE.CircleGeometry(0.5, 14);
+const eyeBarGeo = new THREE.PlaneGeometry(1, 1);
+function makeEyes(w, h, z) {
+  const eyes = new THREE.Group();
+  const list = [-1, 1].map(s => {
+    const e = new THREE.Group();
+    e.position.set(s * w * 0.14, h * 0.2, z);
+    const oval = new THREE.Mesh(eyeGeo, eyeMat); oval.scale.set(w * 0.055, h * 0.13, 1);
+    const cross = new THREE.Group(); cross.visible = false;
+    [1, -1].forEach(r => { const b = new THREE.Mesh(eyeBarGeo, eyeMat); b.scale.set(w * 0.035, h * 0.12, 1); b.rotation.z = r * 0.785; cross.add(b); });
+    e.add(oval, cross); eyes.add(e);
+    return { oval, cross };
+  });
+  eyes.userData = { list, blinkT: rand(1.5, 4), shut: 0 };
+  return eyes;
+}
 // 盾（将棋盤）：表面に盤の目
 const shieldMats = (() => {
   const side = new THREE.MeshStandardMaterial({ map: darkWoodTex, roughness: 0.8 });

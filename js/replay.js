@@ -24,6 +24,7 @@ const Replay = (() => {
       p: { pos: player.pos.clone(), vel: player.vel.clone(), yaw: view.yaw, onGround: player.onGround, dead: player.dead, skillT: player.skillT },
       b: { pos: bot.pos.clone(), aim: (bot.aimPt || player.pos).clone() },
       ph: PHYS.snapshot(),
+      ar: Arrows.snapshot(),
       ev: events,
     });
     events = [];
@@ -43,6 +44,7 @@ const Replay = (() => {
     state = 'killcam';
     playerActor.root.visible = true; playerActor.dead = null; playerActor.body.rotation.set(0, 0, 0);
     botActor.root.visible = false;
+    Arrows.setLiveVisible(false);
     $('hud').style.display = 'none';
     $('kcWho').textContent = `相手（${bot.def.name}）の視点`;
     ui.style.display = 'block';
@@ -62,6 +64,7 @@ const Replay = (() => {
     }
     const f = frames[P.i];
     PHYS.restore(f.ph);
+    Arrows.showGhosts(f.ar);
 
     // あなたの駒を記録どおりに動かす
     const fk = P.fake;
@@ -87,6 +90,7 @@ const Replay = (() => {
     PHYS.restore(frames[frames.length - 1].ph);
     playerActor.root.visible = false; playerActor.dead = null; playerActor.body.rotation.set(0, 0, 0);
     botActor.root.visible = true;
+    Arrows.showGhosts([]); Arrows.setLiveVisible(true);
     ui.style.display = 'none';
     play = null;
     state = 'end';

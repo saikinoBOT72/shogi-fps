@@ -84,19 +84,29 @@ function updateHUD(dt) {
   hud.hurt = Math.max(0, hud.hurt - dt * 2.2); setStyle($('hurt'), 'opacity', hud.hurt.toFixed(2));
   hud.dash = p.skillT > 0 && p.skill.type === 'dash' ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
 
-  if (hud.ammo !== p.ammo) {
+  if (p.w.kind === 'bow') {
+    // 弓は弾数なし。引き具合を表示
+    setHTML('ammoNum', `${Math.round((p.draw || 0) * 100)}<small>%</small>`);
+    setStyle($('reloadTxt'), 'opacity', '0');
+  } else if (hud.ammo !== p.ammo) {
     hud.ammo = p.ammo;
     $('ammoNum').innerHTML = `${p.ammo}<small>/${p.w.mag}</small>`;
     $('ammoNum').classList.toggle('low', p.ammo <= 3);
     [...$('pips').children].forEach((c, i) => c.classList.toggle('e', i >= p.ammo));
   }
-  setStyle($('reloadTxt'), 'opacity', p.reloading > 0 ? '1' : (p.ammo === 0 ? (0.7 + Math.sin(performance.now() / 120) * 0.3).toFixed(2) : '0'));
-  setText('reloadTxt', p.reloading > 0 ? 'リロード中' : 'R でリロード');
+  if (p.w.kind !== 'bow') {
+    setStyle($('reloadTxt'), 'opacity', p.reloading > 0 ? '1' : (p.ammo === 0 ? (0.7 + Math.sin(performance.now() / 120) * 0.3).toFixed(2) : '0'));
+    setText('reloadTxt', p.reloading > 0 ? 'リロード中' : 'R でリロード');
+  }
 
-  const k = 1 - p.skillCd / p.skill.cooldown;
+  const max = p.skill.charges || 1;
+  const k = p.charges >= max ? 1 : 1 - p.skillCd / p.skill.cooldown;
   setAttr($('skillArc'), 'stroke-dashoffset', (144.5 * (1 - k)).toFixed(1));
-  if (hud.ready !== (p.skillCd <= 0)) { hud.ready = p.skillCd <= 0; $('skill').classList.toggle('ready', hud.ready); }
-  setText('skillName', p.skillCd > 0 ? `${p.skill.name} ${p.skillCd.toFixed(1)}` : p.skill.name);
+  const ready = p.charges > 0;
+  if (hud.ready !== ready) { hud.ready = ready; $('skill').classList.toggle('ready', ready); }
+  const armed = p.skillT > 0 && p.skill.type === 'homing';
+  setText('skillName', (armed ? `${p.skill.name} 準備OK` : p.charges > 0 ? p.skill.name : `${p.skill.name} ${p.skillCd.toFixed(1)}`) + (max > 1 ? ` ×${p.charges}` : ''));
+  if (changed('regen', !!p.regen)) $('meBar').classList.toggle('regen', !!p.regen);
   setText('timer', Math.max(0, Math.ceil(TIME_LIMIT - stats.time)));
 }
 // 前回と同じ値なら DOM に触らない（毎フレームの書き換えは重い）

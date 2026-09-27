@@ -38,7 +38,10 @@ function updateCamera(dt, rdt) {
     cam.rotation.set(view.pitch + sy, view.yaw + sx, sr);
   }
   const dashing = p.skillT > 0 && p.skill.type === 'dash', guarding = p.skillT > 0 && p.skill.type === 'guard';
-  const targetFov = lerp(80, 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0);
+  const targetFov = lerp(80, 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 8;
+  // すり足：ステップした方向へ少し傾く
+  view.stepRoll = damp(view.stepRoll || 0, 0, 6, rdt);
+  if (p.skillT > 0 && p.skill.type === 'step') cam.rotation.z += (view.stepRoll || 0) * 0.06;
   view.fov = damp(view.fov, targetFov, dashing ? 20 : 12, rdt);
   cam.fov = view.fov; cam.updateProjectionMatrix();
   sky.position.copy(cam.position);
@@ -54,7 +57,13 @@ function updateCamera(dt, rdt) {
   const rl = p.reloading > 0 ? Math.sin(Math.PI * (1 - p.reloading / p.w.reload)) : 0;
   VM.dash = damp(VM.dash || 0, dashing ? 1 : 0, 12, rdt);
   VM.guard = damp(VM.guard || 0, guarding ? 1 : 0, 14, rdt);
-  const base = HIP.clone().lerp(VM.pist.ads, ads);
+  const base = (VM.pist.hip || HIP).clone().lerp(VM.pist.ads, ads);
+  // 弓：弦を引く・追尾が準備できたら矢が光る
+  if (VM.pist.isBow) {
+    VM.pist.setDraw(p.draw || 0);
+    VM.pist.arrow.visible = p.cd <= 0;
+    VM.pist.arrowM.emissiveIntensity = p.skillT > 0 && p.skill.type === 'homing' ? 1 + Math.sin(performance.now() / 90) * 0.4 : 0;
+  }
   const r = VM.root;
   r.position.set(
     base.x + VM.sway.x * (1 - ads * 0.7) + bobX * 0.6 * (1 - ads),
@@ -85,6 +94,18 @@ function animateActor(A, e, dt, lookAt) {
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     A.root.rotation.y += diff * (1 - Math.exp(-10 * dt));
   }
+  // 目：ときどきまばたき。倒れたら×目
+  const E = A.eyes && A.eyes.userData;
+  if (E) {
+    E.blinkT -= dt;
+    if (E.blinkT <= 0) { E.shut = 0.12; E.blinkT = rand(2, 5); }
+    E.shut = Math.max(0, E.shut - dt);
+    for (const eye of E.list) {
+      eye.oval.visible = !A.dead; eye.cross.visible = !!A.dead;
+      eye.oval.scale.y = (E.shut > 0 ? 0.15 : 1) * A.h * 0.13;
+    }
+  }
+  if (A.gun.setDraw) { A.gun.setDraw(e.draw || 0); A.gun.arrow.visible = !(e.cd > 0); }
   if (A.dead) {
     const D = A.dead;
     D.v += 9 * dt; D.a += D.v * dt;

@@ -122,6 +122,18 @@ const SFX = (() => {
       tone(d, { type: 'triangle', f0: 420, f1: 260, dur: 0.1, gain: 0.35 });
       noise(d, { dur: 0.05, type: 'bandpass', f0: 1200, q: 2, gain: 0.3 });
     },
+    bowDraw() { noise(master, { dur: 0.5, type: 'bandpass', f0: 300, f1: 700, q: 6, gain: 0.12 }); },
+    bow(pos) {
+      const d = out(pos);
+      tone(d, { type: 'triangle', f0: 190, f1: 80, dur: 0.18, gain: 0.5 });
+      noise(d, { dur: 0.12, type: 'bandpass', f0: 1800, f1: 600, q: 1.2, gain: 0.3 });
+    },
+    arrowHit(pos) {
+      const d = out(pos);
+      tone(d, { f0: 230, f1: 110, dur: 0.09, gain: 0.45 });
+      noise(d, { dur: 0.05, type: 'bandpass', f0: 1400, q: 1.5, gain: 0.3 });
+    },
+    homing(pos) { const d = out(pos); tone(d, { f0: 500, f1: 1400, dur: 0.3, gain: 0.18 }); tone(d, { f0: 750, f1: 2100, dur: 0.3, gain: 0.08 }); },
     beep(hi) { tone(master, { f0: hi ? 988 : 659, dur: hi ? 0.45 : 0.16, gain: 0.22 }); },
   };
   function listener(c) {

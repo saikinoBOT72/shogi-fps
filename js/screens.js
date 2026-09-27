@@ -44,7 +44,7 @@ const keysHTML = () => {
 // 駒の紹介カード
 function pieceCard(k) {
   const p = PIECES[k], w = WEAPONS[p.weapon], sk = SKILLS[p.skill];
-  return `<b class="pc-name">${p.name}</b><span>HP ${p.hp}　速さ ${p.speed}</span><span>${w.name}</span><span>「${sk.name}」</span>`;
+  return `<b class="pc-name">${p.name}</b><span class="pc-val">価値 ${p.value}</span><span>HP ${p.hp}　速さ ${p.speed}</span><span>${w.name}</span><span>「${sk.name}」</span>`;
 }
 function pieceSelectHTML() {
   const opts = (sel, id, withRandom) => `<div class="pick" id="${id}">${Object.keys(PIECES).map(k =>
