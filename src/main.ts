@@ -125,11 +125,12 @@ export function perfTick(rdt) {
   if (settings.showFps) $("fps").textContent = `${Math.round(fps)} FPS  x${(Q.pr * gs.resScale).toFixed(2)}`;
   if (document.hidden) return;
   // 2回続けて 50FPS 未満なら解像度を下げ、しばらく 58FPS 以上なら少し戻す
-  perf.low = fps < 50 ? perf.low + 1 : 0;
+  // 解像度を変えると一瞬止まるので、ゆっくり判断する（1.5秒続けて重いなら下げ、10秒余裕が続いたら戻す）
+  perf.low = fps < 45 ? perf.low + 1 : 0;
   perf.high = fps > 58 ? perf.high + 1 : 0;
   let next = gs.resScale;
-  if (perf.low >= 2 && gs.resScale > 0.55) { next = Math.max(0.55, gs.resScale - 0.1); perf.low = 0; }
-  else if (perf.high >= 6 && gs.resScale < 1) { next = Math.min(1, gs.resScale + 0.05); perf.high = 0; }
+  if (perf.low >= 3 && gs.resScale > 0.55) { next = Math.max(0.55, gs.resScale - 0.1); perf.low = 0; }
+  else if (perf.high >= 20 && gs.resScale < 1) { next = Math.min(1, gs.resScale + 0.05); perf.high = 0; }
   if (next !== gs.resScale) { gs.resScale = next; renderer.setPixelRatio(Q.pr * gs.resScale); renderer.setSize(innerWidth, innerHeight); }
 }
 let frameNo = 0;
@@ -143,7 +144,40 @@ export function render(withGun?) {
   if (withGun && gs.state !== 'title') { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
 }
 
+// 読み込み時に、あとで初めて表示される物の描画の準備（シェーダーの作成とテクスチャの転送）を済ませておく。
+// 初めて撃った・爆発した・盾を構えた瞬間などに一瞬固まるのを防ぐ
+function warmUp() {
+  const extra = [...Arrows.samples(), ...Grenades.samples(), ...Smoke.samples()];
+  extra.forEach(o => scene.add(o));
+  // 隠れている物も表示し、画面外の物も省かずに描く（Windows の Chrome は「実際に初めて描いた瞬間」にシェーダーの変換をするため）
+  const flipped: any[] = [], culled: any[] = [];
+  for (const root of [scene, vmScene, BoardMode.scene]) root.traverse((o: any) => {
+    if (!o.visible) { o.visible = true; flipped.push(o); }
+    if (o.frustumCulled) { o.frustumCulled = false; culled.push(o); }
+  });
+  const textures = new Set<any>();
+  for (const root of [scene, vmScene, BoardMode.scene]) root.traverse((o: any) => {
+    const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+    ms.forEach(m => ['map', 'gradientMap'].forEach(k => m[k] && textures.add(m[k])));
+  });
+  textures.forEach(t => renderer.initTexture(t));
+  renderer.compile(scene, cam); renderer.compile(vmScene, vmCam); renderer.compile(BoardMode.scene, BoardMode.cam);
+  renderer.shadowMap.needsUpdate = true; renderer.render(scene, cam);
+  renderer.render(vmScene, vmCam);
+  renderer.shadowMap.needsUpdate = true; renderer.render(BoardMode.scene, BoardMode.cam);
+  flipped.forEach(o => { o.visible = false; });
+  culled.forEach(o => { o.frustumCulled = true; });
+  extra.forEach(o => scene.remove(o));
+  // 物理と演出の計算も一度通しておく（初めて爆発・崩れたときの処理が一番重いため）。終わったら元に戻す
+  for (const [x, z] of [[-16, -14], [16, 14], [9, -4], [-9, 4], [4, -18.5], [-4, 18.5]]) PHYS.blast(new V3(x, 0.5, z), 5, 10);
+  for (let i = 0; i < 90; i++) PHYS.step(1 / 60, []);
+  PHYS.reset();
+  Particles.explosion(new V3(0, 1, 0)); Particles.wood(new V3(0, 1, 0), new V3(0, 1, 0), 10); DmgNums.add(new V3(0, 1, 0), 10, false);
+  for (let i = 0; i < 60; i++) { Particles.update(1 / 60); DmgNums.update(1 / 60); Tracers.update(1 / 60); }
+}
+
 resetMatch();
+warmUp();
 showTitle();
 requestAnimationFrame(loop);
 
@@ -152,10 +186,10 @@ if (import.meta.env.DEV) {
   Promise.all([
     import('./core'), import('./game'), import('./ai'), import('./hud'), import('./screens'), import('./input'), import('./boardmode'),
     import('./physics'), import('./effects'), import('./world'), import('./nav'), import('./camera'), import('./grenades'), import('./arrows'),
-    import('./render'), import('./replay'), import('./state'),
-  ]).then(([core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, state]) => {
+    import('./render'), import('./replay'), import('./state'), import('./audio'),
+  ]).then(([core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, state, audio]) => {
     (window as any).dev = {
-      core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, gs: state.gs,
+      core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, audio, gs: state.gs,
       // 画面が非表示でも、テストからゲームを n フレーム進められるように
       step(n: number, each?: (i: number) => void, ms = 1000 / 60) { for (let i = 0; i < n; i++) { loop(last + ms); if (each) each(i); } },
     };

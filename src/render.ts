@@ -85,14 +85,14 @@ export const woodTex = canvasTex(512, 512, (g, w, h) => woodGrain(g, w, h, P.kij
 export const darkWoodTex = canvasTex(512, 512, (g, w, h) => woodGrain(g, w, h, P.kiji[0], P.sumi[0]));
 darkWoodTex.wrapS = darkWoodTex.wrapT = THREE.RepeatWrapping;
 export const boardTex = canvasTex(2048, 2048, (g, w) => {
-  woodGrain(g, w, w, P.kiji[2], P.kiji[0], 160);
+  woodGrain(g, w, w, P.kiji[1], P.kiji[0], 160);   // 盤は駒（明るい木地）より一段暗く
   const m = w / (2 * BH + 2), cell = (w - 2 * m) / 9;
-  g.strokeStyle = css(P.sumi[1]); g.lineWidth = 5;
+  g.strokeStyle = css(P.sumi[0]); g.lineWidth = 6;
   for (let i = 0; i <= 9; i++) {
     g.beginPath(); g.moveTo(m + i * cell, m); g.lineTo(m + i * cell, w - m); g.stroke();
     g.beginPath(); g.moveTo(m, m + i * cell); g.lineTo(w - m, m + i * cell); g.stroke();
   }
-  g.fillStyle = css(P.sumi[1]);
+  g.fillStyle = css(P.sumi[0]);
   [[3, 3], [6, 3], [3, 6], [6, 6]].forEach(([a, b]) => { g.beginPath(); g.arc(m + a * cell, m + b * cell, 14, 0, 7); g.fill(); });
 });
 export const starTex = canvasTex(128, 128, (g) => {

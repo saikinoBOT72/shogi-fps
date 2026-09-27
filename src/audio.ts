@@ -13,6 +13,10 @@ export const SFX = (() => {
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    // 立体音響（HRTF）は最初の1回の準備が重いので、無音で先に済ませておく
+    const warm = ctx.createGain(); warm.gain.value = 0; warm.connect(master);
+    const p = ctx.createPanner(); p.panningModel = 'HRTF'; p.connect(warm);
+    const o = ctx.createOscillator(); o.connect(p); o.start(); o.stop(ctx.currentTime + 0.05);
   }
   function out(pos) {
     if (!pos) return master;

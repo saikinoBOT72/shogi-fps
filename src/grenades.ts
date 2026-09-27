@@ -92,7 +92,8 @@ export const Grenades = (() => {
     }
   }
   function clear() { list.forEach(g => scene.remove(g.mesh)); list.length = 0; }
-  return { fire, update, clear };
+  const samples = () => { const s = new THREE.Mesh(geo, m); s.add(new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 4, 8), bandM)); return [s]; };
+  return { fire, update, clear, samples };
 })();
 
 // 煙幕：その場に煙の玉を張る。中や向こう側は見えない（CPUも見えない）
@@ -144,5 +145,6 @@ export const Smoke = (() => {
   function clear() { clouds.forEach(c => scene.remove(c.g)); clouds.length = 0; }
   // その位置（足元）が煙の中か
   const inside = p => clouds.some(c => c.eff > 0.3 && c.pos.distanceTo(new V3(p.x, p.y + 1, p.z)) < c.eff);
-  return { spawn, update, blocks, clear, inside };
+  const samples = () => [new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: P.shiro[1], transparent: true, depthWrite: false }))];
+  return { spawn, update, blocks, clear, inside, samples };
 })();

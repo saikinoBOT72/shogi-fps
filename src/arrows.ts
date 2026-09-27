@@ -136,5 +136,7 @@ export const Arrows = (() => {
   }
   function setLiveVisible(v) { live.forEach(a => { a.mesh.visible = v; }); }
 
-  return { fire, update, clear, snapshot, showGhosts, setLiveVisible };
+  // 読み込み時の事前準備用（初めて撃ったときに固まらないように）
+  const samples = () => [makeArrow(false), makeArrow(true)];
+  return { fire, update, clear, snapshot, showGhosts, setLiveVisible, samples };
 })();
