@@ -5,8 +5,8 @@ import * as CANNON from 'cannon-es';
 import { gs } from './state';
 import { BH, G, GROUND, clamp, rand } from './core';
 import { SFX } from './audio';
-import { PIECE_DEPTH, canvasTex, pieceGeo, pieceWoodMat, scene, toon, woodGrain } from './render';
-import { colliders, insideCollider, propMeshes } from './world';
+import { PIECE_DEPTH, canvasTex, mat, pieceGeo, pieceWoodMat, scene, toon, woodGrain } from './render';
+import { LV, colliders, insideCollider, propMeshes } from './world';
 
 // ================= 物理演算（cannon.js）：撃つ・押す・体当たりで動く小物 =================
 export const physMeshes = [];       // 弾と視線を遮る（CPUの経路探索には使わない＝押しのけて進める）
@@ -60,13 +60,18 @@ export const PHYS = (() => {
   const dominoMat = new CANNON.Material("domino");
   world.addContactMaterial(new CANNON.ContactMaterial(dominoMat, dominoMat, { friction: 0.02, restitution: 0.05 }));
   function addDynamic(obj, half, mass, x, y, z, ry = 0, pitch = 1, material?) {
-    // 眠る条件を厳しめに（ゆっくり傾き始めたドミノが途中で止まらないように）
+    const q = new CANNON.Quaternion(); q.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), ry);
+    return addBody(obj, new CANNON.Box(new CANNON.Vec3(...half)), mass, x, y, z, q, pitch, material);
+  }
+  // 形（shape）を指定して動く物を足す。q: 置く向き
+  function addBody(obj, shape, mass, x, y, z, q, pitch = 1, material?) {
+    // 眠る条件を厳しめに（ゆっくり傾き始めたものが途中で止まらないように）
     const body = new CANNON.Body({ mass, sleepSpeedLimit: 0.08, sleepTimeLimit: 1.2, linearDamping: 0.03, angularDamping: 0.05 });
-    body.addShape(new CANNON.Box(new CANNON.Vec3(...half)));
+    body.addShape(shape);
     if (material) body.material = material;
     const domino = material === dominoMat;
     body.position.set(x, y, z);
-    body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), ry);
+    if (q) body.quaternion.copy(q);
     world.addBody(body);
     scene.add(obj);
     const it = { body, obj, pitch, domino, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
@@ -80,30 +85,52 @@ export const PHYS = (() => {
     return it;
   }
   // 見た目（原点が中心）
-  const pieceObj = (ch, w, h, t, lying?) => {
-    const g = new THREE.Group(), m = new THREE.Mesh(pieceGeo, pieceSolidMats(ch));
-    m.scale.set(w, h, t / PIECE_DEPTH);
-    if (lying) m.rotation.x = -Math.PI / 2;
-    g.add(m); return g;
-  };
   const crateObj = s => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat)); return g; };
+  const barrelM = mat(P.shu[0]), hoopM = mat(P.sumi[1]), strawM = mat(P.kiji[2]), ropeM = mat(P.kiji[0]), cartM = toon({ map: crateTex, roughness: 0.8 }), barkM = mat(P.kiji[0]), cutM = mat(P.kiji[2]);
+  const barrelObj = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.1, 10), barrelM));
+    for (const y of [-0.38, 0.38]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 0.08, 10), hoopM); h.position.y = y; g.add(h); }
+    return g;
+  };
+  const baleObj = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.6, 0.7), strawM));
+    for (const x of [-0.3, 0.3]) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.62, 0.72), ropeM); r.position.x = x; g.add(r); }
+    return g;
+  };
+  const cartObj = () => {
+    const g = new THREE.Group();
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, 2.4), cartM); bed.position.y = 0.1; g.add(bed);
+    for (const x of [-0.75, 0.75]) { const side = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.4, 2.4), cartM); side.position.set(x, 0.4, 0); g.add(side); }
+    for (const x of [-0.9, 0.9]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.12, 10).rotateZ(Math.PI / 2), hoopM); w.position.set(x, -0.2, 0); g.add(w); }
+    for (const x of [-0.5, 0.5]) { const hd = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.4), cartM); hd.position.set(x, 0.05, 1.8); g.add(hd); }
+    return g;
+  };
+  const logObj = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3, 8), barkM));
+    for (const y of [-1.5, 1.5]) { const c = new THREE.Mesh(new THREE.CircleGeometry(0.28, 8), cutM); c.position.y = y + Math.sign(y) * 0.005; c.rotation.x = y > 0 ? -Math.PI / 2 : Math.PI / 2; g.add(c); }
+    return g;
+  };
 
-  // 配置（点対称）
-  const TOWER = ['歩', '香', '桂', '銀', '金', '角', '飛'];
+  // 配置（点対称）。高さは world.ts の LV
+  const { V, T2, HB, HT, PL } = LV, cs = 1.2;
+  const lying = new CANNON.Quaternion(); lying.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), Math.PI / 2);   // 丸太は横に寝かせる
   [1, -1].forEach(s => {
-    // 駒の塔：寝かせた駒を積み上げる
-    TOWER.forEach((ch, i) => addDynamic(pieceObj(ch, 1.4, 1.7, 0.34, true), [0.7, 0.17, 0.85], 1, -16 * s, 0.17 + i * 0.34, -14 * s, rand(-0.12, 0.12)));
-    // ドミノ：立てた駒を並べる（1枚倒すと連鎖する）
-    for (let i = 0; i < 8; i++) addDynamic(pieceObj('歩', 0.9, 1.3, 0.26), [0.45, 0.65, 0.13], 0.8, (1.5 + i * 0.75) * s, 0.65, -18.5 * s, Math.PI / 2, 1.25, dominoMat);
-    // 木箱のピラミッド
-    const cs = 1.2;
-    [[-0.62, 0], [0.62, 0], [0, 1]].forEach(([dx, row]) => addDynamic(crateObj(cs), [cs / 2, cs / 2, cs / 2], 4, (9 + dx) * s, cs / 2 + row * cs, -4 * s, 0, 0.65));
-    // 散らばった小さい駒
-    for (let i = 0; i < 5; i++) {
-      let x, z;
-      do { x = rand(-BH + 2, BH - 2); z = rand(-BH + 3, -1); } while (insideCollider(x, z, 1, 0) || Math.abs(x) < 3);
-      addDynamic(pieceObj('歩', 0.7, 0.85, 0.2, true), [0.35, 0.1, 0.425], 0.4, x * s, 0.1, z * s, rand(0, 6), 1.7);
-    }
+    // 木箱：関所の横のピラミッドと、あちこちの遮蔽
+    [[-0.62, 0], [0.62, 0], [0, 1]].forEach(([dx, row]) => addDynamic(crateObj(cs), [cs / 2, cs / 2, cs / 2], 4, (-40 + dx) * s, V + cs / 2 + row * cs, 15 * s, 0, 0.65));
+    for (const [x, z, y0] of [[-26, 6, V], [-24.7, 6.3, V], [-3, 18.4, V], [-1.7, 18.4, V], [-22, 46, HT], [-45, 24, T2], [30, 58, PL]])
+      addDynamic(crateObj(cs), [cs / 2, cs / 2, cs / 2], 4, x * s, y0 + cs / 2, z * s, rand(-0.2, 0.2), 0.65);
+    // 酒樽：段々の縁に並べる（爆風で谷へ転がり落ちる）
+    for (const [x, z, y0] of [[10, 20.8, T2], [11.1, 20.8, T2], [12.2, 20.8, T2], [-1, 14, V], [-12, 31.8, HB]])
+      addBody(barrelObj(), new CANNON.Cylinder(0.45, 0.45, 1.1, 10), 3, x * s, y0 + 0.55, z * s, null, 0.8);
+    // 米俵：重くてほとんど動かない土のう
+    for (const [x, z] of [[-39.6, 4], [-38.4, 4], [-9, 5.2], [-7.8, 5.2]]) addDynamic(baleObj(), [0.55, 0.3, 0.35], 25, x * s, V + 0.3, z * s, 0, 0.5);
+    // 荷車：橋の上（押せる大きな遮蔽）
+    addDynamic(cartObj(), [0.8, 0.5, 1.2], 30, -34 * s, V + 0.2 + 0.7, 0.5 * s, 0, 0.5);
+    // 丸太：丘の縁（当てると転がり落ちる）
+    for (const x of [-35, -31, -27]) addBody(logObj(), new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, x * s, HB + 0.3, 32.2 * s, lying, 0.7);
   });
 
   // プレイヤーとCPUは「押す側」の見えない体（キネマティック）として参加

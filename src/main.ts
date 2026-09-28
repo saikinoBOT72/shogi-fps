@@ -65,7 +65,7 @@ export function loop(now) {
   if (gs.state === 'title') {
     titleT += rdt;
     const a = titleT * 0.07;
-    cam.position.set(Math.sin(a) * 62, 26 + Math.sin(titleT * 0.3) * 3, Math.cos(a) * 62);
+    cam.position.set(Math.sin(a) * 95, 42 + Math.sin(titleT * 0.3) * 3, Math.cos(a) * 95);
     cam.lookAt(0, 1.5, 0);
     cam.fov = 60; cam.updateProjectionMatrix();
     sky.position.copy(cam.position);

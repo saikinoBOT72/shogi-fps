@@ -6,7 +6,7 @@ import { gs } from './state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, scene } from './render';
-import { colliders } from './world';
+import { LV, SPAWN, WATER_Y, colliders } from './world';
 import { PHYS, blockers } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
@@ -66,8 +66,9 @@ export function resetMatch(foeType?) {
   bot = makeEntity(foeType, true);
   VM.setWeapon(player.w.model);
   // 出撃地点：外周の塀の裏（開始時にお互いが見えない）
-  player.pos.set(rand(-3, 3), GROUND, H - 4.5);
-  bot.pos.set(rand(-3, 3), GROUND, -(H - 4.5));
+  // 出撃：左右の橋のたもと（屋根つきの関所の中）
+  player.pos.set(SPAWN.x + rand(-1, 1), LV.V, SPAWN.z + rand(-1, 1));
+  bot.pos.set(-SPAWN.x + rand(-1, 1), LV.V, -SPAWN.z + rand(-1, 1));
   Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
     persona: Object.values(PERSONAS)[Math.floor(Math.random() * 3)] });
   stats = { shots: 0, hits: 0, heads: 0, dealt: 0, taken: 0, time: 0 };
@@ -154,7 +155,7 @@ export function moveEntity(e, wish, dt) {
   } else if (lp) {
     lp.t -= dt;   // 跳んでいる間は勢いのまま（空中で向きを変えられない）
   } else {
-    const gd = act(e, 'guard'), slow = gd ? gd.sk.slow : 1;
+    const gd = act(e, 'guard'), slow = (gd ? gd.sk.slow : 1) * (e.pos.y < WATER_Y ? 0.6 : 1);   // 川の中は遅い
     e.knockT = Math.max(0, (e.knockT || 0) - dt);
     const flung = e.knockT > 0 && !e.onGround;   // 爆風で飛ばされている間
     const target = wish.clone().multiplyScalar(e.def.speed * RULES.speed * (e.isBot || e.running ? 1 : RULES.walk) * (e.speedMul || 1) * slow);

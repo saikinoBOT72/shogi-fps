@@ -139,7 +139,7 @@ export const DIFFS = {
   hard:   { name: 'むずかしい', react: 0.28, err: 0.06,  track: 9,   gap: [0.08, 0.3], lead: 0.9, dps: 40 },
 };
 // H: アリーナ全体の半分の広さ / BH: 中央の将棋盤の半分の広さ / GROUND: 外周の地面の高さ（盤の上は 0）
-export const H = 44, BH = 22, GROUND = -1.5, G = 22, TIME_LIMIT = 120;
+export const H = 66, BH = 22, GROUND = -1.5, G = 22, TIME_LIMIT = 120;
 
 // ---------- 設定 ----------
 export const settings = { sens: 1, diff: 'normal', vol: 0.7, quality: 'mid', showFps: false, myPiece: 'P', foePiece: 'P', gunSkin: 'kurogane' };
