@@ -44,6 +44,12 @@ export const SKINS: Record<string, Skin> = {
     slide: { c: P.sumi[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },
     grip: { c: P.kiji[1], tex: 'wood' }, detail: { c: P.sumi[0] }, mag: { c: P.sumi[1], metal: true },
   },
+  // 鋼の刃・黒いゴムの握り（カランビットの基本）
+  hagane: {
+    name: '鋼',
+    slide: { c: P.nezumi[2], metal: true }, barrel: { c: P.nezumi[2], metal: true }, frame: { c: P.nezumi[2], metal: true },
+    grip: { c: P.sumi[1] }, detail: { c: P.sumi[1] },
+  },
   // 青い刃（カランビット）
   ruri: {
     name: '瑠璃',
