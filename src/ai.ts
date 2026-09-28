@@ -111,7 +111,9 @@ export function updateBot(dt) {
     const toP = player.pos.clone().sub(b.pos); toP.y = 0;
     const dist = toP.length(); toP.normalize();
     // 透明化している相手は、すぐ近くでないと見えない
-    const los = !player.dead && hasLOS(bEye, pEye) && !(act(player, 'cloak') && dist > 3);
+    // 目がくらんでいる間は見えない（閃光弾）
+    if (b.blindT > 0) b.blindT -= dt;
+    const los = !player.dead && hasLOS(bEye, pEye) && !(act(player, 'cloak') && dist > 3) && !(b.blindT > 0);
     if (los) { b.seen += dt; b.lostT = 0; b.lastKnown.copy(player.pos); }
     else { b.seen = Math.max(0, b.seen - dt * 2); b.lostT += dt; }
     // 透視中は、見えていなくても居場所が分かる
@@ -177,7 +179,7 @@ export function updateBot(dt) {
     b.aimPt.lerp(chest, 1 - Math.exp(-D.track * dt));
     weaponTick(b, dt);
     b.fireDelay -= dt;
-    const busy = b.slots.some(s => s.t > 0 && ['dash', 'leap', 'heal', 'guard'].includes(s.sk.type));
+    const busy = b.slots.some(s => s.t > 0 && ['dash', 'leap', 'heal', 'guard', 'grapple'].includes(s.sk.type));
     if (b.w.kind === 'bow') {
       // 弓：引き絞ってから、相手の動きと矢の落ちを見越して放つ。追尾中は見えていなくても撃つ
       const armed = !!act(b, 'homing');
@@ -308,6 +310,23 @@ export const SKILL_AI = {
   missile(b, c, i, s) {
     if (Gadgets.ctrlOf(b) || s.charges <= 0 || b.coverPt) return;
     if ((!c.los && b.lostT > 0.5 && b.lostT < 4 && c.dist > 8) || (c.los && c.dist > 15 && Math.random() < c.dt * 0.3)) useSkill(b, i, c.toP);
+  },
+  // 鉤縄：相手が高い所にいるとき、見えていれば引き寄せられて一気に上がる。行き詰まったときも
+  grapple(b, c, i, s) {
+    if (!ready(s)) return;
+    if ((c.los && player.pos.y > b.pos.y + 2.5 && c.dist < 30) || b.stuck > 0.8) useSkill(b, i, c.toP);
+  },
+  // 閃光弾：中距離で撃ち合う前に投げる
+  flash(b, c, i, s) {
+    if (ready(s) && c.los && c.dist > 5 && c.dist < 18 && Math.random() < c.dt * 0.35 * b.persona.eager) useSkill(b, i, c.toP);
+  },
+  // エンダーパール：見失った相手の方へ一気に近づく（遠いとき）
+  pearl(b, c, i, s) {
+    if (ready(s) && !c.los && b.lostT > 1.5 && c.dist > 22 && b.hp > b.def.hp * 0.4) useSkill(b, i, c.toP);
+  },
+  // 衝撃波：近くに来た相手を吹き飛ばす
+  shock(b, c, i, s) {
+    if (ready(s) && c.los && c.dist < 6) useSkill(b, i, c.toP);
   },
   // 王の意地：HPが減ったら回復
   heal(b, c, i, s) {

@@ -56,6 +56,7 @@ export function addDamageDir(from) {
 }
 // スキルの表示（枠の数だけ作る）
 const cloakFx = document.createElement('div'); cloakFx.id = 'cloakfx'; $('hud').appendChild(cloakFx);
+const flashFx = document.createElement('div'); flashFx.id = 'flashfx'; $('hud').appendChild(flashFx);
 const guideTxt = document.createElement('div'); guideTxt.id = 'guideTxt'; guideTxt.className = 'shadow'; $('hud').appendChild(guideTxt);
 const skillKey = i => keyName((settings as any).keys[i === 0 ? 'skill' : 'skill2']);
 export function initSkills() {
@@ -152,7 +153,7 @@ export function updateHUD(dt) {
     const again = (sk.type === 'c4' && Gadgets.c4Of(p)) || (sk.type === 'missile' && Gadgets.ctrlOf(p));
     const ready = s.charges > 0 || !!again;
     if (changed('skr' + i, ready)) el.classList.toggle('ready', ready);
-    const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak'].includes(sk.type);
+    const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak'].includes(sk.type);   // 鉤縄・投げ物はすぐ終わるので出さない
     const name = sk.type === 'c4' && Gadgets.c4Of(p) ? 'C4 起爆' : sk.type === 'missile' && Gadgets.ctrlOf(p) ? '戻る'
       : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
     const nm = el.querySelector('.nm'), txt = name + (max > 1 ? ` ×${s.charges}` : '');
@@ -160,6 +161,9 @@ export function updateHUD(dt) {
   });
   // 透明化中は画面の縁が青白く、ミサイル操作中は案内
   setStyle(cloakFx, 'opacity', act(p, 'cloak') ? '1' : '0');
+  // 閃光弾で目がくらむ（最後の1秒でゆっくり戻る）
+  if (gs.flash > 0) gs.flash = Math.max(0, gs.flash - dt);
+  setStyle(flashFx, 'opacity', Math.min(1, gs.flash || 0).toFixed(2));
   const mi = p.slots.findIndex(s => s.sk.type === 'missile');
   setText('guideTxt', Gadgets.ctrlOf(p) ? `ミサイル操作中　マウスで曲げる・${skillKey(mi)} で自分に戻る` : '');
   if (changed('regen', !!p.regen)) $('meBar').classList.toggle('regen', !!p.regen);

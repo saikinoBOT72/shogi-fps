@@ -6,7 +6,7 @@ import { gs } from './state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, scene } from './render';
-import { LV, SPAWN, WATER_Y, colliders } from './world';
+import { LV, SPAWN, WATER_Y, colliders, groundAt } from './world';
 import { PHYS, blockers, physOf } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
@@ -142,13 +142,25 @@ export function hasLOS(a, b, ignoreSmoke?) {
 export const act = (e, type) => e && e.slots && e.slots.find(s => s.t > 0 && s.sk.type === type);
 export function moveEntity(e, wish, dt) {
   wish = wish.clone();
-  const mv = e.slots.find(s => s.t > 0 && (s.sk.type === 'dash' || s.sk.type === 'step')), lp = act(e, 'leap');
+  const mv = e.slots.find(s => s.t > 0 && (s.sk.type === 'dash' || s.sk.type === 'step')), lp = act(e, 'leap'), gp = act(e, 'grapple');
   // 横移動が遅い駒（香）：向いている方向に対して横の成分を縮める
   if (e.def.strafe && wish.lengthSq() > 0) {
     const f = facingOf(e), along = wish.dot(f);
     wish = f.clone().multiplyScalar(along).add(wish.clone().addScaledVector(f, -along).multiplyScalar(e.def.strafe));
   }
-  if (mv) {
+  if (gp) {
+    // 鉤縄：狙った所へ一直線に引き寄せられる（重力に負けないよう上向きの速さも毎フレーム決める）
+    gp.t -= dt;
+    const to = gp.target.clone().sub(e.pos.clone().add(new V3(0, e.height * 0.4, 0))), d = to.length();
+    if (d < 1.3 || gp.t <= 0) {
+      gp.t = 0; e.vy = Math.max(e.vy, 5); e.vel.multiplyScalar(0.4);
+      // 段や崖の縁に掛けたときは、縁の上まで跳び上がって乗る
+      const fwd = gp.target.clone().sub(e.pos).setY(0).normalize(), ahead = gp.target.clone().addScaledVector(fwd, 1.2);
+      const top = groundAt(ahead.x, ahead.z);
+      if (top > e.pos.y + 0.3 && top - e.pos.y < 4.5) { e.vy = Math.sqrt(2 * G * (top - e.pos.y + 0.8)); e.vel.copy(fwd.multiplyScalar(5)); e.knockT = 0.7; }   // 前への勢いを空中で保つ
+    }
+    else { to.multiplyScalar(gp.sk.speed / d); e.vel.set(to.x, 0, to.z); e.vy = to.y + G * dt; e.onGround = false; e.airT = 1; }
+  } else if (mv) {
     mv.t -= dt;
     e.vel.copy(mv.dir).multiplyScalar(mv.sk.speed);
     if (mv.t <= 0) e.vel.multiplyScalar(0.35);
@@ -326,7 +338,7 @@ export function skillTick(e, dt) {
   for (const s of e.slots) {
     const sk = s.sk;
     // 動くスキル（突撃・すり足・桂跳び）の時間は moveEntity で進める
-    if (s.t > 0 && !['dash', 'step', 'leap'].includes(sk.type)) {
+    if (s.t > 0 && !['dash', 'step', 'leap', 'grapple'].includes(sk.type)) {
       s.t -= dt;
       if (sk.type === 'heal' && !e.dead) {
         e.hp = Math.min(e.def.hp, e.hp + sk.amount / sk.duration * dt);
@@ -348,9 +360,12 @@ export function useSkill(e, i, dir) {
   if (sk.type === 'c4' && Gadgets.c4Of(e)) { Gadgets.detonate(e); return true; }
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
   if (s.charges <= 0 || s.t > 0) return false;
-  if (e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
+  if (e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
   // 狙っている向き（上下も含む）
   const aim = e.isBot ? new V3(player.pos.x, player.pos.y + player.height * 0.6, player.pos.z).sub(eyeOf(e)).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
+  // 鉤縄は掛ける所が無ければ使わない（回数も減らさない）
+  let hook = null;
+  if (sk.type === 'grapple') { hook = Gadgets.grappleTarget(e, aim, sk.range); if (!hook) { if (!e.isBot) SFX.play('empty'); return false; } }
   s.dir.copy(dir).setY(0).normalize();
   s.charges--; if (s.cd <= 0) s.cd = sk.cooldown;
   s.t = sk.duration; s.rammed = false;
@@ -371,6 +386,13 @@ export function useSkill(e, i, dir) {
   } else if (t === 'xray' || t === 'cloak') {
     if (!e.isBot) SFX.play('pierce');
     if (t === 'cloak') for (let k = 0; k < 12; k++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.shiro[2]);
+  } else if (t === 'grapple') {
+    s.target = hook; SFX.play('dash', e.isBot ? e.pos : null);
+  } else if (t === 'flash' || t === 'pearl') {
+    if (t === 'flash') onAttack(e);
+    Gadgets.toss(t, e, aim, sk);
+  } else if (t === 'shock') {
+    onAttack(e); Gadgets.shockwave(e, sk);
   } else if (t === 'c4') {
     onAttack(e); Gadgets.throwC4(e, aim, sk);
   } else if (t === 'missile') {
@@ -421,7 +443,7 @@ export function updatePlayer(dt) {
     p.inspectHeld = down('inspect');
   }
   gs.jumpPressed -= dt;
-  const guardOrDash = p.slots.some(s => s.t > 0 && ['guard', 'dash', 'step', 'leap'].includes(s.sk.type)) || !!Gadgets.ctrlOf(p);   // 覗き込めないスキル中
+  const guardOrDash = p.slots.some(s => s.t > 0 && ['guard', 'dash', 'step', 'leap', 'grapple'].includes(s.sk.type)) || !!Gadgets.ctrlOf(p);   // 覗き込めないスキル中
   p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash && p.w.kind !== 'melee' ? 1 : 0, p.w.adsSpeed || 14, dt);
   // 壁に向かってジャンプ長押しで登る
   p.wantClimb = !!(down('jump') && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');

@@ -25,9 +25,9 @@ export const PIECES = {
   S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['c4', 'missile'] },
   G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.2, jump: 7,   weapon: 'shotgun',  skills: ['charge', 'guard'] },
   B: { name: '角', value: 8, hp: 125, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skills: ['smoke', 'bigshot'] },
-  R: { name: '飛', value: 10, hp: 130, size: 0.95, speed: 6.5, jump: 7,  weapon: 'smg',      skills: [] },
+  R: { name: '飛', value: 10, hp: 130, size: 0.95, speed: 6.5, jump: 7,  weapon: 'smg',      skills: ['grapple', 'flash'] },
   // 王は取られたら負けの駒。価値は ∞（99 以上は ∞ と表示）
-  K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',       skills: ['rally'] },
+  K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',       skills: ['pearl', 'shock'] },
 };
 // 全体のルール：しばらく被弾しないとHPが回復する
 // speed: 走る速さの倍率（駒の speed に掛ける）、walk: 歩く速さ（走りに対する割合）
@@ -121,6 +121,18 @@ export const SKILLS = {
   // もう一度押すと自分に戻り、ミサイルはまっすぐ落ちる。height: 出てくる高さ / speed: 速さ
   missile: { name: 'ミサイル', type: 'missile', cooldown: 16, duration: 0, dmg: 75, radius: 4, knock: 10, lift: 6, self: 0.4, speed: 24, height: 60, life: 8, damageTaken: 1,
     help: '空から降るミサイルを操作して当てる（自分は無防備）・もう一度押すと戻る' },
+  // 鉤縄：狙った壁や高台に縄を掛けて一気に引き寄せられる（range: 届く距離 / speed: 引かれる速さ）
+  grapple: { name: '鉤縄', type: 'grapple', cooldown: 8, duration: 1.4, range: 35, speed: 26, damageTaken: 1,
+    help: '狙った壁や高台へ縄を掛けて一気に引き寄せられる' },
+  // 閃光弾：投げて少しして炸裂。見ていた相手（自分も）の目がくらむ（blind: くらむ最大秒数 / radius: 届く距離）
+  flash: { name: '閃光弾', type: 'flash', cooldown: 12, duration: 0, fuse: 1.1, speed: 20, radius: 26, blind: 3, damageTaken: 1,
+    help: '投げて約1秒後に炸裂。見ていた相手の目がくらむ（自分も注意）' },
+  // エンダーパール：投げて落ちた所へ瞬間移動（selfDmg: 自分へのダメージ）
+  pearl: { name: 'エンダーパール', type: 'pearl', cooldown: 8, duration: 0, speed: 24, selfDmg: 5, damageTaken: 1,
+    help: '投げて落ちた所へ瞬間移動（自分に少しダメージ）' },
+  // 衝撃波：自分のまわりに衝撃波。近いほど大ダメージで大きく吹き飛ぶ（knock: 横 / lift: 上）
+  shock: { name: '衝撃波', type: 'shock', cooldown: 12, duration: 0, radius: 10, dmg: 45, knock: 32, lift: 15, damageTaken: 1,
+    help: 'まわり10mに衝撃波。近いほど大ダメージで大きく吹き飛ぶ' },
   // 大玉：次のグレネードが大きくなり、敵も自分も大きく吹き飛ばす（knock: 吹き飛ばす強さ）
   bigshot: { name: '大玉', type: 'bigshot', cooldown: 12, duration: 10, radius: 5.5, knock: 38, lift: 22, damageTaken: 1,
     help: '次のグレネードが巨大に・敵も自分も吹き飛ばす' },

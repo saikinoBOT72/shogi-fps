@@ -5,9 +5,12 @@ import { P } from './palette';
 import { C, V3, clamp, rand } from './core';
 import { SFX } from './audio';
 import { flatGeo, scene, toon } from './render';
-import { blockers } from './physics';
+import { PHYS, blockers } from './physics';
 import { Particles } from './effects';
-import { bot, damageBot, eyeOf, player, ray } from './game';
+import { act, bot, damageBot, eyeOf, facingOf, hasLOS, player, ray, skillDamageMul, view } from './game';
+import { cam } from './render';
+import { gs } from './state';
+import { killBot } from './hud';
 import { damagePlayer } from './ai';
 import { explodeAt } from './grenades';
 
@@ -143,14 +146,125 @@ function updateMissiles(dt) {
   }
 }
 
+// ---------- 投げる物：閃光弾・エンダーパール ----------
+const throws = [];
+const flashGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.16, 6), flashM = toon({ color: C(P.sumi[2]) });
+const pearlGeo = flatGeo(new THREE.IcosahedronGeometry(0.1, 1)), pearlM = toon({ color: C(P.seiji[0]), emissive: C(P.fuji[0]), emissiveIntensity: 0.6 });
+function toss(kind, e, aim, sk) {
+  const m = track(new THREE.Mesh(kind === 'flash' ? flashGeo : pearlGeo, kind === 'flash' ? flashM : pearlM));
+  const pos = eyeOf(e).addScaledVector(aim, 0.6);
+  m.position.copy(pos);
+  throws.push({ kind, owner: e, sk, m, pos, vel: aim.clone().multiplyScalar(sk.speed).add(new V3(0, 3, 0)), t: 0, stuck: false });
+  SFX.play('clunk', e.isBot ? pos : null);
+}
+// 閃光：見ていた駒の目をくらませる（向き・距離・物陰で強さが変わる）
+function flashAt(p, sk) {
+  for (let i = 0; i < 26; i++) Particles.glow(p.clone().add(new V3(rand(-1, 1), rand(-0.5, 1), rand(-1, 1))), P.shiro[2]);
+  SFX.play('boom', p);
+  for (const e of [player, bot]) {
+    if (!e || e.dead) continue;
+    const eye = eyeOf(e), d = eye.distanceTo(p);
+    if (d > sk.radius || !hasLOS(eye, p, true)) continue;
+    const look = e.isBot ? facingOf(e) : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
+    const face = look.dot(p.clone().sub(eye).normalize());
+    const k = clamp((face + 0.3) / 1.3, 0.2, 1) * (1 - d / sk.radius * 0.6);
+    if (e.isBot) e.blindT = Math.max(e.blindT || 0, sk.blind * k);
+    else gs.flash = Math.max(gs.flash || 0, sk.blind * k);
+  }
+}
+// パール：落ちた所へ持ち主を移す
+function warp(T, p, n) {
+  const e = T.owner;
+  for (let i = 0; i < 14; i++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.fuji[1]);
+  e.pos.copy(p).addScaledVector(n, 0.6); e.pos.y = Math.max(e.pos.y, p.y + 0.05);
+  e.vel.set(0, 0, 0); e.vy = 0; e.onGround = false;
+  for (let i = 0; i < 14; i++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.fuji[1]);
+  SFX.play('homing', e.isBot ? e.pos : null);
+  if (e.isBot) { bot.hp -= T.sk.selfDmg; if (bot.hp <= 0 && !bot.dead) killBot(); } else damagePlayer(T.sk.selfDmg, e.pos);
+}
+function updateThrows(dt) {
+  for (let i = throws.length - 1; i >= 0; i--) {
+    const T = throws[i]; T.t += dt;
+    if (!T.stuck) {
+      T.vel.y -= 20 * dt;
+      const next = T.pos.clone().addScaledVector(T.vel, dt);
+      const body = hitBody(foeOf(T.owner), T.pos, next, 0.1), wall = hitWorld(T.pos, next);
+      if (body || wall) {
+        const p = body || wall.point;
+        const n = wall && wall.face && !body ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : T.vel.clone().normalize().negate();
+        if (T.kind === 'pearl') { warp(T, p.clone(), n); T.m.visible = false; throws.splice(i, 1); continue; }
+        T.pos.copy(p).addScaledVector(n, 0.12); T.stuck = true;
+      } else T.pos.copy(next);
+      T.m.position.copy(T.pos); T.m.rotation.x += dt * 9;
+      if (T.kind === 'pearl') Particles.trail(T.pos, P.fuji[1]);
+    }
+    if (T.kind === 'flash' && T.t >= T.sk.fuse) { flashAt(T.pos, T.sk); T.m.visible = false; throws.splice(i, 1); continue; }
+    if (T.t > 8) { T.m.visible = false; throws.splice(i, 1); }
+  }
+}
+
+// ---------- 衝撃波：まわりを吹き飛ばす ----------
+const ringGeo = new THREE.TorusGeometry(1, 0.12, 4, 28).rotateX(Math.PI / 2);
+const rings = [];
+function shockwave(e, sk) {
+  const c = e.pos.clone().add(new V3(0, 0.6, 0));
+  const m = track(new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: P.kin[2], transparent: true, opacity: 0.8, depthWrite: false })));
+  m.position.copy(c); rings.push({ m, t: 0, r: sk.radius });
+  Particles.dust(e.pos, 30, 3); SFX.play('boom', e.pos);
+  PHYS.blast(c, sk.radius, sk.knock * 0.5);
+  if (!e.isBot) view.shake = Math.max(view.shake, 0.5);
+  const t = foeOf(e);
+  if (t.dead) return;
+  const d = Math.hypot(t.pos.x - e.pos.x, t.pos.z - e.pos.z);
+  if (d > sk.radius || Math.abs(t.pos.y - e.pos.y) > 4) return;
+  const k = 1 - d / sk.radius, dir = t.pos.clone().sub(e.pos).setY(0).normalize();
+  t.vel.add(dir.multiplyScalar(sk.knock * k + 4)); t.vy = sk.lift * k + 4; t.onGround = false; t.airT = 1; t.jumped = true;
+  t.knockT = 0.5 + 0.7 * k;
+  const dmg = sk.dmg * k * skillDamageMul(t, e.pos);
+  const pt = eyeOf(t);
+  if (t.isBot) damageBot({ dmg, head: false, point: pt }); else { damagePlayer(dmg, e.pos); view.shake = Math.max(view.shake, 0.6); }
+}
+function updateRings(dt) {
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const R = rings[i]; R.t += dt;
+    const k = Math.min(1, R.t / 0.35);
+    R.m.scale.setScalar(0.5 + (R.r - 0.5) * k); R.m.material.opacity = 0.8 * (1 - k);
+    if (k >= 1) { R.m.visible = false; rings.splice(i, 1); }
+  }
+}
+
+// ---------- 鉤縄：狙った先（壁・床）を探す。縄の見た目 ----------
+function grappleTarget(e, aim, range) {
+  const from = eyeOf(e), h = hitWorld(from, from.clone().addScaledVector(aim, range));
+  if (!h) return null;
+  const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : aim.clone().negate();
+  return h.point.clone().addScaledVector(n, 0.5);
+}
+const ropeM = new THREE.LineBasicMaterial({ color: P.kiji[0] });
+const ropes = new Map();
+function updateRopes() {
+  for (const e of [player, bot]) {
+    if (!e) continue;
+    let L = ropes.get(e);
+    if (!L) { L = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(), new V3()]), ropeM); L.frustumCulled = false; scene.add(L); ropes.set(e, L); }
+    const g = act(e, 'grapple');
+    L.visible = !!g;
+    if (!g) continue;
+    const from = eyeOf(e).add(new V3(0, -0.45, 0));
+    if (!e.isBot) from.add(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw)).multiplyScalar(0.25));
+    const p = L.geometry.attributes.position;
+    p.setXYZ(0, from.x, from.y, from.z); p.setXYZ(1, g.target.x, g.target.y, g.target.z); p.needsUpdate = true;
+  }
+}
+
 export const Gadgets = {
-  throwC4, detonate, launch,
+  throwC4, detonate, launch, toss, shockwave, grappleTarget,
   c4Of: e => c4s.find(c => c.owner === e),
   ctrlOf: e => missiles.find(m => m.owner === e && m.ctrl),
   // 操作をやめる（ミサイルはそのまままっすぐ飛ぶ）
   release(e) { const M = missiles.find(m => m.owner === e && m.ctrl); if (M) M.ctrl = false; },
-  update(dt) { if (dt <= 0) return; updateC4(dt); updateMissiles(dt); },
-  clear() { reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; },
+  update(dt) { updateRopes(); if (dt <= 0) return; updateC4(dt); updateMissiles(dt); updateThrows(dt); updateRings(dt); },
+  clear() { reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; throws.length = 0; rings.length = 0; gs.flash = 0; },
   // リプレイ用：出ている物の位置・大きさ・濃さ
   snapshot: () => reg.map((o, i) => (o.visible ? [i, o.position.x, o.position.y, o.position.z, o.rotation.x, o.rotation.y, o.rotation.z, o.scale.x, opOf(o)] : null)).filter(Boolean),
   restore(s) {
