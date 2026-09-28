@@ -38,6 +38,8 @@ import { animateActor, updateCamera } from './camera';
 import { Replay } from './replay';
 import { showTitle } from './screens';
 import { BoardMode } from './boardmode';
+import { Net } from './net';
+import { Online } from './online';
 
 // ================= メインループ =================
 export let last = performance.now(), titleT = 0, lastBeep = -1;
@@ -88,7 +90,9 @@ export function loop(now) {
     return;
   }
 
-  if (!gs.paused) {
+  // オンライン対戦はメニューを開いても止まらない
+  const run = !gs.paused || Net.on;
+  if (run) {
     gs.stateT += rdt;
     if (gs.state === 'countdown') {
       const n = 3 - Math.floor(gs.stateT);
@@ -97,24 +101,25 @@ export function loop(now) {
     }
     if (gs.state === 'fight') stats.time += dt;
     updatePlayer(dt);
-    updateBot(dt);
+    if (Net.on) { Online.tick(dt); Online.updateRemote(dt); } else updateBot(dt);
     separate(player, bot);
     if (gs.state === 'fight') {
-      checkRam(player, bot, dmg => damageBot({ dmg, head: false, point: eyeOf(bot) }));
-      checkRam(bot, player, dmg => damagePlayer(dmg, bot.pos));
+      checkRam(player, bot, dmg => damageBot({ dmg, head: false, point: eyeOf(bot), kv: [bot.vel.x, bot.vy, bot.vel.z] }));
+      if (!Net.on) checkRam(bot, player, dmg => damagePlayer(dmg, bot.pos));
       if (stats.time >= TIME_LIMIT) endMatch(null);
     }
   }
-  const pdt = gs.paused ? 0 : dt;
+  const pdt = run ? dt : 0;
   animateActor(botActor, bot, pdt, bot.dead ? null : bot.aimPt || player.pos);
  
   PHYS.step(pdt, [['player', player], ['bot', bot]]);
-  if (!gs.paused) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); Gadgets.update(dt); }
+  if (run) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); Gadgets.update(dt); }
  
-  if (!gs.paused && (gs.state === 'fight' || gs.state === 'end')) Replay.record(dt);
+  if (run && (gs.state === 'fight' || gs.state === 'end')) Replay.record(dt);
  
   Particles.update(pdt); Tracers.update(pdt); DmgNums.update(pdt);
-  if (!gs.paused) updateCamera(dt, rdt); else { gs.mdx = gs.mdy = 0; }
+  if (run) updateCamera(dt, rdt);
+  if (gs.paused) gs.mdx = gs.mdy = 0;
  
   updateHUD(rdt);
   render(!player.dead);

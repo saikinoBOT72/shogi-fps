@@ -8,6 +8,8 @@ import { VM } from './effects';
 import { SKINS } from './guns/skins';
 import { initPips } from './hud';
 import { BoardMode } from './boardmode';
+import { Net } from './net';
+import { leave, showLobby, showOnline } from './online';
 
 // ================= 共通 =================
 export function overlay(html, dim?) {
@@ -119,11 +121,13 @@ export function showTitle() {
     <div class="modes">
       <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは撃ち合い</small></button>
       <button class="mode" id="goDuel"><b>撃ち合い</b><small>好きな駒どうしで 1 対 1</small></button>
+      <button class="mode" id="goOnline"><b>友達と対戦</b><small>部屋のコードで友達と撃ち合い</small></button>
     </div>
     <div class="menu"><button class="btn sub" id="openSettings">設定</button><button class="btn sub" id="openControls">操作方法</button></div>
   </div>`);
-  on('goBoard', () => BoardMode.start());
+  on('goBoard', () => BoardMode.open());
   on('goDuel', showPieceSelect);
+  on('goOnline', () => showOnline());
   on('openSettings', () => showSettings(showTitle));
   on('openControls', () => showControls(showTitle));
 }
@@ -167,20 +171,21 @@ function showPieceSelect() {
 // ================= 一時停止 =================
 export function showPause() {
   overlay(`<div class="screen">
-    <h2 class="h big">一時停止</h2>
+    <h2 class="h big">${Net.on ? 'メニュー' : '一時停止'}</h2>
     <div class="menu col">
       <button class="btn" id="resume">再開</button>
       <button class="btn sub" id="pSettings">設定</button>
       <button class="btn sub" id="pControls">操作方法</button>
       <button class="btn sub" id="quit">タイトルへ</button>
     </div>
-    <p class="note">画面をクリックしても再開できます</p>
+    <p class="note">${Net.on ? '友達との対戦は止まっていません！ 画面をクリックで戻る' : '画面をクリックしても再開できます'}</p>
   </div>`, true);
   on('resume', () => { SFX.init(); requestLock(); });
   on('pSettings', () => showSettings(showPause));
   on('pControls', () => showControls(showPause));
   on('quit', () => {
     gs.paused = false;
+    if (Net.on) { leave(); return; }
     if (gs.matchCtx) BoardMode.abort();
     if (settings.quality !== QUALITY_AT_LOAD) { location.reload(); return; }
     resetMatch(); showTitle();
@@ -201,25 +206,28 @@ export function showResult(win) {
       <div><b>${stats.time.toFixed(1)}s</b><span>決着タイム</span></div>
     </div>
     <div class="menu">
-      <button class="btn sub" id="toTitle">タイトルへ</button>
-      <button class="btn" id="again">もう一局</button>
+      <button class="btn sub" id="toTitle">${Net.on ? '部屋から抜ける' : 'タイトルへ'}</button>
+      <button class="btn" id="again">${Net.on ? 'もう一戦（駒を選ぶ）' : 'もう一局'}</button>
     </div>
   </div>`, true);
+  if (Net.on) { on('again', () => { resetMatch(); showLobby(); }); on('toTitle', leave); return; }
   on('again', startMatch);
   on('toTitle', () => { resetMatch(); showTitle(); });
 }
 
 // ================= 対局の開始・一時停止 =================
-export function startMatch() {
+export function startMatch(foeType?: string) {
   SFX.init();
-  resetMatch(gs.matchCtx ? gs.matchCtx.foeType : resolveFoe());
+  resetMatch(foeType || (gs.matchCtx ? gs.matchCtx.foeType : resolveFoe()));
   initPips();
   $('meName').textContent = `${player.def.name}　${player.w.name}`;
   $('foeTag').textContent = bot.def.name;
   $('center').textContent = '';
   gs.state = 'countdown'; gs.stateT = 0; gs.paused = true;
   playerActor.root.visible = false;
-  requestLock();
+  // オンライン：相手の合図で始まるので、クリックしてから操作（カウントダウンは進む）
+  if (Net.on) overlay(`<div class="screen"><h2 class="h big">まもなく開始</h2><p>画面をクリックして操作を始める</p>${keysHTML()}</div>`, true);
+  else requestLock();
 }
 export function onLocked() {
   if (gs.state === 'countdown' || gs.state === 'fight') {

@@ -11,6 +11,7 @@ import { Particles, VM } from './effects';
 import { act, bot, botActor, currentSpread, eyeOf, player, stats, view } from './game';
 import { Replay } from './replay';
 import { showResult } from './screens';
+import { Net } from './net';
 
 // ================= 勝敗 =================
 export function killBot() {
@@ -24,11 +25,13 @@ export function killBot() {
 }
 export function killPlayer() {
   player.dead = true;
+  if (Net.on) Net.send({ t: 'dead' });
   SFX.play('kill');
   gs.timeScale = 0.35; gs.slowmoT = 0.9;
   endMatch(false);
 }
 export function endMatch(win) {
+  if (gs.state === 'end' || gs.state === 'killcam') return;   // 相打ちで2回来たとき
   gs.state = 'end'; gs.stateT = 0; gs.mouseDown = false; gs.rightDown = false;
   stats.time = TIME_LIMIT - Math.max(0, TIME_LIMIT - stats.time);
   showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? 'var(--kin-2)' : 'var(--shu-1)');

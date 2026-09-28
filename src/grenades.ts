@@ -10,6 +10,7 @@ import { Particles } from './effects';
 import { bot, damageBot, eyeOf, hasLOS, player, ray, skillDamageMul, view } from './game';
 import { damagePlayer } from './ai';
 import { killBot } from './hud';
+import { Net } from './net';
 
 // 爆発：範囲内の駒にダメージと吹き飛ばし
 // o.knock: 横に飛ばす強さ / o.lift: 上に飛ばす強さ / o.self: 自分へのダメージ倍率 / o.big: 大玉（見た目も大きく）
@@ -30,8 +31,8 @@ export function explodeAt(p, owner, dmgBase, radius, o: any = {}) {
     e.knockT = 0.4 + 0.6 * kk;   // 飛んでいる間は自分で動けない（勢いのまま飛ぶ）
     if (e.isBot) {
       if (owner === player) damageBot({ dmg, head: false, point: c });
-      else { bot.hp -= dmg; bot.sinceHit = 0; if (bot.hp <= 0) killBot(); }
-    } else damagePlayer(dmg, p);
+      else if (!Net.on) { bot.hp -= dmg; bot.sinceHit = 0; if (bot.hp <= 0) killBot(); }
+    } else if (!Net.on || owner === player) damagePlayer(dmg, p);
   }
   PHYS.blast(p, radius * 1.6, knock * 0.8);
   Particles.explosion(p);

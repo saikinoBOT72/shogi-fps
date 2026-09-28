@@ -265,3 +265,8 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 
 /* 閃光弾で目がくらむ */
 #flashfx { position: absolute; inset: 0; opacity: 0; background: var(--shiro-2); pointer-events: none }
+
+/* 友達と対戦 */
+.ol-code { font: 900 46px var(--font-ui); letter-spacing: .25em; color: var(--accent); text-align: center }
+.ol-input { font: 700 18px var(--font-ui); width: 110px; padding: 6px 10px; text-transform: uppercase; letter-spacing: .2em; color: var(--text); background: color-mix(in srgb, var(--sumi-2) 80%, transparent); border: 1px solid var(--line); border-radius: 6px }
+.ol-foe { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 15px }

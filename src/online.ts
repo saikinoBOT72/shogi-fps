@@ -1,0 +1,181 @@
+// 友達と対戦（撃ち合い）：部屋を作る・入る → おたがい駒を選んで準備OK → 撃ち合い
+// 対戦中は、自分の位置・向き・スキルの状態を 1 秒に 30 回送り、撃った・投げた・当てた・倒れたはその場で送る
+// 当たったかどうかは撃った側の画面で決め、ダメージは受けた側が自分の HP から引く（HP を決めるのは本人）
+import { P } from './palette';
+import { gs } from './state';
+import { $, PIECES, SKILLS, V3, WEAPONS, saveSettings, settings } from './core';
+import { SFX } from './audio';
+import { Net, hostRoom, joinRoom, leaveRoom, r2, vec } from './net';
+import { overlay, pieceCard, showTitle, startMatch } from './screens';
+import { bot, botActor, eyeOf, player, resetMatch, useSkill, view } from './game';
+import { Arrows } from './arrows';
+import { Grenades } from './grenades';
+import { Particles, Tracers } from './effects';
+import { Gadgets } from './gadgets';
+import { damagePlayer } from './ai';
+import { killBot } from './hud';
+
+const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
+const V = (a: number[]) => new V3(a[0], a[1], a[2]);
+const inMatch = () => gs.state === 'countdown' || gs.state === 'fight';
+
+let foe = { k: null, ready: false }, meReady = false, inLobby = false, snap = null, sendT = 0;
+
+// ================= 部屋を作る・入る =================
+export function showOnline(msg = '') {
+  gs.state = 'title';
+  overlay(`<div class="screen">
+    <h2 class="h">友達と対戦</h2>
+    <div class="panel form">
+      <div class="row"><span>部屋を作る<small>出てきたコードを友達に伝える</small></span><button class="btn small" id="olHost">作る</button></div>
+      <div class="row"><span>部屋に入る<small>友達から聞いたコード（4文字）</small></span><span><input id="olCode" class="ol-input" maxlength="4" autocomplete="off"> <button class="btn small" id="olJoin">入る</button></span></div>
+    </div>
+    <p class="note" id="olMsg" style="color:var(--shu-2)">${msg}</p>
+    <p class="note">相手と直接つながるので、おたがいの IP アドレスが相手に伝わります。知っている友達とだけ遊んでね</p>
+    <div class="menu"><button class="btn sub" id="back">戻る</button></div>
+  </div>`, true);
+  const input = $('olCode') as HTMLInputElement;
+  input.onclick = e => e.stopPropagation();
+  input.onkeydown = e => { if (e.key === 'Enter') join(); };
+  on('olHost', host);
+  on('olJoin', join);
+  on('back', () => { leaveRoom(); showTitle(); });
+}
+const cb = {
+  code: (c: string) => waiting(`<div class="ol-code">${c}</div><p>このコードを友達に伝えてね。入ってくるのを待っています…</p>`),
+  connected: () => { foe = { k: null, ready: false }; meReady = false; sendPick(); showLobby(); },
+  error: (t: string) => showOnline(t),
+};
+function waiting(html: string) {
+  overlay(`<div class="screen"><h2 class="h">友達と対戦</h2><div class="panel">${html}</div>
+    <div class="menu"><button class="btn sub" id="olCancel">やめる</button></div></div>`, true);
+  on('olCancel', () => { leaveRoom(); showOnline(); });
+}
+function host() { waiting('<p>部屋を作っています…</p>'); hostRoom(cb); }
+function join() {
+  const code = ($('olCode') as HTMLInputElement).value.trim().toUpperCase();
+  if (code.length !== 4) { $('olMsg').textContent = 'コードは4文字です'; return; }
+  waiting(`<p>部屋 ${code} につないでいます…</p>`);
+  joinRoom(code, cb);
+}
+
+// ================= 駒選び（おたがい準備OKで開始） =================
+const sendPick = () => Net.send({ t: 'pick', k: settings.myPiece, ready: meReady });
+export function showLobby() {
+  inLobby = true; gs.state = 'title';
+  if (!PIECES[settings.myPiece]) settings.myPiece = 'P';
+  const me = PIECES[settings.myPiece], f = foe.k && PIECES[foe.k];
+  overlay(`<div class="screen wide">
+    <h2 class="h">友達と対戦　<small>部屋 ${Net.code}</small></h2>
+    <section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
+      <p class="detail"><b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `「${SKILLS[k].name}」${SKILLS[k].help}`).join('　')}</p></section>
+    <div class="ol-foe">相手の駒：${f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : ''}</div>
+    <div class="menu"><button class="btn sub" id="olLeave">抜ける</button><button class="btn${meReady ? ' sub' : ''}" id="olReady">${meReady ? '準備OK を取り消す' : '準備OK'}</button></div>
+  </div>`, true);
+  document.querySelectorAll<HTMLElement>('#olPick button').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    settings.myPiece = b.dataset.k; saveSettings(); meReady = false;
+    sendPick(); showLobby();
+  });
+  on('olReady', () => { meReady = !meReady; sendPick(); showLobby(); maybeStart(); });
+  on('olLeave', leave);
+}
+function maybeStart() { if (Net.host && inLobby && meReady && foe.ready && foe.k) { Net.send({ t: 'start' }); begin(); } }
+function begin() {
+  inLobby = false; meReady = false; foe.ready = false; snap = null; sendT = 0;
+  startMatch(foe.k);
+}
+// 部屋から抜ける（相手にも知らせる）
+export function leave() {
+  Net.send({ t: 'bye' });
+  leaveRoom(); inLobby = false;
+  gs.paused = false;
+  resetMatch(); showTitle();
+}
+function lost() {
+  inLobby = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+  gs.paused = false;
+  resetMatch(); showOnline('相手との接続が切れました');
+}
+addEventListener('beforeunload', () => { if (Net.on) Net.send({ t: 'bye' }); });
+
+// ================= 相手から届いたもの =================
+Net.onClose = lost;
+Net.onMsg = (m: any) => {
+  switch (m.t) {
+    case 'pick': foe.k = m.k; foe.ready = m.ready; if (inLobby) { showLobby(); maybeStart(); } break;
+    case 'start': if (!Net.host) begin(); break;
+    case 'bye': leaveRoom(); lost(); break;
+    case 's': snap = m; break;
+    case 'fire': if (inMatch()) remoteFire(m); break;
+    case 'melee': if (inMatch()) SFX.play('dash', bot.pos); break;
+    case 'arrow':
+      if (!inMatch()) break;
+      Arrows.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, head: m.hd, gravity: m.g, drag: m.dr || 0, homing: !!m.hm, turn: m.tu || 0, full: !!m.fu });
+      SFX.play('bow', V(m.p));
+      break;
+    case 'gren':
+      if (!inMatch()) break;
+      Grenades.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, radius: m.r, gravity: m.g, fuse: m.fu,
+        big: !!m.big, knock: m.kn, lift: m.li, self: m.se });
+      SFX.play('launcher', V(m.p));
+      break;
+    case 'skill':
+      if (!inMatch() || bot.dead) break;
+      bot.netAim = V(m.a);
+      useSkill(bot, m.i, V(m.d), true);
+      break;
+    case 'hit':
+      if (!inMatch() || player.dead) break;
+      damagePlayer(m.dmg, bot.pos);
+      if (m.kv) { player.vel.x = m.kv[0]; player.vel.z = m.kv[2]; player.vy = m.kv[1]; player.onGround = false; player.airT = 1; player.knockT = 0.6; }
+      break;
+    case 'dead': if (inMatch() && !bot.dead) { bot.hp = 0; killBot(); } break;
+  }
+};
+// 相手が撃った：銃口から弾の行き先へ光跡
+function remoteFire(m) {
+  botActor.root.updateMatrixWorld(true);
+  const mz = botActor.gun.muzzle ? botActor.gun.muzzle.getWorldPosition(new V3()) : eyeOf(bot);
+  for (const e of m.e) {
+    const end = V(e);
+    Tracers.add(mz, end, P.shu[2]);
+    if (e[3]) Particles.impact(end, mz.clone().sub(end).normalize());
+  }
+  bot.flashT = 0.05;
+  SFX.play('shot', mz, bot.w.model);
+}
+
+// ================= 毎フレーム =================
+export const Online = {
+  // 自分の様子を送る（1 秒に 30 回）
+  tick(dt: number) {
+    if (!Net.on || !inMatch() && gs.state !== 'end') return;
+    sendT -= dt;
+    if (sendT > 0) return;
+    sendT = 1 / 30;
+    const p = player, M = Gadgets.ctrlOf(p);
+    Net.send({
+      t: 's', p: vec(p.pos), v: [r2(p.vel.x), r2(p.vy), r2(p.vel.z)], yw: Math.round(view.yaw * 1000) / 1000, pt: Math.round(view.pitch * 1000) / 1000,
+      hp: r2(p.hp), k: p.w.kind === 'melee' ? 1 : 0, st: p.slots.map(s => r2(s.t)), g: p.onGround ? 1 : 0, dr: r2(p.draw || 0),
+      ms: M ? [...vec(M.pos), ...vec(M.dir)] : 0,
+    });
+  },
+  // 相手の駒を、届いた様子に合わせて動かす（CPU の代わり）
+  updateRemote(dt: number) {
+    const b = bot, s = snap;
+    if (!s || b.dead) return;
+    const tgt = V(s.p);
+    if (b.pos.distanceTo(tgt) > 4) b.pos.copy(tgt); else b.pos.lerp(tgt, 1 - Math.exp(-20 * dt));
+    b.vel.set(s.v[0], 0, s.v[2]); b.vy = s.v[1]; b.onGround = !!s.g; b.moving = Math.hypot(s.v[0], s.v[2]) > 1;
+    const dir = new V3(-Math.sin(s.yw) * Math.cos(s.pt), Math.sin(s.pt), -Math.cos(s.yw) * Math.cos(s.pt));
+    b.aimPt = eyeOf(b).addScaledVector(dir, 20);
+    b.hp = s.hp;
+    s.st.forEach((t, i) => { if (b.slots[i]) b.slots[i].t = t; });
+    b.draw = s.dr;
+    const knife = !!s.k;
+    if (knife !== (b.w.kind === 'melee')) b.w = knife ? WEAPONS.knife : b.mainW;
+    b.netMis = s.ms ? { p: new V3(s.ms[0], s.ms[1], s.ms[2]), d: new V3(s.ms[3], s.ms[4], s.ms[5]) } : null;
+  },
+};

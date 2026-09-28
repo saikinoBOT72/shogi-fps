@@ -15,6 +15,7 @@ import { down, keys } from './input';
 import { PERSONAS, aiHear, damagePlayer } from './ai';
 import { initPips, killBot, showHitmarker } from './hud';
 import { Replay } from './replay';
+import { Net, r2, vec } from './net';
 
 // ================= ゲーム状態 =================
 gs.state = 'title';   // title / countdown / fight / end
@@ -67,8 +68,9 @@ export function resetMatch(foeType?) {
   VM.setWeapon(player.w.model);
   // 出撃地点：外周の塀の裏（開始時にお互いが見えない）
   // 出撃：左右の橋のたもと（屋根つきの関所の中）
-  player.pos.set(SPAWN.x + rand(-1, 1), LV.V, SPAWN.z + rand(-1, 1));
-  bot.pos.set(-SPAWN.x + rand(-1, 1), LV.V, -SPAWN.z + rand(-1, 1));
+  const side = Net.on && !Net.host ? -1 : 1;   // オンラインで部屋に入った側は反対の橋から
+  player.pos.set(side * SPAWN.x + rand(-1, 1), LV.V, side * SPAWN.z + rand(-1, 1));
+  bot.pos.set(-side * SPAWN.x + rand(-1, 1), LV.V, -side * SPAWN.z + rand(-1, 1));
   Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
     persona: Object.values(PERSONAS)[Math.floor(Math.random() * 3)] });
   stats = { shots: 0, hits: 0, heads: 0, dealt: 0, taken: 0, time: 0 };
@@ -281,14 +283,16 @@ export function skillDamageMul(target, from) {
 export function fire(shooter, target, origin, muzzle, dir) {
   const w = shooter.w, sp = currentSpread(shooter);
   let dmg = 0, head = false, point = null, miss = null, wallDist = 300, blocked = false, first = true;
+  const ends = [];
   for (let i = 0; i < (w.pellets || 1); i++) {
     const r = castShot(shooter, target, origin, muzzle, dir, sp, first);
-    first = false;
+    first = false; ends.push([...vec(r.end), r.wall ? 1 : 0]);
     if (r.dmg > 0) { dmg += r.dmg; head = head || r.head; point = point || r.point; blocked = blocked || r.blocked; }
     else if (!miss) { miss = r.miss; wallDist = r.wallDist; }
   }
   shooter.ammo--; shooter.cd = w.rate;
   onAttack(shooter);
+  if (Net.on && shooter === player) Net.send({ t: 'fire', e: ends });
   // バースト：決まった数だけ短い間隔で続けて撃つ
   if (w.burst) {
     if (!(shooter.burstLeft > 0)) shooter.burstLeft = w.burst;
@@ -327,7 +331,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
     if (head) dmg *= w.head;
     const mul = skillDamageMul(target, shooter.pos);
     dmg *= mul;
-    res = { dmg, head, point: hit.point, blocked: mul < 1 && !!act(target, 'guard') };
+    res = { dmg, head, point: hit.point, blocked: mul < 1 && !!act(target, 'guard'), end: hit.point };
     Tracers.add(muzzle, hit.point, tracerColor);
   } else {
     const end = wall ? wall.point : origin.clone().addScaledVector(d, 150);
@@ -340,7 +344,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
       else Decals.add(wall.point, n);
       if (sound) SFX.play(Math.random() < 0.3 ? 'ricochet' : 'thud', wall.point);
     }
-    res.miss = d; res.wallDist = wallDist;
+    res.miss = d; res.wallDist = wallDist; res.end = end; res.wall = !!wall;
   }
   return res;
 }
@@ -365,17 +369,17 @@ export function skillTick(e, dt) {
   }
 }
 // i 番目のスキルを使う。dir は水平の向き
-export function useSkill(e, i, dir) {
+export function useSkill(e, i, dir, force = false) {
   const s = e.slots[i];
   if (!s || e.dead) return false;
   const sk = s.sk;
   // もう一度押す系：C4 の起爆・ミサイルの操作をやめる
   if (sk.type === 'c4' && Gadgets.c4Of(e)) { Gadgets.detonate(e); return true; }
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
-  if (s.charges <= 0 || s.t > 0) return false;
-  if (e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
+  if (!force && (s.charges <= 0 || s.t > 0)) return false;
+  if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
   // 狙っている向き（上下も含む）
-  const aim = e.isBot ? new V3(player.pos.x, player.pos.y + player.height * 0.6, player.pos.z).sub(eyeOf(e)).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
+  const aim = e.isBot && e.netAim ? e.netAim.clone() : e.isBot ? new V3(player.pos.x, player.pos.y + player.height * 0.6, player.pos.z).sub(eyeOf(e)).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   // 鉤縄は掛ける所が無ければ使わない（回数も減らさない）
   let hook = null;
   if (sk.type === 'grapple') { hook = Gadgets.grappleTarget(e, aim, sk.range); if (!hook) { if (!e.isBot) SFX.play('empty'); return false; } }
@@ -441,7 +445,7 @@ export function updatePlayer(dt) {
   const p = player;
   const fwd = new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw)), right = new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw));
   const wish = new V3();
-  if (gs.state === 'fight' && !p.dead) {
+  if (gs.state === 'fight' && !p.dead && !gs.paused) {
     // ミサイルを操作している間は、自分の駒は動かない
     if (!Gadgets.ctrlOf(p)) {
       if (down('forward')) wish.add(fwd); if (down('back')) wish.sub(fwd);
@@ -456,7 +460,7 @@ export function updatePlayer(dt) {
         // すり足は A/D の方向（押していなければ右）、他は前
         let sdir = fwd;
         if (s.sk.type === 'step') sdir = down('left') ? right.clone().negate() : down('right') ? right : down('back') ? fwd.clone().negate() : right;
-        useSkill(p, i, sdir);
+        if (useSkill(p, i, sdir) && Net.on) Net.send({ t: 'skill', i, d: vec(sdir), a: vec(new V3(0, 0, -1).applyQuaternion(cam.quaternion)) });
       }
       p.skillHeld[i] = k;
     });
@@ -484,7 +488,7 @@ export function updatePlayer(dt) {
   }
 
   weaponTick(p, dt);
-  if (gs.state !== 'fight' || p.dead || Gadgets.ctrlOf(p)) return;
+  if (gs.state !== 'fight' || p.dead || gs.paused || Gadgets.ctrlOf(p)) return;
   // 弓：押している間は引き絞り、離したら放つ
   if (p.w.kind === 'bow') {
     if (gs.mouseDown && p.cd <= 0) {
@@ -526,6 +530,7 @@ export function meleePlayer() {
   onAttack(p); endGuard(p);
   VM.fire(w);
   SFX.play('dash', null);
+  if (Net.on) Net.send({ t: 'melee' });
   const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   const eye = eyeOf(p), chest = new V3(bot.pos.x, bot.pos.y + bot.height * 0.6, bot.pos.z);
   const to = chest.clone().sub(eye), d = to.length();
@@ -572,6 +577,8 @@ export function fireGrenade(e, dir, origin) {
   Grenades.fire({ owner: e, target: e === player ? bot : player, pos: origin, vel: d.multiplyScalar(w.speed), dmg: w.dmg, radius: big ? big.sk.radius : w.radius, gravity: w.gravity, fuse: w.fuse,
     big: !!big, knock: big ? big.sk.knock : w.knock, lift: big ? big.sk.lift : w.lift, self: w.self });
   SFX.play('launcher', e.isBot ? origin : null);
+  if (Net.on && e === player) Net.send({ t: 'gren', p: vec(origin), v: vec(d), dmg: w.dmg, r: big ? big.sk.radius : w.radius, g: w.gravity, fu: w.fuse,
+    big: big ? 1 : 0, kn: big ? big.sk.knock : w.knock, li: big ? big.sk.lift : w.lift, se: w.self });
 }
 // 矢を放つ（プレイヤー・CPU共通）
 export function shootArrow(e, dir, origin) {
@@ -589,6 +596,7 @@ export function shootArrow(e, dir, origin) {
     vel: d.multiplyScalar(homing ? Math.min(hs.sk.speed, lerp(w.speedMin, w.speedMax, k)) : lerp(w.speedMin, w.speedMax, k)),
     dmg: lerp(w.dmgMin, w.dmg, k), head: w.head, gravity: w.gravity, drag: w.drag || 0, homing, turn: hs ? hs.sk.turn : 0, full: e.draw >= 1,
   });
+  if (Net.on && e === player) { const a = Arrows.last(); Net.send({ t: 'arrow', p: vec(a.pos), v: vec(a.vel), dmg: r2(a.dmg), hd: a.head, g: a.gravity, dr: a.drag, hm: homing ? 1 : 0, tu: a.turn, fu: a.full ? 1 : 0 }); }
   e.cd = w.rate; e.draw = 0;
   SFX.play('bow', e.isBot ? origin : null);
   if (!e.isBot) aiHear(e.pos, 20);
@@ -609,7 +617,9 @@ export function regenTick(e, dt) {
 }
 
 export function damageBot(res) {
-  bot.hp -= res.dmg; bot.sinceHit = 0;
+  if (Net.on) Net.send({ t: 'hit', dmg: r2(res.dmg), head: res.head ? 1 : 0, kv: res.kv });
+  else bot.hp -= res.dmg;
+  bot.sinceHit = 0;
   // 撃たれたら横移動の向きを変え、撃ってきた場所を覚える
   bot.strafe *= -1; bot.strafeT = rand(0.4, 1); bot.hurtT = 1.2;
   bot.lastKnown.copy(player.pos); if (bot.lostT > 0) bot.lostT = 0.01;
@@ -618,7 +628,7 @@ export function damageBot(res) {
   Particles.wood(res.point, cam.getWorldDirection(new V3()), res.head ? 14 : 8);
   botActor.wood.emissive.setRGB(0.6, 0.05, 0.02);
   botActor.flinch = (botActor.flinch || 0) + (res.head ? 0.5 : 0.3);
-  const killed = bot.hp <= 0;
+  const killed = !Net.on && bot.hp <= 0;
   showHitmarker(killed ? 'kill' : res.head ? 'head' : '');
   SFX.play(res.head ? 'head' : 'hit');
   if (killed) killBot();

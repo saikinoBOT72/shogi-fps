@@ -13,6 +13,7 @@ import { gs } from './state';
 import { killBot } from './hud';
 import { damagePlayer } from './ai';
 import { explodeAt } from './grenades';
+import { Net } from './net';
 
 const reg: THREE.Object3D[] = [];
 export const track = <T extends THREE.Object3D>(o: T): T => { reg.push(o); scene.add(o); return o; };
@@ -129,7 +130,9 @@ function boom(M) {
 function updateMissiles(dt) {
   for (const M of [...missiles]) {
     M.t += dt;
-    if (M.ctrl && M.owner.isBot && M.t > 0.35) {
+    if (M.ctrl && M.owner.isBot && Net.on) {
+      if (bot.netMis) { M.dir.copy(bot.netMis.d); M.pos.lerp(bot.netMis.p, 0.3); }
+    } else if (M.ctrl && M.owner.isBot && M.t > 0.35) {
       // CPU：相手の胸へ向けて曲がる（曲がる速さに上限）
       const want = chest(player).sub(M.pos).normalize();
       const ang = M.dir.angleTo(want), maxA = 2.2 * dt;
@@ -180,7 +183,7 @@ function warp(T, p, n) {
   e.vel.set(0, 0, 0); e.vy = 0; e.onGround = false;
   for (let i = 0; i < 14; i++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.fuji[1]);
   SFX.play('homing', e.isBot ? e.pos : null);
-  if (e.isBot) { bot.hp -= T.sk.selfDmg; if (bot.hp <= 0 && !bot.dead) killBot(); } else damagePlayer(T.sk.selfDmg, e.pos);
+  if (e.isBot) { if (Net.on) return; bot.hp -= T.sk.selfDmg; if (bot.hp <= 0 && !bot.dead) killBot(); } else damagePlayer(T.sk.selfDmg, e.pos);
 }
 function updateThrows(dt) {
   for (let i = throws.length - 1; i >= 0; i--) {
@@ -222,7 +225,7 @@ function shockwave(e, sk) {
   t.knockT = 0.5 + 0.7 * k;
   const dmg = sk.dmg * k * skillDamageMul(t, e.pos);
   const pt = eyeOf(t);
-  if (t.isBot) damageBot({ dmg, head: false, point: pt }); else { damagePlayer(dmg, e.pos); view.shake = Math.max(view.shake, 0.6); }
+  if (t.isBot) damageBot({ dmg, head: false, point: pt }); else { if (!Net.on) damagePlayer(dmg, e.pos); view.shake = Math.max(view.shake, 0.6); }
 }
 function updateRings(dt) {
   for (let i = rings.length - 1; i >= 0; i--) {
@@ -248,8 +251,8 @@ function updateRopes() {
     let L = ropes.get(e);
     if (!L) { L = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(), new V3()]), ropeM); L.frustumCulled = false; scene.add(L); ropes.set(e, L); }
     const g = act(e, 'grapple');
-    L.visible = !!g;
-    if (!g) continue;
+    L.visible = !!(g && g.target);
+    if (!L.visible) continue;
     const from = eyeOf(e).add(new V3(0, -0.45, 0));
     if (!e.isBot) from.add(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw)).multiplyScalar(0.25));
     const p = L.geometry.attributes.position;

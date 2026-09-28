@@ -1,4 +1,5 @@
 // 矢（弓の弾）：重力で落ちる飛び道具。刺さった矢はしばらく残る。追尾の矢は相手を追いかける
+import { Net } from './net';
 import { Gadgets } from './gadgets';
 import { P } from './palette';
 import * as THREE from 'three';
@@ -59,7 +60,7 @@ export const Arrows = (() => {
       a.mesh.position.copy(point).addScaledVector(dir, 0.25 - TIP);
       botActor.body.attach(a.mesh); keepStuck(a.mesh);
     } else {
-      damagePlayer(dmg, a.owner.pos);
+      if (!Net.on) damagePlayer(dmg, a.owner.pos);
       scene.remove(a.mesh);
     }
   }
@@ -139,5 +140,5 @@ export const Arrows = (() => {
 
   // 読み込み時の事前準備用（初めて撃ったときに固まらないように）
   const samples = () => [makeArrow(false), makeArrow(true)];
-  return { fire, update, clear, snapshot, showGhosts, setLiveVisible, samples };
+  return { fire, update, clear, snapshot, showGhosts, setLiveVisible, samples, last: () => live[live.length - 1] };
 })();

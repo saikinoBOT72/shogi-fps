@@ -30,7 +30,7 @@ function press(code: string) {
   keys[code] = true;
 }
 addEventListener('keydown', e => {
-  if (gs.rebinding) return;
+  if (gs.rebinding || (e.target as HTMLElement).tagName === 'INPUT') return;   // 文字の入力中（部屋のコードなど）
   const K = (settings as any).keys;
   if (e.code === K.jump || e.code === 'Space' || e.code === 'Tab') e.preventDefault();
   press(e.code);

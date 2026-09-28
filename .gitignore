@@ -4,3 +4,4 @@ dist/
 guns.html
 src/gunview.ts
 docs/
+.claude/
