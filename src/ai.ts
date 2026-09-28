@@ -58,10 +58,18 @@ export function bodyVisible(pos, e, from) {
 }
 // 経路探索で次に向かう点（まっすぐ行けるなら null）
 export function navNext(b, tgt, dt, pEye) {
-  if (Math.abs(tgt.y - b.pos.y) < 0.6 && reachable(b, b.pos, tgt)) { b.path = null; return null; }
-  b.pathT = (b.pathT || 0) - dt;
-  if (!b.path || b.pathT <= 0 || !b.pathGoal || b.pathGoal.distanceTo(tgt) > 3) {
-    b.path = Nav.find(b.pos, tgt); b.pathI = 0; b.pathT = 1.5; b.pathGoal = tgt.clone();
+  b.pathT = (b.pathT || 0) - dt; b.pathCd = (b.pathCd || 0) - dt;
+  // まっすぐ行けるなら経路はいらない（覚えている経路は消さない：見えたり隠れたりで毎回探し直さないように）
+  if (Math.abs(tgt.y - b.pos.y) < 0.6 && reachable(b, b.pos, tgt)) return null;
+  // 経路探索は重いので、探し直すのは 1.5 秒ごとか、行き先が大きく変わったときだけ（最短でも 0.4 秒あける）
+  // 探している途中なら少し進める（その間は前の道をたどる）。1回の探索で止まらないように、数フレームに分ける
+  if (b.job) {
+    const r = b.job.next();
+    if (r.done) { b.path = r.value || []; b.pathI = 0; b.job = null; }
+  } else if (b.pathCd <= 0 && (!b.path || b.pathT <= 0 || !b.pathGoal || b.pathGoal.distanceTo(tgt) > 3)) {
+    b.job = Nav.plan(b.pos, tgt); b.pathT = 1.5; b.pathCd = 0.4; b.pathGoal = tgt.clone();
+    const r = b.job.next();
+    if (r.done) { b.path = r.value || []; b.pathI = 0; b.job = null; }
   }
   if (!b.path || !b.path.length) {
     // 道が見つからない（相手が高い所など）：近くの中継地点へ。着いたら壁を登る

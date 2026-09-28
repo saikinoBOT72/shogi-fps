@@ -52,8 +52,8 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   // 手（右手はレバーと一緒に動く）・左手に込める弾
   if (opt.hand) {
     const rhand = B.part('rhand', [292, 54], lever);
-    rhand.add(handMesh(opt.hand));
-    const lh = handMesh(opt.hand, 0.8, 0.8, 0.95); lh.position.set(-0.01, -0.012, 0); lhand.add(lh);
+    const rh = handMesh(opt.hand); rh.position.x = 0.046; rhand.add(rh);
+    const lh = handMesh(opt.hand, 0.8, 0.8, 0.95); lh.position.set(-0.05, -0.012, 0); lhand.add(lh);
     const round = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.055, 6).rotateX(Math.PI / 2), toon({ color: new THREE.Color(P.kin[1]) }));
     round.position.set(0.012, 0.012, -0.04); round.name = 'round'; lhand.add(round);
     B.parts.round = round; round.visible = false;

@@ -60,8 +60,8 @@ export const WEAPONS = {
   // dmgMin〜dmg: 引き具合で変わるダメージ / drawTime: 引き切るまでの秒 / speedMin〜speedMax: 矢の速さ / drawSpread: 引きが浅いときのブレ
   bow: {
     // drag: 空気抵抗（遠くほど失速して落ちる）。引きの効き方はマイクラと同じ曲線（少し引くだけでも威力が出る）
-    name: '和弓', model: 'bow', kind: 'bow', dmgMin: 12, dmg: 58, head: 1.6, drawTime: 1.0, speedMin: 10, speedMax: 55, gravity: 20, drag: 0.6,
-    rate: 0.45, spread: 0.002, drawSpread: 0.03, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    name: '和弓', model: 'bow', kind: 'bow', dmgMin: 12, dmg: 58, head: 1.6, drawTime: 0.75, speedMin: 16, speedMax: 62, gravity: 15, drag: 0.6,
+    rate: 0.15, spread: 0.002, drawSpread: 0.03, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.012, air: 0.03, ads: 0.6, mag: 1, reload: 0.45, auto: false, recoil: 0.012, falloff: [999, 1000, 1], pref: 16,
   },
   // 1発が重い6連発。空中でもほとんどブレない（桂向け）
@@ -71,7 +71,7 @@ export const WEAPONS = {
   },
   // 覗き込むとスコープ（zoom: 覗いたときの視野）。覗かないとほぼ当たらない
   sniper: {
-    name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1.5, adsSpeed: 5, spread: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1, adsSpeed: 10, spread: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.03, air: 0.08, ads: 0.02, zoom: 22, mag: 5, reload: 2.4, auto: false, recoil: 0.07, falloff: [999, 1000, 1], pref: 26,
   },
   // 万能の連射銃（王向け）
@@ -87,7 +87,7 @@ export const WEAPONS = {
   },
   // 近いほど強い。8粒 × 8 ダメージ
   shotgun: {
-    name: 'M870', model: 'm870', dmg: 8, pellets: 8, head: 1.3, rate: 0.85, spread: 0.055, bloomShot: 0.01, bloomMax: 0.02, bloomRecover: 0.1,
+    name: 'M870', model: 'm870', dmg: 9, pellets: 8, head: 1.3, rate: 0.7, spread: 0.055, bloomShot: 0.01, bloomMax: 0.02, bloomRecover: 0.1,
     move: 0.01, air: 0.025, ads: 0.7, mag: 6, reload: 2.2, auto: false, recoil: 0.06, falloff: [7, 20, 0.25], pref: 6,
   },
 };
@@ -128,8 +128,8 @@ export const SKILLS = {
   rally: { name: '王の意地', type: 'heal', key: 'KeyE', cooldown: 14, duration: 2, amount: 60, damageTaken: 0.7,
     help: '2秒でHPを60回復・その間の被ダメ0.7倍' },
   // 守りの構え：将棋盤を盾にして、前からのダメージを減らす。構え中は遅く、撃つと解除
-  guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 9, duration: 2.5, damageTaken: 0.25, slow: 0.55,
-    help: '盾を構えて前からの被ダメ1/4・撃つと解除' },
+  guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 9, duration: 2.5, damageTaken: 0.1, slow: 0.55,
+    help: '盾を構えて前からの被ダメ1/10・撃つと解除' },
 };
 export const skillType = e => SKILLS[e.def.skill].type;
 export const DIFFS = {

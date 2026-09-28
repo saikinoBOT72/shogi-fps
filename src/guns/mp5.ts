@@ -52,8 +52,8 @@ export function buildMP5(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('detail', S.box(272, 294, 112, 124, 6, -29), handle);
 
   if (opt.hand) {
-    const rh = handMesh(opt.hand); rh.position.copy(S.at(46, 14, 4)); B.root.add(rh);
-    lhand.add(handMesh(opt.hand, 0.8, 0.95, 0.85));
+    const rh = handMesh(opt.hand); rh.position.copy(S.at(46, 14, 44)); B.root.add(rh);
+    const lh = handMesh(opt.hand, 0.8, 0.95, 0.85); lh.position.x = -0.045; lhand.add(lh);
   }
   const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(337, 100));
   const eject = new THREE.Object3D(); eject.position.copy(S.at(200, 100, 15)); B.root.add(eject);

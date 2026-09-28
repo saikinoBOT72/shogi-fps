@@ -60,7 +60,7 @@ export function buildYumi(opt: { hand?: THREE.Material } = {}) {
   // 手（握る手・引く手）
   let pull = null;
   if (opt.hand) {
-    const hand = new THREE.Mesh(new THREE.IcosahedronGeometry(0.066, 0), opt.hand); hand.scale.set(1.0, 1.25, 1.05); hand.position.set(0, 0.01, 0); bow.add(hand);
+    const hand = new THREE.Mesh(new THREE.IcosahedronGeometry(0.066, 0), opt.hand); hand.scale.set(1.0, 1.25, 1.05); hand.position.set(-0.05, 0.01, 0); bow.add(hand);
     pull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.058, 0), opt.hand); bow.add(pull);
   }
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, ARROW_Y, -0.8); bow.add(muzzle);
@@ -74,7 +74,7 @@ export function buildYumi(opt: { hand?: THREE.Material } = {}) {
     strPos.set([0, tipU.y * (1 - 0.04 * k), tipU.z * s, 0.018, ARROW_Y, nz, 0, tipL.y * (1 - 0.04 * k), tipL.z * s]);
     strGeo.attributes.position.needsUpdate = true;
     arrow.position.z = nz;
-    if (pull) pull.position.set(0.02, ARROW_Y - 0.02, nz + 0.03);
+    if (pull) pull.position.set(0.062, ARROW_Y - 0.02, nz + 0.03);
   }
   setDraw(0);
 

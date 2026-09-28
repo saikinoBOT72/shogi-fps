@@ -87,10 +87,10 @@ export function buildDeagle(opt: GunOpt = {}) {
   if (opt.hand) {
     const handGeo = new THREE.IcosahedronGeometry(0.066, 0);
     const rh = new THREE.Mesh(handGeo, opt.hand);
-    rh.scale.set(0.72, 0.95, 0.8); rh.position.copy(S.at(34, 46, 3)); rh.castShadow = true;
+    rh.scale.set(0.72, 0.95, 0.8); rh.position.copy(S.at(34, 46, 40));   // 右手は銃の右側に添える rh.castShadow = true;
     B.root.add(rh);
     lhand = B.part('lhand', [30, -30], mag);
-    const lh = new THREE.Mesh(handGeo, opt.hand); lh.scale.set(0.8, 0.7, 0.8); lhand.add(lh);
+    const lh = new THREE.Mesh(handGeo, opt.hand); lh.scale.set(0.8, 0.7, 0.8); lh.position.x = -0.04; lhand.add(lh);
     lhand.visible = false;
   }
   B.finish();

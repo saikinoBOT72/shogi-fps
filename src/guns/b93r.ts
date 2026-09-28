@@ -50,8 +50,8 @@ export function buildB93R(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('frame', S.box(-29, 37, -34, -28, 28), mag);
 
   if (opt.hand) {
-    const rh = handMesh(opt.hand, 0.72, 0.95, 0.8); rh.position.copy(S.at(28, 36, 3)); B.root.add(rh);
-    lhand.add(handMesh(opt.hand, 0.7, 0.85, 0.8));
+    const rh = handMesh(opt.hand, 0.72, 0.95, 0.8); rh.position.copy(S.at(28, 36, 40)); B.root.add(rh);
+    const lh = handMesh(opt.hand, 0.7, 0.85, 0.8); lh.position.x = -0.036; lhand.add(lh);
   }
   const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(244, 102));
   const eject = new THREE.Object3D(); eject.position.copy(S.at(120, 112, 10)).sub(slide.userData.pivotAt); slide.add(eject);

@@ -40,8 +40,8 @@ export function buildM79(opt: { skin?: string; hand?: THREE.Material } = {}) {
 
   // 手・左手の40mm弾
   if (opt.hand) {
-    const rh = handMesh(opt.hand); rh.position.copy(S.at(282, 66, 4)); B.root.add(rh);
-    lhand.add(handMesh(opt.hand, 0.85, 0.8, 1.0));
+    const rh = handMesh(opt.hand); rh.position.copy(S.at(282, 66, 48)); B.root.add(rh);
+    const lh = handMesh(opt.hand, 0.85, 0.8, 1.0); lh.position.x = -0.056; lhand.add(lh);
     const round = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.06, 8).rotateX(Math.PI / 2), toon({ color: new THREE.Color(P.kin[1]) }));
     const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.02, 0.04, 8).rotateX(-Math.PI / 2), toon({ color: new THREE.Color(P.moegi[0]) }));

@@ -46,8 +46,8 @@ export function buildM870(opt: { skin?: string; hand?: THREE.Material } = {}) {
 
   // 手・左手に込める弾
   if (opt.hand) {
-    const rh = handMesh(opt.hand); rh.position.copy(S.at(272, 66, 4)); B.root.add(rh);
-    lhand.add(handMesh(opt.hand, 0.85, 0.8, 1.0));
+    const rh = handMesh(opt.hand); rh.position.copy(S.at(272, 66, 46)); B.root.add(rh);
+    const lh = handMesh(opt.hand, 0.85, 0.8, 1.0); lh.position.x = -0.052; lhand.add(lh);
     const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.0105, 0.0105, 0.065, 8).rotateX(Math.PI / 2), toon({ color: new THREE.Color(P.shu[1]) }));
     shell.position.set(0, 0.03, -0.03); lhand.add(shell);
     B.parts.shell = shell; shell.visible = false;

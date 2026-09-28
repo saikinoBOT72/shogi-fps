@@ -57,8 +57,8 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
 
   // 手
   if (opt.hand) {
-    const rh = handMesh(opt.hand); rh.position.copy(S.at(316, 18, 4)); B.root.add(rh);
-    const lh = handMesh(opt.hand, 0.8, 0.8, 0.95); lh.position.set(-0.012, -0.01, 0); lhand.add(lh);
+    const rh = handMesh(opt.hand); rh.position.copy(S.at(316, 18, 44)); B.root.add(rh);
+    const lh = handMesh(opt.hand, 0.8, 0.8, 0.95); lh.position.set(-0.048, -0.01, 0); lhand.add(lh);
   }
 
   const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(884, 100));
