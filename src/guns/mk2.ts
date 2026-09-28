@@ -29,12 +29,12 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('frame', S.extrude([[262, 70], [262, 104], [270, 110], [440, 110], [450, 104], [450, 70]], 26, { bevel: 2 }));
   B.add('bore', S.box(372, 410, 78, 90, 0.8, 13.3));
   // 銃身（八角）・筒型弾倉・銃身バンド・照星・銃口
-  B.add('barrel', S.rod(450, 960, 100, 9, 8));
-  B.add('barrel', S.rod(450, 905, 80, 7, 8));
-  B.add('frame', S.rod(905, 915, 80, 8, 8));
-  B.add('frame', S.box(732, 746, 70, 110, 24));
-  B.add('detail', S.extrude([[930, 106], [930, 116], [944, 118], [948, 112], [948, 106]], 5, { bevel: 0.6 }));
-  B.add('bore', S.rod(960, 961.8, 100, 4.5, 8));
+  B.add('barrel', S.rod(450, 1030, 100, 9, 8));
+  B.add('barrel', S.rod(450, 745, 80, 7, 8));
+  B.add('frame', S.rod(745, 755, 80, 8, 8));
+  B.add('frame', S.box(726, 742, 70, 110, 24));
+  B.add('detail', S.extrude([[1000, 106], [1000, 116], [1014, 118], [1018, 112], [1018, 106]], 5, { bevel: 0.6 }));
+  B.add('bore', S.rod(1030, 1031.8, 100, 4.5, 8));
   // スコープと台
   B.add('slide', S.rod(300, 560, 142, 12, 10));
   B.add('slide', S.rod(290, 330, 142, 16, 10));
@@ -59,7 +59,7 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
     B.parts.round = round; round.visible = false;
   }
 
-  const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(963, 100));
+  const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(1033, 100));
   const eject = new THREE.Object3D(); eject.position.copy(S.at(400, 114, 4)); B.root.add(eject);
   hammer.rotation.x = COCK;
 
@@ -111,7 +111,7 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   };
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'mokume',
-    info: { name: 'マークスマン Mk2', real: '全長 約960mm・銃身 510mm（レバーアクション）', reload: 2.4 },
+    info: { name: 'マークスマン Mk2', real: '全長 約1030mm・銃身 580mm（レバーアクション）', reload: 2.4 },
     vm: { scale: 0.95, yaw: -0.3, hip: new THREE.Vector3(0.17, -0.18, -0.28), ads: new THREE.Vector3(0.11, -0.22, -0.26) },
   });
 }

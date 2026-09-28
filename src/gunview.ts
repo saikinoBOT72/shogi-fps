@@ -10,7 +10,7 @@ import { buildAK47 } from './guns/ak47';
 import { buildMk2 } from './guns/mk2';
 import { buildM870 } from './guns/m870';
 import { buildMP5 } from './guns/mp5';
-const GUNS = { deagle: ['デザートイーグル', buildDeagle], ak: ['AK-47', buildAK47], mk2: ['Mk2', buildMk2], m870: ['M870', buildM870], mp5: ['MP5', buildMP5] } as const;
+const GUNS = { deagle: ['デザートイーグル', buildDeagle], ak: ['AK-47', buildAK47], mk2: ['Mk2', buildMk2], m870: ['M870', buildM870], mp5: ['MP5K', buildMP5] } as const;
 
 applyCssPalette();
 const style = document.createElement('style');
