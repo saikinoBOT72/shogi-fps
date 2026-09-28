@@ -169,6 +169,9 @@ export const KEY_ACTIONS: [string, string][] = [
 ];
 export const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', run: 'ShiftLeft', jump: 'Space', reload: 'KeyR', skill: 'KeyE', skill2: 'KeyQ', weapon1: 'Digit1', weapon2: 'Digit2', inspect: 'KeyV', fullscreen: 'KeyF' };
 (settings as any).keys = Object.assign({}, DEFAULT_KEYS, (settings as any).keys || {});
+// 開発者メニュー：hiddenMaps 未公開マップを選べる / aimKey オートエイムのキー（'' はなし）
+(settings as any).dev = Object.assign({ hiddenMaps: false, aimKey: '' }, (settings as any).dev || {});
+export const DEV_PASSWORD = '5173';
 // e.code を読みやすい名前に
 export const keyName = (code: string) => ({ Mouse1: 'ホイールボタン', Mouse3: 'マウス戻る', Mouse4: 'マウス進む', Space: 'Space', ShiftLeft: '左Shift', ShiftRight: '右Shift', ControlLeft: '左Ctrl', ControlRight: '右Ctrl', AltLeft: '左Alt', AltRight: '右Alt', Tab: 'Tab', CapsLock: 'CapsLock', Backquote: '`' } as any)[code]
   || code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'テンキー').replace(/^Arrow/, '矢印');

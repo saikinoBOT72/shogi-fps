@@ -6,6 +6,7 @@ import { SFX } from './audio';
 import { cam, sky } from './render';
 import { HIP, Particles, VM, vmCam, vmFlashLight } from './effects';
 import { act, bot, botActor, eyeOf, player, playerActor, surfOf, view } from './game';
+import { keys } from './input';
 
 // ================= カメラ・銃の動き =================
 const VAL_RAD = 0.07 * Math.PI / 180;   // VALORANT の感度 1 で 1カウントあたりに回る角度
@@ -36,6 +37,12 @@ export function updateCamera(dt, rdt) {
   }
   const canLook = (gs.state === 'fight' || (gs.state === 'countdown' && gs.stateT > 1.3)) && !p.dead;
   if (canLook) { view.yaw -= gs.mdx * sens; view.pitch = clamp(view.pitch - gs.mdy * sens, -1.52, 1.52); }
+  // オートエイム（開発者メニュー）：キーを押している間、照準を相手の頭に合わせる
+  const aimKey = (settings as any).dev.aimKey;
+  if (canLook && aimKey && keys[aimKey] && bot && !bot.dead) {
+    const from = eyeOf(p), head = new V3(bot.pos.x, bot.pos.y + bot.height * 0.88, bot.pos.z), d = head.sub(from);
+    view.yaw = Math.atan2(-d.x, -d.z); view.pitch = Math.atan2(d.y, Math.hypot(d.x, d.z));
+  }
   const swayX = clamp(-gs.mdx * 0.00035, -0.05, 0.05), swayY = clamp(gs.mdy * 0.00035, -0.05, 0.05);
   gs.mdx = 0; gs.mdy = 0;
 

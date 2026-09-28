@@ -2,12 +2,13 @@
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
-import { $, BH, C, LIGHT, PIECES, Q, TIME_LIMIT, V3, rand } from './core';
+import { $, BH, C, LIGHT, PIECES, Q, TIME_LIMIT, V3, rand, settings } from './core';
+import { MAP_LIST, playableMap, selectableMaps } from './world';
 import { SFX } from './audio';
 import { PIECE_DEPTH, boardTex, canvasTex, darkWoodTex, pieceGeo, renderer, speckle, toon } from './render';
 import { pieceSolidMats } from './physics';
 import { resetMatch } from './game';
-import { hideOverlay, keysHTML, overlay, showTitle, startMatch } from './screens';
+import { bindMapPick, hideOverlay, keysHTML, mapPickHTML, overlay, showTitle, startMatch } from './screens';
 import { Net } from './net';
 import { leave, showLobby } from './online';
 
@@ -366,14 +367,30 @@ export const BoardMode = (() => {
       showUI(false);
       SFX.play('battle');
       const mn = label(me), fn = label(foe);
-      overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
+      // ステージは攻められた（守る）側が選ぶ。CPU が守るときは、選べるマップからランダム
+      const meDef = !playerIsAttacker, done = resolve;
+      let stage = meDef ? playableMap(settings.map) : online ? null : selectableMaps()[Math.floor(Math.random() * selectableMaps().length)][0];
+      let sent = false;
+      gs.boardMap = stage;
+      const mapName = id => (MAP_LIST.find(m => m[0] === id) || [id, id])[1];
+      const draw = () => {
+        const stageHTML = meDef && !sent
+          ? mapPickHTML({ map: stage }, false, '守るあなたがステージを選ぶ') + (online ? '<button class="btn" id="bmStage">このステージで決定</button>' : '')
+          : stage ? `<p>ステージ：<b>${mapName(stage)}</b>（${meDef ? 'あなた' : '相手'}が選んだ）</p>` : '<p>相手がステージを選んでいます…</p>';
+        overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
         <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
         <p>${playerIsAttacker ? `勝てば相手の「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}` : `守り切れば攻めてきた「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}`}。負けるとあなたの「${mn}」は${me.cracked ? 'ひび入りなので割れて消える' : '取られる'}</p>
         ${me.promoted || foe.promoted ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
-        <button class="btn" id="bmFight">撃ち合い開始</button>${keysHTML()}`, true);
-      $('bmFight').onclick = e => { e.stopPropagation(); startMatch(); };
-      // 友達と対戦：おたがいこの画面に来たら、少し待って一緒に始める
-      if (online) { $('bmFight').style.display = 'none'; meWait = true; Net.send({ t: 'bwait' }); tryFight(); }
+        ${stageHTML}
+        ${online ? '' : '<button class="btn" id="bmFight">撃ち合い開始</button>'}${keysHTML()}`, true);
+        if (!online) $('bmFight').onclick = e => { e.stopPropagation(); gs.boardMap = stage; startMatch(); };
+        if (meDef && !sent) bindMapPick((k, v) => { if (k === 'map') { stage = gs.boardMap = v; draw(); } });
+        if (online && meDef && !sent) $('bmStage').onclick = e => { e.stopPropagation(); sent = true; gs.boardMap = stage; Net.send({ t: 'bstage', v: stage }); draw(); ready(); };
+      };
+      // 友達と対戦：ステージが決まって、おたがいこの画面に来たら、少し待って一緒に始める
+      const ready = () => { meWait = true; Net.send({ t: 'bwait' }); tryFight(); };
+      draw();
+      if (online && !meDef) waitNet('bstage').then(v => { if (battleDone !== done) return; stage = gs.boardMap = v; draw(); ready(); });
     });
   }
   // 撃ち合いの結果（win: プレイヤーの勝ち true / 負け false）
@@ -387,7 +404,7 @@ export const BoardMode = (() => {
       <button class="btn" id="bmBack">盤面へ戻る</button>`, true);
     $('bmBack').onclick = e => {
       e.stopPropagation();
-      gs.matchCtx = null;
+      gs.matchCtx = null; gs.boardMap = null;
       hideOverlay(); gs.state = 'board'; showUI(true);
       const r = battleDone; battleDone = null; r(attackerWon);
       setTimeout(pump, 0);
@@ -559,7 +576,7 @@ export const BoardMode = (() => {
     if (online) { close(); leave(); } else exit();
   }
   // 盤を片付ける（タイトルやロビーに移る前）
-  function close() { gs.matchCtx = null; over = true; gen++; battleDone = null; online = false; inbox = []; waiters = []; showUI(false); }
+  function close() { gs.matchCtx = null; gs.boardMap = null; over = true; gen++; battleDone = null; online = false; inbox = []; waiters = []; showUI(false); }
   // 友達と対戦を始める（部屋を作った側が先手）
   function startOnline(host) {
     start(false, true);
@@ -593,7 +610,7 @@ export const BoardMode = (() => {
     nextTurn();
   }
   function exit() {
-    gs.matchCtx = null; over = true; gen++;
+    gs.matchCtx = null; gs.boardMap = null; over = true; gen++;
     showUI(false);
     resetMatch(); showTitle();
   }

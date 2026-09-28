@@ -16,7 +16,7 @@ import { damagePlayer } from './ai';
 import { killBot } from './hud';
 import { BoardMode } from './boardmode';
 import { bindMapPick, mapPickHTML } from './screens';
-import { applyAtmos } from './world';
+import { applyAtmos, playableMap } from './world';
 
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
 const V = (a: number[]) => new V3(a[0], a[1], a[2]);
@@ -53,7 +53,7 @@ const cb = {
   code: (c: string) => waiting(`<div class="ol-code">${c}</div><p>このコードを友達に伝えてね。入ってくるのを待っています…</p>`),
   connected: () => {
     foe = { k: null, ready: false }; meReady = false; mode = 'duel';
-    if (Net.host) { room.map = settings.map; room.dark = settings.dark; Net.send({ t: 'mode', m: mode }); sendRoom(); }
+    if (Net.host) { room.map = playableMap(settings.map); room.dark = settings.dark; Net.send({ t: 'mode', m: mode }); sendRoom(); }
     applyRoom(); sendPick(); showLobby();
   },
   error: (t: string) => showOnline(t),
@@ -134,7 +134,7 @@ Net.onMsg = (m: any) => {
     case 'start': if (!Net.host) { mode = m.m || 'duel'; begin(); } break;
     case 'room': room.map = m.map; room.dark = m.dark; meReady = false; sendPick(); applyRoom(); if (inLobby) showLobby(); break;
     case 'mode': mode = m.m; meReady = false; sendPick(); if (inLobby) showLobby(); break;
-    case 'bm': case 'bp': case 'bwait': case 'bresign': BoardMode.onNet(m); break;
+    case 'bm': case 'bp': case 'bwait': case 'bresign': case 'bstage': BoardMode.onNet(m); break;
     case 'bye': leaveRoom(); lost(); break;
     case 's': snap = m; break;
     case 'fire': if (inMatch()) remoteFire(m); break;

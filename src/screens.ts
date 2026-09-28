@@ -1,6 +1,6 @@
 // タイトル・駒選択・設定・操作方法・一時停止・結果画面
 import { gs } from './state';
-import { $, DEFAULT_KEYS, DIFFS, KEY_ACTIONS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, keyName, saveSettings, settings } from './core';
+import { $, DEFAULT_KEYS, DEV_PASSWORD, DIFFS, KEY_ACTIONS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, keyName, saveSettings, settings } from './core';
 import { SFX } from './audio';
 import { requestLock } from './input';
 import { bot, botActor, player, playerActor, resetMatch, resolveFoe, stats } from './game';
@@ -9,7 +9,7 @@ import { initPips } from './hud';
 import { BoardMode } from './boardmode';
 import { Net } from './net';
 import { leave, resetNetMatch, showLobby, showOnline } from './online';
-import { MAP_LIST, applyAtmos } from './world';
+import { MAP_LIST, applyAtmos, playableMap, selectableMaps } from './world';
 
 // ================= 共通 =================
 export function overlay(html, dim?) {
@@ -49,9 +49,55 @@ function showSettings(back: () => void) {
   overlay(`<div class="screen">
     <h2 class="h">設定</h2>
     ${settingsHTML()}
-    <div class="menu"><button class="btn sub" id="back">戻る</button></div>
+    <div class="menu"><button class="btn sub" id="devBtn">開発者</button><button class="btn sub" id="back">戻る</button></div>
   </div>`, true);
   bindSettings();
+  on('devBtn', () => showDevLogin(() => showSettings(back)));
+  on('back', back);
+}
+
+// ================= 開発者メニュー（パスワードで開く） =================
+function showDevLogin(back: () => void) {
+  overlay(`<div class="screen">
+    <h2 class="h">開発者メニュー</h2>
+    <div class="panel form"><div class="row"><span>パスワード</span><input id="devPw" type="password" style="width:9em"></div><p class="note" id="devErr"></p></div>
+    <div class="menu"><button class="btn" id="devOk">開く</button><button class="btn sub" id="back">戻る</button></div>
+  </div>`, true);
+  const pw = $('devPw'); pw.focus();
+  const ok = () => { if (pw.value === DEV_PASSWORD) showDevMenu(back); else { $('devErr').textContent = 'パスワードが違います'; pw.value = ''; } };
+  pw.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') ok(); };
+  pw.onclick = e => e.stopPropagation();
+  on('devOk', ok);
+  on('back', back);
+}
+function showDevMenu(back: () => void) {
+  const D = (settings as any).dev;
+  const seg = (id, cur) => `<div class="seg" id="${id}">${[['1', 'ON'], ['0', 'OFF']].map(([k, n]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  overlay(`<div class="screen">
+    <h2 class="h">開発者メニュー</h2>
+    <div class="panel form">
+      <div class="row"><span>未公開マップ<small>オンにすると選べる（${MAP_LIST.filter(m => m[2]).map(m => m[1]).join('・')}）</small></span>${seg('devMaps', D.hiddenMaps ? '1' : '0')}</div>
+      <div class="row"><span>オートエイム<small>押している間、相手の頭に照準が吸い付く</small></span>
+        <span><button class="kbd-btn" id="devAim">${D.aimKey ? keyName(D.aimKey) : 'なし'}</button> <button class="small" id="devAimClear">なしにする</button></span></div>
+    </div>
+    <div class="menu"><button class="btn sub" id="back">戻る</button></div>
+  </div>`, true);
+  document.querySelectorAll<HTMLElement>('#devMaps button').forEach(b => b.onclick = e => { e.stopPropagation(); D.hiddenMaps = b.dataset.v === '1'; saveSettings(); showDevMenu(back); });
+  on('devAimClear', () => { D.aimKey = ''; saveSettings(); showDevMenu(back); });
+  // キー設定と同じ：押してから割り当てたいキー（またはホイール・横のボタン）を押す。ESC でやめる
+  on('devAim', () => {
+    if (gs.rebinding) return;
+    gs.rebinding = true; $('devAim').textContent = 'キーを押す…';
+    const done = (code: string) => {
+      removeEventListener('keydown', onKey, true); removeEventListener('mousedown', onMouse, true);
+      gs.rebinding = false;
+      if (code !== 'Escape') { D.aimKey = code; saveSettings(); }
+      showDevMenu(back);
+    };
+    const onKey = (ev: KeyboardEvent) => { ev.preventDefault(); ev.stopPropagation(); done(ev.code); };
+    const onMouse = (ev: MouseEvent) => { if (ev.button === 0 || ev.button === 2) return; ev.preventDefault(); ev.stopPropagation(); done('Mouse' + ev.button); };
+    setTimeout(() => { addEventListener('keydown', onKey, true); addEventListener('mousedown', onMouse, true); }, 0);
+  });
   on('back', back);
 }
 
@@ -132,9 +178,12 @@ export function showTitle() {
 }
 
 // マップ（v: { map }。dis: 選べない＝部屋を作った人が決める）。山寺の暗さは「こわい」で固定
-export function mapPickHTML(v, dis = false) {
+// 未公開のマップは、開発者メニューでオンにした人だけに出る（相手が選んだときは、選べない表示のまま見える）
+export function mapPickHTML(v, dis = false, title = 'マップ') {
+  const list = MAP_LIST.filter(m => selectableMaps().includes(m) || (dis && m[0] === v.map));
+  const cur = dis ? v.map : playableMap(v.map);
   const seg = (id, items, cur) => `<div class="seg" id="${id}">${items.map(([k, n]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}"${dis ? ' disabled' : ''}>${n}</button>`).join('')}</div>`;
-  return `<div class="panel form"><div class="row"><span>マップ</span>${seg('mapSeg', MAP_LIST, v.map)}</div></div>`;
+  return `<div class="panel form"><div class="row"><span>${title}</span>${seg('mapSeg', list, cur)}</div></div>`;
 }
 export function bindMapPick(onPick: (key: 'map' | 'dark', v: string) => void) {
   for (const [id, key] of [['mapSeg', 'map'], ['darkSeg', 'dark']] as const)
@@ -147,7 +196,7 @@ function showSolo() {
     <h2 class="h">一人で遊ぶ</h2>
     ${mapPickHTML(settings)}
     <div class="modes">
-      <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは撃ち合い</small></button>
+      <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは撃ち合い（ステージは守る側が選ぶ）</small></button>
       <button class="mode" id="goDuel"><b>撃ち合い</b><small>好きな駒どうしで 1 対 1</small></button>
     </div>
     <div class="menu"><button class="btn sub" id="back">戻る</button></div>

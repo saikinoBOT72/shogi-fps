@@ -96,7 +96,7 @@ export const PHYS = (() => {
     if (q) body.quaternion.copy(q);
     world.addBody(body);
     scene.add(obj);
-    const it: any = { body, obj, pitch, domino, map: placing, off: false, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
+    const it: any = { kind, body, obj, pitch, domino, map: placing, off: false, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
     kinds[kind].items.push(it);
     body.addEventListener('collide', e => {
       if (e.body.collisionFilterGroup === 4) it.pushedAt = world.time;   // 体に押された
@@ -336,6 +336,21 @@ export const PHYS = (() => {
     pool.push(it);
   }
   let poolI = 0;
+  // 体を止める小物：重い物（卓球台・石灯籠・荷車・米俵・賽銭箱など）と木箱（マップの木箱もスキルの木箱も）。上にも乗れる
+  // これらは体では押せない（体の見えない体とはぶつからない）。軽い物は今まで通り押しのけて進む
+  const HEAVY = 20;
+  for (const it of items) if (it.body.mass >= HEAVY || it.kind === 'crate') { it.heavy = true; it.body.collisionFilterMask = 1 | 2; it.col = { kind: 'box', min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 }, walk: true, surf: 'wood' }; }
+  const solid = [];   // 今のマップで体を止める小物の箱（毎フレーム作り直す）
+  function updateSolid() {
+    solid.length = 0;
+    for (const it of items) {
+      if (!it.heavy || it.off || it.body.position.y < -50 || (it.pool && !it.spawned)) continue;
+      const b = it.body; b.updateAABB();
+      const c = it.col; c.min.x = b.aabb.lowerBound.x; c.min.y = b.aabb.lowerBound.y; c.min.z = b.aabb.lowerBound.z;
+      c.max.x = b.aabb.upperBound.x; c.max.y = b.aabb.upperBound.y; c.max.z = b.aabb.upperBound.z;
+      solid.push(c);
+    }
+  }
   const insts = [];
   for (const k of Object.values(kinds)) {
     if (!k.items.length) continue;
@@ -421,7 +436,9 @@ export const PHYS = (() => {
         if (wl > 4) w.scale(4 / wl, w);
       }
       sync();
+      updateSolid();
     },
+    solid,
     // 弾が当たった所を押す
     hit(it, point, dir, power) {
       const b = it.body; b.wakeUp(); it.forceAt = world.time;
@@ -457,12 +474,13 @@ export const PHYS = (() => {
     spawnBox(x, y, z, ry) {
       const it = pool[poolI = (poolI + 1) % pool.length], b = it.body;
       if (!world.bodies.includes(b)) world.addBody(b);
+      it.spawned = true;
       b.position.set(x, y + cs / 2 + 0.05, z); b.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), ry);
       b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0); b.wakeUp();
       sync();
     },
     reset() {
-      for (const it of pool) if (world.bodies.includes(it.body)) world.removeBody(it.body);
+      for (const it of pool) { if (world.bodies.includes(it.body)) world.removeBody(it.body); it.spawned = false; }
       for (const it of items) {
         if (it.off) continue;
         const b = it.body;
@@ -471,7 +489,7 @@ export const PHYS = (() => {
         b.force.set(0, 0, 0); b.torque.set(0, 0, 0);
         b.sleep();
       }
-      sync();
+      sync(); updateSolid();
     },
   };
 })();

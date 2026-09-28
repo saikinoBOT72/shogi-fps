@@ -6,7 +6,7 @@ import { gs } from './state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, scene } from './render';
-import { LV, SPAWN, WATER_Y, colTop, colliders, floorBelow, groundAt, useMap } from './world';
+import { LV, SPAWN, WATER_Y, colTop, colliders, floorBelow, groundAt, playableMap, useMap } from './world';
 import { PHYS, blockers, physOf } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
@@ -60,7 +60,8 @@ export function resolveFoe() {
 }
 
 export function resetMatch(foeType?) {
-  useMap(gs.netMap || settings.map);   // オンラインでは部屋を作った人が選んだマップ
+  // 将棋モードでは守る側が選んだマップ、オンラインでは部屋を作った人が選んだマップ（未公開でもそのまま遊べる）
+  useMap(gs.boardMap || gs.netMap || playableMap(settings.map));
   const myType = gs.matchCtx ? gs.matchCtx.myType : PIECES[settings.myPiece] ? settings.myPiece : 'P';
   foeType = foeType || (gs.matchCtx && gs.matchCtx.foeType) || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
   ensureActors(myType, foeType);
@@ -100,7 +101,8 @@ export function collide(e) {
   const R = e.radius, wasGround = e.onGround;
   e.onGround = false; e.wallN = null;
   if (e.pos.y <= GROUND) { e.pos.y = GROUND; if (e.vy < 0) e.vy = 0; e.onGround = true; e.surf = 'grass'; }
-  for (const c of colliders) {
+  // 動かない障害物に加えて、体を止める重い小物（スキルの木箱も）とも当たる
+  for (const c of PHYS.solid.length ? colliders.concat(PHYS.solid) : colliders) {
     let cx, cz, top, bottom;
     if (c.kind !== 'cyl') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = colTop(c, cx, cz); bottom = c.min.y; }
     else {

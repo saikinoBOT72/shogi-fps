@@ -147,7 +147,12 @@ export const LV: any = {};
 export const SPAWN = { x: -34, z: 9 };
 export let WATER_Y = GROUND + 0.4;
 export let mapId = '';
-export const MAP_LIST = [['valley', '谷と二つの丘'], ['temple', '山寺の石段'], ['onsen', '雪の温泉街']];
+// 3つ目の値が true のマップは未公開（開発者メニューで「未公開マップ」をオンにした人だけ選べる）
+export const MAP_LIST: [string, string, boolean?][] = [['valley', '谷と二つの丘'], ['temple', '山寺の石段'], ['onsen', '雪の温泉街', true]];
+export const devMapsOn = () => !!(settings as any).dev?.hiddenMaps;
+export const selectableMaps = () => MAP_LIST.filter(m => !m[2] || devMapsOn());
+// 自分で選ぶマップ：未公開のマップを選んだままオフにしたときは、最初のマップにする
+export const playableMap = (id: string) => (selectableMaps().some(m => m[0] === id) ? id : 'valley');
 export const onMapChange: ((id: string) => void)[] = [];   // 切り替えたときに呼ぶ（経路探索・物理）
 const MAPS: Record<string, any> = {};
 export const mapLV = (id: string) => MAPS[id].lv;
