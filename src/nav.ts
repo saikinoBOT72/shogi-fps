@@ -1,6 +1,6 @@
 // 経路探索：地面を 1m のマス目にして、段差（階段でつながった所だけ）を考えながら A* で道を探す
 import { GROUND, H, V3 } from './core';
-import { colliders, onMapChange } from './world';
+import { colTop, colliders, onMapChange } from './world';
 
 export const Nav = (() => {
   const N = 2 * H, off = H, R = 0.5, STEP = 0.45;   // STEP: 歩いて上り下りできる段差
@@ -8,11 +8,11 @@ export const Nav = (() => {
   // 床として使うのは地面から立っている面だけ（屋根や吊り橋のような宙に浮いた床は、下の地面を隠さないように外す）
   // マスの高さ（盤・段・階段の上面）と、通れないマス。マップを切り替えたら作り直す
   function build() {
-  const walkC = colliders.filter(c => c.walk && c.kind === 'box' && c.min.y <= GROUND + 0.05), solidC = colliders.filter(c => !c.walk);
+  const walkC = colliders.filter(c => c.walk && c.kind !== 'cyl' && c.min.y <= GROUND + 0.05), solidC = colliders.filter(c => !c.walk);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = i - off + 0.5, z = j - off + 0.5;
     let h = GROUND;
-    for (const c of walkC) if (x >= c.min.x && x <= c.max.x && z >= c.min.z && z <= c.max.z) h = Math.max(h, c.max.y);
+    for (const c of walkC) if (x >= c.min.x && x <= c.max.x && z >= c.min.z && z <= c.max.z) h = Math.max(h, colTop(c, x, z));
     hgt[j * N + i] = h;
     let b = Math.abs(x) > H - 1 || Math.abs(z) > H - 1;
     if (!b) for (const c of solidC) {

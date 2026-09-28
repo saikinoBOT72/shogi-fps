@@ -4,10 +4,11 @@ import * as THREE from 'three';
 import { P } from './palette';
 import { C, V3, clamp, rand } from './core';
 import { SFX } from './audio';
-import { flatGeo, scene, toon } from './render';
-import { PHYS, blockers } from './physics';
+import { flatGeo, pieceGeo, scene, toon } from './render';
+import { PHYS, blockers, pieceSolidMats } from './physics';
 import { Particles } from './effects';
-import { act, bot, damageBot, eyeOf, facingOf, hasLOS, player, ray, skillDamageMul, view } from './game';
+import { act, bot, castShot, damageBot, eyeOf, facingOf, hasLOS, player, ray, skillDamageMul, view } from './game';
+import { floorBelow } from './world';
 import { cam } from './render';
 import { gs } from './state';
 import { killBot } from './hud';
@@ -160,7 +161,7 @@ function toss(kind, e, aim, sk) {
   throws.push({ kind, owner: e, sk, m, pos, vel: aim.clone().multiplyScalar(sk.speed).add(new V3(0, 3, 0)), t: 0, stuck: false });
   SFX.play(kind === 'flash' ? 'skFlashPin' : 'skC4', e.isBot ? pos : null);
 }
-// 閃光：見ていた駒の目をくらませる（向き・距離・物陰で強さが変わる）
+// 閃光（VALORANT 方式）：炸裂した瞬間に閃光弾が画面の中に見えていたら目がくらむ。画面の外なら平気。遠いほど少し短い
 function flashAt(p, sk) {
   for (let i = 0; i < 26; i++) Particles.glow(p.clone().add(new V3(rand(-1, 1), rand(-0.5, 1), rand(-1, 1))), P.shiro[2]);
   SFX.play('skFlash', p);
@@ -168,9 +169,11 @@ function flashAt(p, sk) {
     if (!e || e.dead) continue;
     const eye = eyeOf(e), d = eye.distanceTo(p);
     if (d > sk.radius || !hasLOS(eye, p, true)) continue;
-    const look = e.isBot ? facingOf(e) : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
-    const face = look.dot(p.clone().sub(eye).normalize());
-    const k = clamp((face + 0.3) / 1.3, 0.2, 1) * (1 - d / sk.radius * 0.6);
+    let onScreen;
+    if (e.isBot) onScreen = facingOf(e).dot(p.clone().sub(eye).normalize()) > 0.6;   // CPU は正面の約 ±53° を画面とみなす
+    else { const s = p.clone().project(cam); onScreen = s.z < 1 && Math.abs(s.x) <= 1.02 && Math.abs(s.y) <= 1.02; }
+    if (!onScreen) continue;
+    const k = 1 - d / sk.radius * 0.4;
     if (e.isBot) e.blindT = Math.max(e.blindT || 0, sk.blind * k);
     else gs.flash = Math.max(gs.flash || 0, sk.blind * k);
   }
@@ -236,6 +239,72 @@ function updateRings(dt) {
   }
 }
 
+// ---------- タレット歩（王）：目の前に置く動かない砲台。相手が見えたら撃つ。HP があり、撃たれると壊れる ----------
+// 自分のタレットの弾だけが本当のダメージになる（オンラインの相手のタレットは見た目だけ。ダメージは相手の画面から届く）
+const turrets = [];
+const turretW = { dmg: 8, head: 1, falloff: [15, 35, 0.6], model: 'pistol' };
+function makeTurret() {
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.3, 8), toon({ color: C(P.sumi[1]) })); base.position.y = 0.15; g.add(base);
+  const head = new THREE.Group(); head.name = 'head'; head.position.y = 0.3; g.add(head);
+  // 駒の形の原点は真ん中あたりなので、下の端が台の上にくるように持ち上げる（前を向くよう裏返す）
+  if (!pieceGeo.boundingBox) pieceGeo.computeBoundingBox();
+  const bb = pieceGeo.boundingBox, k = 0.75, ph = (bb.max.y - bb.min.y) * k;
+  const piece = new THREE.Mesh(pieceGeo, pieceSolidMats('歩')); piece.scale.setScalar(k); piece.rotation.y = Math.PI;
+  piece.position.set((bb.max.x + bb.min.x) / 2 * k, -bb.min.y * k, (bb.max.z + bb.min.z) / 2 * k); head.add(piece);
+  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.6), toon({ color: C(P.sumi[0]) })); gun.position.set(0, ph * 0.7, -0.35); head.add(gun);
+  g.traverse((o: any) => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+function placeTurret(e, dir, sk) {
+  for (const T of turrets.filter(T => T.owner === e)) breakTurret(T, false);   // 1人1台まで
+  const d = dir.clone().setY(0).normalize(), p = e.pos.clone().addScaledVector(d, 1.6);
+  p.y = floorBelow(p.x, p.z, e.pos.y);
+  const m = track(makeTurret()); m.position.copy(p); m.rotation.y = Math.atan2(-d.x, -d.z);
+  const T = { owner: e, sk, m, pos: p, hp: sk.hp, cd: 0.6, seen: 0 };
+  m.traverse((o: any) => { if (o.isMesh) { o.userData.turret = T; blockers.push(o); } });
+  turrets.push(T);
+  Particles.dust(p, 8, 1); SFX.play('skBoxes', e.isBot ? p : null);
+}
+function breakTurret(T, fx = true) {
+  const i = turrets.indexOf(T); if (i < 0) return;
+  turrets.splice(i, 1); T.m.visible = false;
+  T.m.traverse((o: any) => { const k = blockers.indexOf(o); if (k >= 0) blockers.splice(k, 1); });
+  if (fx) { Particles.wood(T.pos.clone().add(new V3(0, 0.6, 0)), new V3(0, 1, 0), 18, 1.2); SFX.play('hit', T.pos); }
+}
+// 撃たれた（by: 撃った側）。オンラインで自分が相手のタレットを撃ったら、相手にも知らせる
+function damageTurret(T, dmg, by, fromNet = false) {
+  if (!T || by === T.owner || !turrets.includes(T)) return;
+  if (Net.on && T.owner === player && !fromNet) return;   // オンラインでは、自分のタレットへのダメージは相手の画面から届いた分だけ
+  T.hp -= dmg;
+  Particles.wood(T.pos.clone().add(new V3(0, 0.6, 0)), new V3(0, 1, 0), 4, 0.5);
+  if (Net.on && by === player) Net.send({ t: 'thit', dmg: Math.round(dmg * 10) / 10 });
+  if (T.hp <= 0) breakTurret(T);
+}
+function updateTurrets(dt) {
+  for (const T of [...turrets]) {
+    const t = foeOf(T.owner), head = T.m.getObjectByName('head');
+    const muzzle = T.pos.clone().add(new V3(0, 0.85, 0));
+    const aimAt = t && !t.dead ? chest(t) : null;
+    const dir = aimAt && aimAt.clone().sub(muzzle).normalize(), from = aimAt && muzzle.clone().addScaledVector(dir, 0.8);   // 自分の形の外から
+    const sees = aimAt && muzzle.distanceTo(aimAt) < T.sk.range && hasLOS(from, aimAt);
+    T.seen = sees ? T.seen + dt : 0;
+    if (sees) {   // 相手の方へ向く
+      const want = Math.atan2(-(aimAt.x - T.pos.x), -(aimAt.z - T.pos.z)) - T.m.rotation.y;
+      head.rotation.y += Math.atan2(Math.sin(want - head.rotation.y), Math.cos(want - head.rotation.y)) * Math.min(1, dt * 10);
+    }
+    T.cd -= dt;
+    if (!sees || T.seen < 0.4 || T.cd > 0) continue;   // 見つけてから少し待って撃つ
+    T.cd = T.sk.rate;
+    const r = castShot({ w: turretW, isBot: T.owner.isBot, pos: T.pos }, t, from, from, dir, T.sk.spread, true);
+    SFX.play('shot', from, 'pistol');
+    if (r.dmg > 0) {
+      if (t === bot) damageBot({ dmg: r.dmg, head: r.head, point: r.point });
+      else if (!Net.on) damagePlayer(r.dmg, T.pos);
+    }
+  }
+}
+
 // ---------- 鉤縄：狙った先（壁・床）を探す。縄の見た目 ----------
 function grappleTarget(e, aim, range) {
   const from = eyeOf(e), h = hitWorld(from, from.clone().addScaledVector(aim, range));
@@ -261,13 +330,17 @@ function updateRopes() {
 }
 
 export const Gadgets = {
-  throwC4, detonate, launch, toss, shockwave, grappleTarget,
+  throwC4, detonate, launch, toss, shockwave, grappleTarget, placeTurret, damageTurret,
+  turretOfHit: (o: any) => o && o.userData && o.userData.turret,
+  myTurret: () => turrets.find(T => T.owner === player),
+  // 爆風：範囲内の相手のタレットを壊す（by: 爆発させた側）
+  blastTurrets(pos, radius, dmg, by) { for (const T of [...turrets]) { const d = T.pos.distanceTo(pos); if (d < radius + 0.5) damageTurret(T, dmg * (1 - d / (radius + 0.5) * 0.5), by); } },
   c4Of: e => c4s.find(c => c.owner === e),
   ctrlOf: e => missiles.find(m => m.owner === e && m.ctrl),
   // 操作をやめる（ミサイルはそのまままっすぐ飛ぶ）
   release(e) { const M = missiles.find(m => m.owner === e && m.ctrl); if (M) M.ctrl = false; },
-  update(dt) { updateRopes(); if (dt <= 0) return; updateC4(dt); updateMissiles(dt); updateThrows(dt); updateRings(dt); },
-  clear() { reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; throws.length = 0; rings.length = 0; gs.flash = 0; },
+  update(dt) { updateRopes(); if (dt <= 0) return; updateC4(dt); updateMissiles(dt); updateThrows(dt); updateRings(dt); updateTurrets(dt); },
+  clear() { [...turrets].forEach(T => breakTurret(T, false)); reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; throws.length = 0; rings.length = 0; gs.flash = 0; },
   // リプレイ用：出ている物の位置・大きさ・濃さ
   snapshot: () => reg.map((o, i) => (o.visible ? [i, o.position.x, o.position.y, o.position.z, o.rotation.x, o.rotation.y, o.rotation.z, o.scale.x, opOf(o)] : null)).filter(Boolean),
   restore(s) {

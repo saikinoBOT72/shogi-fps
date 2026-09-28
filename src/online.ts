@@ -161,6 +161,7 @@ Net.onMsg = (m: any) => {
       if (m.kv) { player.vel.x = m.kv[0]; player.vel.z = m.kv[2]; player.vy = m.kv[1]; player.onGround = false; player.airT = 1; player.knockT = 0.6; }
       break;
     case 'dead': if (inMatch() && !bot.dead) { bot.hp = 0; killBot(); } break;
+    case 'thit': if (inMatch()) Gadgets.damageTurret(Gadgets.myTurret(), m.dmg, bot, true); break;   // 自分のタレット歩が撃たれた
   }
 };
 // 相手が撃った：銃口から弾の行き先へ光跡

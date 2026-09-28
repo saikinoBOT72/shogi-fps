@@ -159,7 +159,7 @@ export function updateHUD(dt) {
     if (changed('skr' + i, ready)) el.classList.toggle('ready', ready);
     const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak', 'volley'].includes(sk.type);   // 鉤縄・投げ物はすぐ終わるので出さない
     const name = sk.type === 'c4' && Gadgets.c4Of(p) ? 'C4 起爆' : sk.type === 'missile' && Gadgets.ctrlOf(p) ? '戻る'
-      : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
+      : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' || sk.type === 'buff' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
     const nm = el.querySelector('.nm'), txt = name + (max > 1 ? ` ×${s.charges}` : '');
     if (changed('skn' + i, txt)) nm.textContent = txt;
   });

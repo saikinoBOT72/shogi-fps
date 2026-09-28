@@ -165,7 +165,12 @@ export const VM: any = (() => {
     m.g.visible = false; root.add(m.g);
     if (k === 'bow') m.g.scale.setScalar(0.44); else fitViewModel(m);
   }
-  addEventListener('resize', () => { for (const [k, m] of Object.entries(models) as [string, any][]) if (k !== 'bow') fitViewModel(m); });
+  // 画面の大きさが変わったら構えを合わせ直す。銃口の光（flash）は銃の長さに数えないよう、いったん外す
+  addEventListener('resize', () => {
+    const fp = flash.parent; if (fp) fp.remove(flash);
+    for (const [k, m] of Object.entries(models) as [string, any][]) if (k !== 'bow') fitViewModel(m);
+    if (fp) fp.add(flash);
+  });
   vmScene.add(root);
   const pist = models.pistol;
   const flash = new THREE.Group();

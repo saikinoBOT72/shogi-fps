@@ -71,6 +71,7 @@ export const BoardMode = (() => {
   // ---------- 将棋のルール（成りは未実装） ----------
   const HAND_ORDER = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
   let board, hands, turn, selected, targets, lastMove, preview, busy, over, anim = null;
+  let contest = null;   // 撃ち合いの最中：{ fx, fy, tx, ty, att: 挑んだ駒 }
   let gen = 0, online = false;   // online: 友達と対戦（相手 = 1 は CPU ではなく友達。自分は必ず手前側）   // gen: 対局ごとの番号（途中でやめた対局の続きを止める）
   const inB = (x, y) => x >= 0 && x < 9 && y >= 0 && y < 9;
   const fwd = o => (o === 0 ? -1 : 1);
@@ -202,12 +203,33 @@ export const BoardMode = (() => {
 
   // ---------- 表示 ----------
   const SIZE = { K: 0.98, R: 0.93, B: 0.93, G: 0.88, S: 0.88, N: 0.84, L: 0.8, P: 0.76 };
+  // ひび（相手から取った駒）：表面に重ねる黒いひびの模様
+  const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+  const crackM = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(128, 128, (g, w) => {
+    g.strokeStyle = rgba(P.sumi[0], 0.85); g.lineCap = 'round';
+    const branch = (x, y, a, len, width, depth) => {
+      if (depth <= 0 || len < 4) return;
+      g.lineWidth = width; g.beginPath(); g.moveTo(x, y);
+      const n = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) { a += rand(-0.6, 0.6); x += Math.cos(a) * len / n; y += Math.sin(a) * len / n; g.lineTo(clampN(x, 14, w - 14), clampN(y, 14, w - 14)); }
+      g.stroke();
+      branch(x, y, a + rand(0.5, 1.1), len * 0.55, width * 0.7, depth - 1);
+      branch(x, y, a - rand(0.5, 1.1), len * 0.5, width * 0.7, depth - 1);
+    };
+    for (let k = 0; k < 3; k++) branch(w / 2 + rand(-10, 10), w / 2 + rand(-10, 10), k * 2.1 + rand(0, 1), 46, 3.2, 3);
+  }) });
   function pieceMesh(p) {
     const g = new THREE.Group(), z = SIZE[p.type];
     const m = new THREE.Mesh(pieceGeo, pieceSolidMats(label(p), p.promoted));
     m.scale.set(z * S * 0.82, z * S * 0.92, 0.3 / PIECE_DEPTH);
     m.rotation.x = -Math.PI / 2; m.position.y = 0.15; m.castShadow = true;
     g.add(m); g.rotation.y = p.owner === 1 ? Math.PI : 0;
+    if (p.cracked) {
+      m.updateMatrixWorld(true);
+      const b = new THREE.Box3().setFromObject(m), sz = b.getSize(new V3());
+      const c = new THREE.Mesh(new THREE.PlaneGeometry(sz.x * 0.8, sz.z * 0.8), crackM);
+      c.rotation.x = -Math.PI / 2; c.position.set((b.min.x + b.max.x) / 2, b.max.y + 0.004, (b.min.z + b.max.z) / 2); g.add(c);
+    }
     return g;
   }
   // 爆発四散：駒が回りながら飛び散り、火の粉が舞う
@@ -242,8 +264,15 @@ export const BoardMode = (() => {
     for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
       const p = board[y][x];
       if (!p) continue;
+      if (contest && contest.fx === x && contest.fy === y) continue;   // 挑んでいる駒は相手のマスに描く
       const g = pieceMesh(p);
       g.position.copy(sq(x, y));
+      // 撃ち合いの最中：1マスに両方の駒を並べて見せる（守る駒は左、挑んだ駒は右）
+      if (contest && contest.tx === x && contest.ty === y) {
+        g.scale.setScalar(0.72); g.position.x -= S * 0.24;
+        const a = pieceMesh(contest.att); a.scale.setScalar(0.72); a.position.copy(sq(x, y)); a.position.x += S * 0.24; a.position.y += 0.02;
+        pieceGroup.add(g, a); continue;
+      }
       g.children[0].userData.sq = [x, y];
       pieceGroup.add(g); pickables.push(g.children[0]);
       if (animMove && animMove.tx === x && animMove.ty === y) {
@@ -260,7 +289,7 @@ export const BoardMode = (() => {
       let i = 0;
       HAND_ORDER.forEach(t => {
         for (let n = 0; n < (counts[t] || 0); n++) {
-          const g = pieceMesh({ type: t, owner: o });
+          const g = pieceMesh({ type: t, owner: o, cracked: true });   // 持ち駒は相手から取った駒なので、ひび入り
           const col = i % 3, row = Math.floor(i / 3);
           const sx = o === 0 ? 1 : -1;
           g.position.set(sx * (BW / 2 + 1.4 + col * 0.8), -0.95, sx * (2.2 + row * 0.9) * (o === 0 ? 1 : 1));
@@ -339,7 +368,7 @@ export const BoardMode = (() => {
       const mn = label(me), fn = label(foe);
       overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
         <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
-        <p>${playerIsAttacker ? `勝てば相手の「${fn}」を取れる。負けるとあなたの「${mn}」を取られる` : `守り切れば攻めてきた「${fn}」を取れる。負けるとあなたの「${mn}」を取られる`}</p>
+        <p>${playerIsAttacker ? `勝てば相手の「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}` : `守り切れば攻めてきた「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}`}。負けるとあなたの「${mn}」は${me.cracked ? 'ひび入りなので割れて消える' : '取られる'}</p>
         ${me.promoted || foe.promoted ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
         <button class="btn" id="bmFight">撃ち合い開始</button>${keysHTML()}`, true);
       $('bmFight').onclick = e => { e.stopPropagation(); startMatch(); };
@@ -372,7 +401,7 @@ export const BoardMode = (() => {
     if (m.kind === 'drop') {
       const boom = m.type === 'P' && nifu(board, owner, m.tx);
       hands[owner].splice(hands[owner].indexOf(m.type), 1);
-      board[m.ty][m.tx] = { type: m.type, owner };
+      board[m.ty][m.tx] = { type: m.type, owner, cracked: true };   // 相手から取った駒：ひび入り。次に負けたら消える
       SFX.play('place');
       if (boom) {
         // 二歩：その筋の自分の駒がすべて爆発四散
@@ -392,31 +421,38 @@ export const BoardMode = (() => {
     } else {
       const p = board[m.fy][m.fx], t = board[m.ty][m.tx];
       if (t) {
+        // 挑んだ瞬間から決着まで、1マスに両方の駒を並べて見せる
+        contest = { fx: m.fx, fy: m.fy, tx: m.tx, ty: m.ty, att: p };
+        refresh(); SFX.play('place');
         const attackerWon = await battle(p, t, owner === 0);
+        contest = null;
+        // 取った駒は持ち駒になる。ただし、ひび入りの駒（前に取られてきた駒）は割れて消える
         if (attackerWon) {
-          hands[owner].push(t.type);
+          if (!t.cracked) hands[owner].push(t.type);
           board[m.ty][m.tx] = p; board[m.fy][m.fx] = null;
           if (t.type === 'K') winner = owner;
         } else {
-          hands[1 - owner].push(p.type);
+          if (!p.cracked) hands[1 - owner].push(p.type);
           board[m.fy][m.fx] = null;
           if (p.type === 'K') winner = 1 - owner;
           m = Object.assign({}, m, { lost: true });
         }
       } else {
         board[m.ty][m.tx] = p; board[m.fy][m.fx] = null;
-        SFX.play('place');
+        m = Object.assign({}, m, { quiet: true });   // 置いた音は、成るかを決めてから
       }
     }
     // 成り：敵陣に入る・敵陣から出る・敵陣の中で動いたとき（行き所がなければ必ず成る。CPUはいつも成る）
     const moved = m.kind === 'move' && !m.lost && winner === null ? board[m.ty][m.tx] : null;
+    let justPromoted = false;
     if (moved && canPromote(moved) && (inZone(owner, m.fy) || inZone(owner, m.ty))) {
       const forced = deadEnd(moved.type, owner, m.ty);
-      moved.promoted = forced || (owner === 1 ? (online ? await waitNet('bp') : true) : await askPromote(moved));
+      moved.promoted = justPromoted = forced || (owner === 1 ? (online ? await waitNet('bp') : true) : await askPromote(moved));
       if (online && owner === 0 && !forced) Net.send({ t: 'bp', v: moved.promoted });
-      if (moved.promoted) SFX.play('promo');
     }
     if (g !== gen) return;
+    if (m.quiet) SFX.play('place');   // 置いた音（成るかを決めたあと）
+    if (justPromoted) SFX.play('promo');
     lastMove = m.lost ? null : m; preview = null;
     refresh(m.lost ? null : m);
     if (winner !== null) { gameOver(winner, why); return; }
@@ -484,7 +520,7 @@ export const BoardMode = (() => {
       overlay(`<div class="res" style="font-size:46px">成りますか？</div>
         <div class="vs-line"><b class="bm-koma">${label(p)}</b><em>→</em><b class="bm-koma" style="color:var(--shu-0)">${PRO[p.type]}</b></div>
         <p>成ると盤上の動きが変わります（撃ち合いの性能はまだ元の駒のままです）</p>
-        <div class="modes"><button class="btn" id="bmPro">成る</button><button class="btn ghost-btn" id="bmNoPro">成らない</button></div>`, true);
+        <div style="display:flex;gap:14px;justify-content:center"><button class="btn" id="bmPro">成る</button><button class="btn ghost" id="bmNoPro">成らない</button></div>`, true);
       $('bmPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(true); };
       $('bmNoPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(false); };
     });
@@ -511,7 +547,7 @@ export const BoardMode = (() => {
     <div class="bm-panel bm-e"><h4>相手の持ち駒</h4><div id="bmHandE"></div></div>
     <div class="bm-panel bm-p"><h4>あなたの持ち駒（クリックで打つ）</h4><div id="bmHandP"></div></div>
     <div class="bm-btns"><button class="small" id="bmResign">投了</button></div>
-    <div class="bm-help">駒をクリック → 光ったマスへ。赤いマスは相手の駒：撃ち合いで勝てば取れる、負けると取られる</div>`;
+    <div class="bm-help">駒をクリック → 光ったマスへ。赤いマスは相手の駒：撃ち合いで勝てば取れる、負けると取られる。取った駒を打つとひび入りになり、次に負けると割れて消える</div>`;
   document.body.appendChild(ui);
   function showUI(v) { ui.style.display = v ? 'block' : 'none'; }
   $('bmResign').onclick = e => { e.stopPropagation(); if (!over && confirm('投了しますか？')) { gen++; if (online) Net.send({ t: 'bresign' }); gameOver(1, '投了'); } };

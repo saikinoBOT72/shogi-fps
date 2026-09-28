@@ -268,6 +268,10 @@ export const SKILL_AI = {
   charge(b, c, i, s) {
     if (ready(s) && c.los && c.dist > 5 && b.seen > 0.5 && (player.reloading > 0 || c.dist > c.pref + 8 / b.persona.eager)) useSkill(b, i, c.toP);
   },
+  // 身体強化：相手が遠くて詰めたいとき、または撃たれて逃げたいときに使う
+  physical(b, c, i, s) {
+    if (ready(s) && ((c.los && c.dist > c.pref + 4) || b.hurtT > 0.9)) useSkill(b, i, c.toP);
+  },
   // すり足：狙われている・撃たれたときに横へ逃げる
   step(b, c, i, s) {
     if (ready(s) && c.los && (b.hurtT > 0.9 || (c.aimedAt && Math.random() < c.dt * 3 * b.persona.eager))) useSkill(b, i, c.side);
@@ -333,6 +337,10 @@ export const SKILL_AI = {
     if (ready(s) && !c.los && b.lostT > 1.5 && c.dist > 22 && b.hp > b.def.hp * 0.4) useSkill(b, i, c.toP);
   },
   // 衝撃波：近くに来た相手を吹き飛ばす
+  // タレット歩：撃ち合いが始まったら目の前に置く
+  turret(b, c, i, s) {
+    if (ready(s) && c.los && c.dist < 30 && b.seen > 0.3) useSkill(b, i, c.toP);
+  },
   shock(b, c, i, s) {
     if (ready(s) && c.los && c.dist < 6) useSkill(b, i, c.toP);
   },

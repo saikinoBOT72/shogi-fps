@@ -40,6 +40,7 @@ import { showTitle } from './screens';
 import { BoardMode } from './boardmode';
 import { Net } from './net';
 import { Online } from './online';
+import { Weather } from './weather';
 
 // ================= メインループ =================
 export let last = performance.now(), titleT = 0, lastBeep = -1;
@@ -54,6 +55,7 @@ export function loop(now) {
   sun.target.position.set(sc.x, 0, sc.z); sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 60);
   gs.sndBudget = 4;
   SFX.ambience(gs.state === 'board' ? null : mapId);   // 環境音（盤面では流さない）
+  Weather.update(rdt, gs.paused && !Net.on ? 0 : dt, gs.state !== 'board');   // 雪の温泉街の雪・湯けむり・足跡
 
   clouds.forEach(c => { c.position.x += dt * 2; if (c.position.x > 450) c.position.x = -450; });
 

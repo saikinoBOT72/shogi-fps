@@ -52,11 +52,22 @@ export const PHYS = (() => {
   // 外周の地面（盤や障害物は下の colliders から作る）
   const gq = new CANNON.Quaternion(); gq.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
   addStatic(new CANNON.Plane(), 0, GROUND, 0, gq);
+  // 坂：斜めに傾けた板（上面が坂の面に合うように、厚みの分だけ下げる）
+  function rampStatic(c) {
+    const along = c.axis === 'x', len = along ? c.max.x - c.min.x : c.max.z - c.min.z, wid = along ? c.max.z - c.min.z : c.max.x - c.min.x;
+    const dh = c.y1 - c.y0, th = Math.atan2(dh, len), sg = Math.sign(c.hi - c.lo), T = 0.2;
+    const q = new CANNON.Quaternion();
+    if (along) q.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), sg * th); else q.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -sg * th);
+    const n = q.vmult(new CANNON.Vec3(0, 1, 0));
+    const mx = (c.min.x + c.max.x) / 2, mz = (c.min.z + c.max.z) / 2, my = (c.y0 + c.y1) / 2;
+    const half = along ? new CANNON.Vec3(Math.hypot(len, dh) / 2, T, wid / 2) : new CANNON.Vec3(wid / 2, T, Math.hypot(len, dh) / 2);
+    return addStatic(new CANNON.Box(half), mx - n.x * T, my - n.y * T, mz - n.z * T, q);
+  }
   // 動かない障害物（今のマップのもの。切り替えたら作り直す）
   let statics = [];
   function buildStatics() {
     statics.forEach(b => world.removeBody(b));
-    statics = colliders.map(c => c.kind === 'box'
+    statics = colliders.map(c => c.kind === 'ramp' ? rampStatic(c) : c.kind === 'box'
       ? addStatic(new CANNON.Box(new CANNON.Vec3((c.max.x - c.min.x) / 2, (c.max.y - c.min.y) / 2, (c.max.z - c.min.z) / 2)),
         (c.max.x + c.min.x) / 2, (c.max.y + c.min.y) / 2, (c.max.z + c.min.z) / 2)
       : addStatic(new CANNON.Cylinder(c.r, c.r, c.y1 - c.y0, 10), c.x, (c.y0 + c.y1) / 2, c.z));   // cannon-es の円柱は縦向き
@@ -88,6 +99,7 @@ export const PHYS = (() => {
     const it: any = { body, obj, pitch, domino, map: placing, off: false, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
     kinds[kind].items.push(it);
     body.addEventListener('collide', e => {
+      if (e.body.collisionFilterGroup === 4) it.pushedAt = world.time;   // 体に押された
       const v = Math.abs(e.contact.getImpactVelocityAlongNormal()), now = performance.now();
       if (v > 1.8 && now - it.lastSnd > 90 && gs.sndBudget > 0) { it.lastSnd = now; gs.sndBudget--; SFX.play('prop', kind, body.position, clamp(v / 9, 0.15, 1)); }
     });
@@ -177,9 +189,119 @@ export const PHYS = (() => {
         addBody('oke', new CANNON.Cylinder(0.25, 0.25, 0.36, 8), 0.8, x * s, y + 0.2, z * s, null, 1.3);
       // 木箱・米俵・丸太
       for (const [x, z, y] of [[-26, -33, MID], [8, -21, MID], [-38, -30, LOW], [30, -39.5, LOW], [-20, -44, LOW]])
-        addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, x * s, y + cs / 2, z * s, rand(-0.3, 0.3), 0.65);
+        addDynamic('crate', [cs / 2, cs / 2, cs / 2], 10, x * s, y + cs / 2, z * s, rand(-0.3, 0.3), 0.65);
       for (const x of [-44, -42.8]) addDynamic('bale', [0.55, 0.3, 0.35], 25, x * s, LOW + 0.3, -41.3 * s, 0, 0.5);
       addBody('log', new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, -30 * s, MID + 0.3, -19.5 * s, lying, 0.7);
+    });
+  }
+
+  // 雪の温泉街の小物
+  const snowM = mat(P.shiro[2]), coalM = mat(P.sumi[0]), carrotM = mat(P.daidai[1]), stoneM = mat(P.nezumi[1]), litM = mat(P.kin[2]);
+  const ball = (r, face = false) => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), snowM));
+    if (face) {
+      for (const x of [-0.1, 0.1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.04), coalM); e.position.set(x, 0.06, r - 0.02); g.add(e); }
+      const n = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.2, 5).rotateX(Math.PI / 2), carrotM); n.position.set(0, -0.02, r + 0.08); g.add(n);
+    }
+    return g;
+  };
+  const okeYObj = () => {   // 黄色い湯桶
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.2, 0.3, 12), mat(P.kin[1])));
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 12), mat(P.kin[2])); b.position.y = -0.14; g.add(b);
+    return g;
+  };
+  const pingObj = () => {   // 卓球台（緑の天板、白い線、網、脚）
+    const g = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.BoxGeometry(2.74, 0.06, 1.52), mat(P.midori[0])); top.position.y = 0.35; g.add(top);
+    const line = new THREE.Mesh(new THREE.BoxGeometry(2.74, 0.065, 0.03), mat(P.shiro[2])); line.position.y = 0.35; g.add(line);
+    const net = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.15, 1.7), mat(P.shiro[1])); net.position.y = 0.45; g.add(net);
+    for (const x of [-1.1, 1.1]) for (const z of [-0.6, 0.6]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), hoopM); l.position.set(x, 0, z); g.add(l); }
+    return g;
+  };
+  const toroObj = () => {   // 石灯籠（原点が真ん中。高さ 2.1）
+    const g = new THREE.Group();
+    const add = (m, w, h, y, d = w) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.y = y - 1.05; g.add(b); };
+    add(stoneM, 0.7, 0.3, 0.15); add(stoneM, 0.28, 0.9, 0.75); add(stoneM, 0.62, 0.15, 1.27);
+    add(litM, 0.46, 0.4, 1.55); add(stoneM, 0.9, 0.22, 1.86); add(snowM, 0.8, 0.08, 2.01);
+    return g;
+  };
+  const makiObj = () => {   // 薪（短い丸太）
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1, 7), barkM));
+    for (const y of [-0.5, 0.5]) { const c = new THREE.Mesh(new THREE.CircleGeometry(0.12, 7), cutM); c.position.y = y + Math.sign(y) * 0.005; c.rotation.x = y > 0 ? -Math.PI / 2 : Math.PI / 2; g.add(c); }
+    return g;
+  };
+  const sledObj = () => {   // そり（赤い板と、前が反った滑り木）
+    const g = new THREE.Group();
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 1.6), mat(P.shu[1])); bed.position.y = 0.08; g.add(bed);
+    for (const x of [-0.35, 0.35]) {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 1.7), hoopM); r.position.set(x, -0.14, 0); g.add(r);
+      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.3, 0.06), hoopM); tip.position.set(x, 0, 0.85); tip.rotation.x = 0.5; g.add(tip);
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.05), hoopM); leg.position.set(x, -0.04, -0.4); g.add(leg);
+    }
+    return g;
+  };
+  const milkObj = () => {   // 牛乳瓶のケース（木の箱に白い瓶）
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.36), cutM));
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.2, 6), mat(P.shiro[2])); b.position.set(-0.15 + i * 0.15, 0.1, -0.08 + j * 0.16); g.add(b); }
+    return g;
+  };
+  const kasaObj = () => {   // 開いた番傘（原点が真ん中）
+    const g = new THREE.Group();
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.45, 12), mat(P.shu[0])); c.position.y = 0.2; g.add(c);
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 5), barkM); h.position.y = -0.1; g.add(h);
+    return g;
+  };
+  kinds.snowL = { geo: bake(ball(0.55)), mat: vcM, items: [] };
+  kinds.snowM = { geo: bake(ball(0.42)), mat: vcM, items: [] };
+  kinds.snowS = { geo: bake(ball(0.3, true)), mat: vcM, items: [] };
+  kinds.okeY = { geo: bake(okeYObj()), mat: vcM, items: [] };
+  kinds.ping = { geo: bake(pingObj()), mat: vcM, items: [] };
+  kinds.toro = { geo: bake(toroObj()), mat: vcM, items: [] };
+  kinds.maki = { geo: bake(makiObj()), mat: vcM, items: [] };
+  kinds.sled = { geo: bake(sledObj()), mat: vcM, items: [] };
+  kinds.milk = { geo: bake(milkObj()), mat: vcM, items: [] };
+  kinds.kasa = { geo: bake(kasaObj()), mat: vcM, items: [] };
+  function placeOnsen() {
+    placing = 'onsen';
+    const { L, U } = mapLV('onsen');
+    const cyl = (r, h) => new CANNON.Cylinder(r, r, h, 10);
+    const sledMat = dominoMat;   // よく滑る
+    [1, -1].forEach(s => {
+      // a 雪だるま（3段。撃った段だけ転がり落ちる）
+      for (const [x, z, y] of [[33, -35, U], [12, -22, L]]) {
+        addBody('snowL', cyl(0.5, 0.95), 6, x * s, y + 0.48, z * s, null, 0.8);
+        addBody('snowM', cyl(0.38, 0.75), 3, x * s, y + 0.96 + 0.38, z * s, null, 0.9);
+        const q = new CANNON.Quaternion(); q.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), s > 0 ? 0 : Math.PI);   // 顔は広場の方へ
+        addBody('snowS', cyl(0.27, 0.55), 1.2, x * s, y + 1.72 + 0.28, z * s, q, 1.1);
+      }
+      // b 湯桶のピラミッド（4・3・2・1。軽くてよく飛ぶ）
+      for (let row = 0; row < 4; row++) for (let i = 0; i < 4 - row; i++)
+        addBody('okeY', cyl(0.24, 0.3), 0.6, -19 * s, L + 0.15 + row * 0.31, (3 + (i - (3 - row) / 2) * 0.52) * s, null, 1.4);
+      // c 酒樽（旅館の玄関の前）
+      for (const x of [-44, -43, -42]) addBody('barrel', cyl(0.45, 1.1), 3, x * s, U + 0.55, -31.3 * s, null, 0.8);
+      addBody('barrel', cyl(0.45, 1.1), 3, -43.5 * s, U + 1.66, -31.3 * s, null, 0.8);
+      // d 卓球台（旅館の1階。押せる大きな遮蔽）
+      addDynamic('ping', [1.37, 0.38, 0.76], 40, -24 * s, U + 0.05 + 0.38, -38.5 * s, 0, 0.5);
+      // e 石灯籠（重い。爆風で倒れる）
+      for (const [x, z] of [[0, -19.5], [-20, -12]]) addDynamic('toro', [0.33, 1.05, 0.33], 70, x * s, L + 1.05, z * s, 0, 0.4);
+      // f 薪の山（崩すと転がる）
+      const lyingX = new CANNON.Quaternion(); lyingX.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), Math.PI / 2);
+      for (let row = 0; row < 3; row++) for (let i = 0; i < 4 - row; i++)
+        addBody('maki', cyl(0.13, 1), 1.5, 46 * s, U + 0.13 + row * 0.24, (-8 + (i - (3 - row) / 2) * 0.27) * s, lyingX, 1);
+      // g そり（石段の上。押すと滑って落ちる）
+      addDynamic('sled', [0.4, 0.15, 0.8], 8, 22 * s, U + 0.25, -32 * s, 0, 0.8, sledMat);
+      addDynamic('sled', [0.4, 0.15, 0.8], 8, 32 * s, U + 0.25, 8 * s, Math.PI / 2, 0.8, sledMat);
+      // h 牛乳瓶のケース（旅館の1階の玄関わき）
+      for (const [x, y] of [[-36.3, 0], [-35.7, 0], [-36, 1]]) addDynamic('milk', [0.25, 0.09, 0.18], 2.5, x * s, U + 0.05 + 0.09 + y * 0.19, -35 * s, 0, 1);
+      // i 番傘（足湯のそば。開いたまま、ふわっと飛ぶ）
+      for (const [x, z] of [[3, -26], [3.4, -24.4], [2.6, -22.8]]) {
+        const it = addBody('kasa', new CANNON.Cylinder(0.12, 0.85, 0.45, 10), 0.6, x * s, L + 0.25, z * s, null, 1.2);
+        it.body.linearDamping = 0.5; it.body.angularDamping = 0.4;
+      }
     });
   }
 
@@ -189,9 +311,9 @@ export const PHYS = (() => {
   const lying = new CANNON.Quaternion(); lying.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), Math.PI / 2);   // 丸太は横に寝かせる
   [1, -1].forEach(s => {
     // 木箱：関所の横のピラミッドと、あちこちの遮蔽
-    [[-0.62, 0], [0.62, 0], [0, 1]].forEach(([dx, row]) => addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, (-40 + dx) * s, V + cs / 2 + row * cs, 15 * s, 0, 0.65));
+    [[-0.62, 0], [0.62, 0], [0, 1]].forEach(([dx, row]) => addDynamic('crate', [cs / 2, cs / 2, cs / 2], 10, (-40 + dx) * s, V + cs / 2 + row * cs, 15 * s, 0, 0.65));
     for (const [x, z, y0] of [[-26, 6, V], [-24.7, 6.3, V], [-3, 18.4, V], [-1.7, 18.4, V], [-22, 46, HT], [-45, 24, T2], [30, 58, PL]])
-      addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, x * s, y0 + cs / 2, z * s, rand(-0.2, 0.2), 0.65);
+      addDynamic('crate', [cs / 2, cs / 2, cs / 2], 10, x * s, y0 + cs / 2, z * s, rand(-0.2, 0.2), 0.65);
     // 酒樽：段々の縁に並べる（爆風で谷へ転がり落ちる）
     for (const [x, z, y0] of [[10, 20.8, T2], [11.1, 20.8, T2], [12.2, 20.8, T2], [-1, 14, V], [-12, 31.8, HB]])
       addBody('barrel', new CANNON.Cylinder(0.45, 0.45, 1.1, 10), 3, x * s, y0 + 0.55, z * s, null, 0.8);
@@ -204,11 +326,12 @@ export const PHYS = (() => {
   });
 
   placeTemple();
+  placeOnsen();
 
   // スキル「木箱」で置く木箱（両者 6 個ずつ、足りなければ古いものから使い回す）
   const pool = [];
   for (let i = 0; i < 12; i++) {
-    const it = addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, 0, -100, 0, 0, 0.65);
+    const it = addDynamic('crate', [cs / 2, cs / 2, cs / 2], 10, 0, -100, 0, 0, 0.65);
     it.pool = true; it.map = null; world.removeBody(it.body);
     pool.push(it);
   }
@@ -288,11 +411,20 @@ export const PHYS = (() => {
         it.body.angularVelocity.x += ax.x * 16 * dt; it.body.angularVelocity.z += ax.z * 16 * dt;
       }
       if (dt > 0) world.step(1 / 60, dt, 4);
+      // 体で押しただけの小物は吹き飛ばない：重いほど遅く、上へは跳ねない（撃った・爆風を受けた直後は別）
+      for (const it of items) {
+        if (it.off || !(world.time - (it.pushedAt ?? -9) < 0.1) || world.time - (it.forceAt ?? -9) < 0.6) continue;
+        const v = it.body.velocity, cap = 5 / (1 + it.body.mass / 10), h = Math.hypot(v.x, v.z);
+        if (h > cap) { v.x *= cap / h; v.z *= cap / h; }
+        if (v.y > 1.2) v.y = 1.2;
+        const w = it.body.angularVelocity, wl = w.length();
+        if (wl > 4) w.scale(4 / wl, w);
+      }
       sync();
     },
     // 弾が当たった所を押す
     hit(it, point, dir, power) {
-      const b = it.body; b.wakeUp();
+      const b = it.body; b.wakeUp(); it.forceAt = world.time;
       // cannon-es の applyImpulse は「重心からの相対位置」で指定する
       b.applyImpulse(new CANNON.Vec3(dir.x * power, dir.y * power + power * 0.2, dir.z * power), new CANNON.Vec3(point.x - b.position.x, point.y - b.position.y, point.z - b.position.z));
     },
@@ -303,6 +435,7 @@ export const PHYS = (() => {
         const b = it.body, dx = b.position.x - pos.x, dy = b.position.y - pos.y, dz = b.position.z - pos.z, d = Math.hypot(dx, dy, dz);
         if (d > radius || d < 1e-3) continue;
         const k = power * b.mass * (1 - d / radius) / d;
+        it.forceAt = world.time;
         b.wakeUp(); b.applyImpulse(new CANNON.Vec3(dx * k, Math.abs(dy * k) + power * b.mass * 0.4, dz * k), new CANNON.Vec3());
       }
     },

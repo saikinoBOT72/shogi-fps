@@ -72,8 +72,12 @@ export const SFX = (() => {
       every(12, 25, () => { const d = out(null, 0.7, 1600, bus); const n = 1 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) { const at = i * 0.6; N(d, { at, dur: 0.35, type: 'bandpass', f0: 850, f1: 700, q: 5, g: 0.03, atk: 0.03 }); T(d, { at, type: 'sawtooth', f0: 500, f1: 420, dur: 0.33, g: 0.01, atk: 0.03 }); } });   // カラス
       every(30, 60, () => gong(out(null, 0.9, 900, bus), 0, 98, 0.04));   // 遠くの鐘
       every(3.5, 3.6, () => { const d = out(null, 0.3, 5000, bus); for (let i = 0; i < 27; i++) P(d, i * 0.13 + rand(0, 0.03), 3600, 0.05, 0.003, 'triangle'); });   // 虫の声
+    } else if (id === 'onsen') {
+      loop('lowpass', 320, 0.7, 0.004);                     // 湯の流れる音（かすか）
+      every(18, 32, () => { const d = out(null, 0.6, 1800, bus); wood(d, 0, 520, 0.05, 0.12); wood(d, 0.09, 470, 0.02, 0.1); });   // 遠くの鹿威し（こん）
+      every(35, 70, () => { const d = out(null, 0.4, 900, bus); N(d, { dur: 0.35, f0: 260, f1: 90, g: 0.05, atk: 0.02 }); });   // 屋根の雪が落ちる（どさっ）
     } else {
-      loop('lowpass', 700, 0.8, 0.013);                    // 川のせせらぎ
+      loop('lowpass', 700, 0.8, 0.013);                   // 川のせせらぎ
       every(8, 18, () => { const d = out(null, 0.5, 5000, bus), f = rand(2800, 3800); for (let j = 0; j < 3; j++) T(d, { at: j * 0.1, f0: f, f1: f * 1.25, dur: 0.06, g: 0.012 }); });   // 小鳥
     }
   }
@@ -249,6 +253,10 @@ export const SFX = (() => {
         let t = 0.02;
         for (let i = 0; i < 14 * g; i++) { t += rand(0.01, 0.035); coin(lp, t, 0.09 * g * (1 - i / 18)); }
       }
+      else if (kind.startsWith('snow')) N(d, { dur: 0.14, f0: 420, f1: 150, g: 0.5 * g, atk: 0.01 });   // 雪玉：ぼふっ
+      else if (kind === 'toro') { N(d, { dur: 0.08, f0: 380, f1: 200, g: 0.6 * g }); P(d, 0.005, 180, 0.12, 0.1 * g); }   // 石灯籠：ごとっ
+      else if (kind === 'kasa') N(d, { dur: 0.1, type: 'bandpass', f0: 900, q: 1.2, g: 0.15 * g, atk: 0.01 });   // 番傘：ばさっ
+      else if (kind === 'milk') { wood(d, 0, 330, 0.3 * g, 0.08); for (let i = 0; i < 3; i++) P(d, 0.01 + i * 0.03, rand(2400, 3200), 0.12, 0.03 * g, 'triangle'); }   // 瓶がかちゃっ
       else wood(d, 0, 310, 0.45 * g, 0.1);   // 木箱
     },
     // 鐘楼の鐘（撃つと遠くまで響く）

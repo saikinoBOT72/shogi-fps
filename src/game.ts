@@ -6,7 +6,7 @@ import { gs } from './state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, scene } from './render';
-import { LV, SPAWN, WATER_Y, colliders, groundAt, useMap } from './world';
+import { LV, SPAWN, WATER_Y, colTop, colliders, floorBelow, groundAt, useMap } from './world';
 import { PHYS, blockers, physOf } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
@@ -97,12 +97,12 @@ export const eyeOf = e => new V3(e.pos.x, e.pos.y + e.eyeH, e.pos.z);
 // 立っている床の種類（足音用）：水の中なら 'water'
 export const surfOf = e => (e.pos.y < WATER_Y ? 'water' : e.surf || 'grass');
 export function collide(e) {
-  const R = e.radius;
+  const R = e.radius, wasGround = e.onGround;
   e.onGround = false; e.wallN = null;
   if (e.pos.y <= GROUND) { e.pos.y = GROUND; if (e.vy < 0) e.vy = 0; e.onGround = true; e.surf = 'grass'; }
   for (const c of colliders) {
     let cx, cz, top, bottom;
-    if (c.kind === 'box') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = c.max.y; bottom = c.min.y; }
+    if (c.kind !== 'cyl') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = colTop(c, cx, cz); bottom = c.min.y; }
     else {
       const dx = e.pos.x - c.x, dz = e.pos.z - c.z, d = Math.hypot(dx, dz);
       if (d <= c.r) { cx = e.pos.x; cz = e.pos.z; } else { cx = c.x + dx / d * c.r; cz = c.z + dz / d * c.r; }
@@ -111,7 +111,8 @@ export function collide(e) {
     const dx = e.pos.x - cx, dz = e.pos.z - cz, d2 = dx * dx + dz * dz;
     if (d2 >= R * R) continue;
     // 上面より上にいる間は何もしない（ジャンプ中に上面へ吸い寄せられないように）
-    if (e.pos.y > top) continue;
+    // 坂を下っているときは、浮かずに坂に沿って下りる
+    if (e.pos.y > top) { if (c.kind === 'ramp' && wasGround && e.vy <= 0 && e.pos.y - top < 0.5) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = c.surf; } continue; }
     // 着地：上面を上から通り過ぎたか、上面のすぐ下（低い段差は自動で上がる）
     if (e.vy <= 0 && (e.pos.y >= top - 0.4 || (e.prevY ?? e.pos.y) >= top)) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = c.surf; continue; }
     if (e.pos.y + e.height <= bottom || e.pos.y >= top) continue;
@@ -172,7 +173,7 @@ export function moveEntity(e, wish, dt) {
   } else if (lp) {
     lp.t -= dt;   // 跳んでいる間は勢いのまま（空中で向きを変えられない）
   } else {
-    const gd = act(e, 'guard'), slow = (gd ? gd.sk.slow : 1) * (e.pos.y < WATER_Y ? 0.6 : 1);   // 川の中は遅い
+    const gd = act(e, 'guard'), bf = act(e, 'buff'), slow = (gd ? gd.sk.slow : 1) * (bf ? bf.sk.speedMul : 1) * (e.pos.y < WATER_Y ? 0.6 : 1);   // 川の中は遅い・身体強化中は速い
     e.knockT = Math.max(0, (e.knockT || 0) - dt);
     const flung = e.knockT > 0 && !e.onGround;   // 爆風で飛ばされている間
     const target = wish.clone().multiplyScalar(e.def.speed * RULES.speed * (e.isBot || e.running ? 1 : RULES.walk) * (e.speedMul || 1) * slow);
@@ -182,10 +183,13 @@ export function moveEntity(e, wish, dt) {
     e.vel.add(dv);
   }
   e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt;
-  // 壁登り：壁に向かってジャンプを押し続けると登る（1回に登れる時間は climbT まで）
-  if (e.onGround) e.climbT = 1.6;
-  e.climbing = !!(e.wantClimb && e.wallN && e.climbT > 0 && e.pos.y < e.wallTop);
-  if (e.climbing) { e.vy = Math.max(e.vy, 5.5); e.climbT -= dt; e.airT = 1; e.jumped = true; }
+  // 壁登り：壁に向かってジャンプを押し続けると登る。登れるのは自分の身長ぶんまで。
+  // 途中で離れたら、着地するまでつかみ直せない
+  if (e.onGround) e.climbH = e.height;
+  const wasClimbing = e.climbing;
+  e.climbing = !!(e.wantClimb && e.wallN && e.climbH > 0 && e.pos.y < e.wallTop);
+  if (e.climbing) { e.vy = Math.max(e.vy, 5.5); e.climbH -= 5.5 * dt; e.airT = 1; e.jumped = true; }
+  else if (wasClimbing) e.climbH = 0;
   const prevVy = e.vy;
   e.prevY = e.pos.y;
   e.vy -= G * dt; e.pos.y += e.vy * dt;
@@ -197,7 +201,7 @@ export function moveEntity(e, wish, dt) {
   e.moving = Math.hypot(e.vel.x, e.vel.z) > 1;
 }
 export function tryJump(e) {
-  if (e.airT < 0.1 && !e.jumped) { e.vy = e.def.jump; e.jumped = true; e.onGround = false; e.airT = 1; if (!e.isBot) SFX.play('jump'); return true; }
+  if (e.airT < 0.1 && !e.jumped) { const bf = act(e, 'buff'); e.vy = e.def.jump * (bf ? bf.sk.jumpMul : 1); e.jumped = true; e.onGround = false; e.airT = 1; if (!e.isBot) SFX.play('jump'); return true; }
   return false;
 }
 // 桂跳びの着地：周りの相手と小物を吹き飛ばす
@@ -342,7 +346,8 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
     if (wall) {
       const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : d.clone().negate();
       Particles.impact(wall.point, n);
-      const ph = physOf(wall);
+      const ph = physOf(wall), tur = Gadgets.turretOfHit(wall.object);
+      if (tur) Gadgets.damageTurret(tur, w.dmg * lerp(1, w.falloff[2], clamp((wallDist - w.falloff[0]) / (w.falloff[1] - w.falloff[0]), 0, 1)), shooter);
       // 鐘楼の鐘：鳴らすと遠くまで響く（居場所がばれる）
       if (wall.object.userData.bell && performance.now() - (gs.bellT || 0) > 400) { gs.bellT = performance.now(); SFX.play('bell', wall.point); aiHear(wall.point, 60); }
       if (ph) { PHYS.hit(ph, wall.point, d, w.dmg * 0.15); Particles.wood(wall.point, n, 4, 0.5); }
@@ -396,6 +401,10 @@ export function useSkill(e, i, dir, force = false) {
     SFX.play('skStep', e.isBot ? e.pos : null);
     Particles.dust(e.pos, 5, 0.9);
     if (!e.isBot) { view.shake = Math.max(view.shake, 0.15); view.stepRoll = s.dir.dot(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw))) > 0 ? -1 : 1; }
+  } else if (t === 'buff') {
+    SFX.play('skStep', e.isBot ? e.pos : null);
+    for (let k = 0; k < 14; k++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.kin[2]);
+    if (!e.isBot) view.shake = Math.max(view.shake, 0.12);
   } else if (t === 'homing' || t === 'bigshot' || t === 'volley') {
     SFX.play(t === 'homing' ? 'skHoming' : t === 'volley' ? 'skVolley' : 'skBig', e.isBot ? e.pos : null);
   } else if (t === 'leap') {
@@ -409,11 +418,12 @@ export function useSkill(e, i, dir, force = false) {
     if (!e.isBot) SFX.play(t === 'xray' ? 'skXray' : 'skCloak');
     if (t === 'cloak') for (let k = 0; k < 12; k++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.shiro[2]);
   } else if (t === 'boxes') {
-    // 目の前に横並びで3つ置く
+    // 目の前に三角に積む（下2個・上1個）
     const right = new V3(-s.dir.z, 0, s.dir.x);
-    for (let k = 0; k < sk.count; k++) {
-      const p = e.pos.clone().addScaledVector(s.dir, sk.dist).addScaledVector(right, (k - (sk.count - 1) / 2) * 1.3);
-      PHYS.spawnBox(p.x, Math.max(groundAt(p.x, p.z), e.pos.y), p.z, Math.atan2(s.dir.x, s.dir.z));
+    const base = e.pos.clone().addScaledVector(s.dir, sk.dist), y0 = floorBelow(base.x, base.z, e.pos.y);   // 屋内でも天井の上ではなく床に
+    for (const [side, row] of [[-0.62, 0], [0.62, 0], [0, 1]]) {
+      const p = base.clone().addScaledVector(right, side);
+      PHYS.spawnBox(p.x, y0 + row * 1.22, p.z, Math.atan2(s.dir.x, s.dir.z));
       Particles.dust(p, 6, 1);
     }
     SFX.play('skBoxes', e.isBot ? e.pos : null);
@@ -424,6 +434,8 @@ export function useSkill(e, i, dir, force = false) {
     Gadgets.toss(t, e, aim, sk);
   } else if (t === 'shock') {
     onAttack(e); Gadgets.shockwave(e, sk);
+  } else if (t === 'turret') {
+    Gadgets.placeTurret(e, s.dir, sk);
   } else if (t === 'c4') {
     onAttack(e); Gadgets.throwC4(e, aim, sk);
   } else if (t === 'missile') {

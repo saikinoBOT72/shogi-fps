@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { P } from '../palette';
 import { toon, flatGeo } from '../materials';
+import { skinMaterials } from './skins';
 
 const C = (n: number) => new THREE.Color(n);
 
@@ -19,15 +20,16 @@ export function buildYumi(opt: { hand?: THREE.Material } = {}) {
   const upper = [[0, 0], [0.2, 0.05], [0.45, 0.13], [0.62, 0.16], [0.72, 0.13]];
   const lower = [[0, 0], [-0.12, 0.04], [-0.26, 0.1], [-0.34, 0.11], [-0.39, 0.08]];
   const limbs = new THREE.Group(); bow.add(limbs);
+  const limbMs: THREE.Mesh[] = [], bandMs: THREE.Mesh[] = [];   // 塗装で色を変える所（弓の本体・籐巻き）
   for (const pts of [upper, lower]) {
     const curve = new THREE.CatmullRomCurve3(pts.map(([y, z]) => new THREE.Vector3(0, y, z)));
     const m = new THREE.Mesh(flatGeo(new THREE.TubeGeometry(curve, 14, 0.013, 4)), woodM);
-    m.castShadow = true; limbs.add(m);
+    m.castShadow = true; limbs.add(m); limbMs.push(m);
     // 籐巻き（黒い帯）
     for (const t of [0.25, 0.5, 0.8, 0.97]) {
       const b = new THREE.Mesh(flatGeo(new THREE.CylinderGeometry(0.016, 0.016, 0.018, 6)), lacquer);
       b.position.copy(curve.getPoint(t)); b.lookAt(b.position.clone().add(curve.getTangent(t))); b.rotateX(Math.PI / 2);
-      limbs.add(b);
+      limbs.add(b); bandMs.push(b);
     }
   }
   const tipU = new THREE.Vector3(0, upper[4][0], upper[4][1]), tipL = new THREE.Vector3(0, lower[4][0], lower[4][1]);
@@ -56,6 +58,16 @@ export function buildYumi(opt: { hand?: THREE.Material } = {}) {
   });
   const ARROW_Y = 0.07;   // 握りの少し上
   arrow.position.set(0.018, ARROW_Y, 0); bow.add(arrow);
+
+  // 塗装：弓の本体 = frame、籐巻き = detail、握り = grip（'' は元の竹と黒い籐と革）
+  let skin = '';
+  function setSkin(id: string) {
+    skin = id;
+    const m = id ? skinMaterials(id) : null;
+    limbMs.forEach(x => { x.material = m ? m.frame : woodM; });
+    bandMs.forEach(x => { x.material = m ? m.detail : lacquer; });
+    (grip as THREE.Mesh).material = m ? m.grip : leather;
+  }
 
   // 手（握る手・引く手）
   let pull = null;
@@ -92,7 +104,7 @@ export function buildYumi(opt: { hand?: THREE.Material } = {}) {
     g, slide: new THREE.Object3D(), muzzle, slideZ: 0, slideAmt: 0, setDraw, arrow, arrowM, isBow: true,
     hip: new THREE.Vector3(0.17, -0.2, -0.42), ads: new THREE.Vector3(0.2, -0.28, -0.42),
     info: { name: '和弓', real: '本物は約221cm（ゲームでは縮めている）' }, eject: new THREE.Object3D(),
-    anim, skin: '', setSkin() {}, onEvent: null,
+    anim, get skin() { return skin; }, setSkin, onEvent: null,
     fire() { demo = 0; }, reload() {}, inspect() {}, equip() {},
   };
 }

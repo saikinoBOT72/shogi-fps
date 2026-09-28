@@ -23,11 +23,11 @@ export const PIECES = {
   L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'sniper',   skills: ['xray', 'boxes'], strafe: 0.7 },
   N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing', 'volley'] },
   S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['c4', 'missile'] },
-  G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.2, jump: 7,   weapon: 'shotgun',  skills: ['charge', 'guard'] },
+  G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 7,   jump: 7,   weapon: 'shotgun',  skills: ['physical', 'guard'] },
   B: { name: '角', value: 8, hp: 125, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skills: ['smoke', 'bigshot'] },
   R: { name: '飛', value: 10, hp: 130, size: 0.95, speed: 6.5, jump: 7,  weapon: 'smg',      skills: ['grapple', 'flash'] },
   // 王は取られたら負けの駒。価値は ∞（99 以上は ∞ と表示）
-  K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',       skills: ['pearl', 'shock'] },
+  K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',       skills: ['pearl', 'turret'] },
 };
 // 全体のルール：しばらく被弾しないとHPが回復する
 // speed: 走る速さの倍率（駒の speed に掛ける）、walk: 歩く速さ（走りに対する割合）
@@ -37,13 +37,13 @@ export const WEAPONS = {
   // move/air: 移動中・空中のブレ / ads: 右クリック時のブレ倍率 / recoil: 反動 / falloff: [減衰開始, 最大減衰距離, 最小倍率]
   // model: 見た目 / pellets: 1回に出る弾の数
   pistol: {
-    name: 'ハンドガン', model: 'pistol', dmg: 24, head: 1.6, rate: 0.24, spread: 0.006, bloomShot: 0.012, bloomMax: 0.045, bloomRecover: 0.12,
-    move: 0.014, air: 0.04, ads: 0.35, mag: 12, reload: 1.3, auto: false, recoil: 0.022, falloff: [18, 40, 0.7], pref: 12,
+    name: 'ハンドガン', model: 'pistol', dmg: 24, head: 1.6, rate: 0.24, spread: 0.012, bloomShot: 0.012, bloomMax: 0.045, bloomRecover: 0.12,
+    move: 0.03, air: 0.09, ads: 0.35, mag: 12, reload: 1.3, auto: false, recoil: 0.022, falloff: [18, 40, 0.7], pref: 12,
   },
   // 3発バースト（銀）。1発が重く、撃つほど上に跳ねる癖の強い銃。burstGap: バースト内の間隔
   burst: {
-    name: 'ベレッタ 93R', model: 'burst', dmg: 22, head: 1.6, rate: 0.55, burst: 3, burstGap: 0.07, spread: 0.008, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
-    move: 0.016, air: 0.04, ads: 0.4, mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
+    name: 'ベレッタ 93R', model: 'burst', dmg: 22, head: 1.6, rate: 0.55, burst: 3, burstGap: 0.07, spread: 0.016, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
+    move: 0.035, air: 0.09, ads: 0.4, mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
   },
   // ナイフ（全員が持つ）：目の前を切りつける。ダメージは弱め、背中からは back 倍
   // range: 届く距離(m) / cone: 当たる向きの広さ(内積) / moveMul: 持っている間の移動の速さの倍率
@@ -53,31 +53,31 @@ export const WEAPONS = {
   },
   // 連射で押し切る。近〜中距離
   smg: {
-    name: 'MP5K', model: 'mp5', dmg: 10, head: 1.4, rate: 0.075, spread: 0.012, bloomShot: 0.004, bloomMax: 0.045, bloomRecover: 0.15,
-    move: 0.012, air: 0.035, ads: 0.5, mag: 30, reload: 1.7, auto: true, recoil: 0.008, falloff: [10, 28, 0.55], pref: 9,
+    name: 'MP5K', model: 'mp5', dmg: 10, head: 1.4, rate: 0.075, spread: 0.02, bloomShot: 0.004, bloomMax: 0.045, bloomRecover: 0.15,
+    move: 0.025, air: 0.08, ads: 0.5, mag: 30, reload: 1.7, auto: true, recoil: 0.008, falloff: [10, 28, 0.55], pref: 9,
   },
   // 弓：長押しで引き絞り、離して撃つ。引くほど速く・強く・まっすぐ。矢は重力で落ちる
   // dmgMin〜dmg: 引き具合で変わるダメージ / drawTime: 引き切るまでの秒 / speedMin〜speedMax: 矢の速さ / drawSpread: 引きが浅いときのブレ
   bow: {
     // drag: 空気抵抗（遠くほど失速して落ちる）。引きの効き方はマイクラと同じ曲線（少し引くだけでも威力が出る）
-    name: '和弓', model: 'bow', kind: 'bow', dmgMin: 12, dmg: 58, head: 1.6, drawTime: 0.75, speedMin: 16, speedMax: 62, gravity: 15, drag: 0.6,
+    name: '和弓', model: 'bow', kind: 'bow', dmgMin: 12, dmg: 58, head: 1.6, drawTime: 0.75, speedMin: 20, speedMax: 76, gravity: 10, drag: 0.02,
     rate: 0.15, spread: 0.002, drawSpread: 0.03, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.012, air: 0.03, ads: 0.6, mag: 1, reload: 0.45, auto: false, recoil: 0.012, falloff: [999, 1000, 1], pref: 16,
   },
   // 覗き込むとスコープ（zoom: 覗いたときの視野）。覗かないとほぼ当たらない
   sniper: {
-    name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1, adsSpeed: 10, spread: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
-    move: 0.03, air: 0.08, ads: 0.02, zoom: 22, mag: 5, reload: 2.4, auto: false, recoil: 0.07, falloff: [999, 1000, 1], pref: 26,
+    name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1, adsSpeed: 10, spread: 0.08, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    move: 0.06, air: 0.15, ads: 0.02, zoom: 22, mag: 5, reload: 2.4, auto: false, recoil: 0.07, falloff: [999, 1000, 1], pref: 26,
   },
   // 万能の連射銃（王向け）
   ar: {
-    name: 'AK-47', model: 'ak', dmg: 15, head: 1.5, rate: 0.1, spread: 0.008, bloomShot: 0.005, bloomMax: 0.035, bloomRecover: 0.14,
-    move: 0.012, air: 0.035, ads: 0.45, mag: 30, reload: 2.0, auto: true, recoil: 0.012, falloff: [20, 40, 0.7], pref: 14,
+    name: 'AK-47', model: 'ak', dmg: 15, head: 1.5, rate: 0.1, spread: 0.015, bloomShot: 0.005, bloomMax: 0.035, bloomRecover: 0.14,
+    move: 0.028, air: 0.08, ads: 0.45, mag: 30, reload: 2.0, auto: true, recoil: 0.012, falloff: [20, 40, 0.7], pref: 14,
   },
   // 放物線で飛び、跳ねて爆発。radius: 爆風の範囲 / fuse: 爆発までの秒 / speed: 撃ち出す速さ
   launcher: {
     // knock: 横に吹き飛ばす強さ / lift: 上に飛ばす強さ / self: 自分へのダメージ倍率
-    name: 'M79', model: 'm79', kind: 'grenade', dmg: 52.5, knock: 20, lift: 14, self: 0.1, radius: 3.5, speed: 38, gravity: 9, fuse: 3, rate: 0.9, spread: 0.01,
+    name: 'M79', model: 'm79', kind: 'grenade', dmg: 65, knock: 20, lift: 22, self: 0.1, radius: 5.5, speed: 38, gravity: 9, fuse: 3, rate: 0.9, spread: 0.01,
     bloomShot: 0, bloomMax: 0, bloomRecover: 0.1, move: 0.01, air: 0.02, ads: 0.6, mag: 4, reload: 2.6, auto: false, recoil: 0.05, falloff: [999, 1000, 1], pref: 13,
   },
   // 近いほど強い。8粒 × 8 ダメージ
@@ -92,6 +92,9 @@ export const SKILLS = {
   // 突撃：前方へ一気に踏み込む。突撃中は被ダメージ半減、ぶつかると体当たりダメージ
   charge: { name: '突撃', type: 'dash', key: 'KeyE', cooldown: 18, duration: 0.32, speed: 26, damageTaken: 0.5, ram: 18,
     help: '前方へダッシュ・被ダメ半減・体当たり' },
+  // 身体強化：10秒間、足が速くなり高く跳べる（speedMul: 速さの倍率 / jumpMul: ジャンプの倍率）
+  physical: { name: '身体強化', type: 'buff', key: 'KeyE', cooldown: 24, duration: 10, speedMul: 1.35, jumpMul: 1.3, damageTaken: 1,
+    help: '10秒間、足が速くなり高く跳べる' },
   // すり足：左右（A/D の向き）へ素早くステップ。2回まで続けて使える
   step: { name: 'すり足', type: 'step', key: 'KeyE', cooldown: 9, charges: 2, duration: 0.16, speed: 22, damageTaken: 1,
     help: 'A/Dの方向へ素早くステップ（2回まで）' },
@@ -133,6 +136,9 @@ export const SKILLS = {
   // 衝撃波：自分のまわりに衝撃波。近いほど大ダメージで大きく吹き飛ぶ（knock: 横 / lift: 上）
   shock: { name: '衝撃波', type: 'shock', cooldown: 36, duration: 0, radius: 10, dmg: 45, knock: 32, lift: 15, damageTaken: 1,
     help: 'まわり10mに衝撃波。近いほど大ダメージで大きく吹き飛ぶ' },
+  // タレット歩：目の前に動かない砲台を置く。相手が見えたら撃つ（hp: 耐久 / dmg: 1発 / rate: 撃つ間隔 / spread: ブレ / range: 届く距離）
+  turret: { name: 'タレット歩', type: 'turret', cooldown: 30, duration: 0, hp: 30, dmg: 8, rate: 1.05, spread: 0.03, range: 40, damageTaken: 1,
+    help: '目の前に動かないタレット歩を置く・相手が見えたら撃つ（HP30）' },
   // 大玉：次のグレネードが大きくなり、敵も自分も大きく吹き飛ばす（knock: 吹き飛ばす強さ）
   bigshot: { name: '大玉', type: 'bigshot', cooldown: 36, duration: 10, radius: 5.5, knock: 38, lift: 22, damageTaken: 1,
     help: '次のグレネードが巨大に・敵も自分も吹き飛ばす' },
@@ -140,7 +146,7 @@ export const SKILLS = {
   rally: { name: '王の意地', type: 'heal', key: 'KeyE', cooldown: 42, duration: 2, amount: 60, damageTaken: 0.7,
     help: '2秒でHPを60回復・その間の被ダメ0.7倍' },
   // 守りの構え：将棋盤を盾にして、前からのダメージを減らす。構え中は遅く、撃つと解除
-  guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 27, duration: 2.5, damageTaken: 0.1, slow: 0.55,
+  guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 27, duration: 5, damageTaken: 0.1, slow: 0.55,
     help: '盾を構えて前からの被ダメ1/10・撃つと解除' },
 };
 export const skillType = e => SKILLS[e.def.skill].type;
