@@ -170,7 +170,6 @@ export function updateHUD(dt) {
   const mi = p.slots.findIndex(s => s.sk.type === 'missile');
   setText('guideTxt', Gadgets.ctrlOf(p) ? `ミサイル操作中　マウスで曲げる・${skillKey(mi)} で自分に戻る` : '');
   if (changed('regen', !!p.regen)) $('meBar').classList.toggle('regen', !!p.regen);
-  setText('timer', Math.max(0, Math.ceil(TIME_LIMIT - stats.time)));
 }
 // 前回と同じ値なら DOM に触らない（毎フレームの書き換えは重い）
 export const hud: any = { hurt: 0, dash: 0, ammo: -1, ready: null, cache: new Map(), lastCd: 0, cdMax: 0 };

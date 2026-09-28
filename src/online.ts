@@ -14,12 +14,14 @@ import { Particles, Tracers } from './effects';
 import { Gadgets } from './gadgets';
 import { damagePlayer } from './ai';
 import { killBot } from './hud';
+import { BoardMode } from './boardmode';
 
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
 const V = (a: number[]) => new V3(a[0], a[1], a[2]);
 const inMatch = () => gs.state === 'countdown' || gs.state === 'fight';
 
 let foe = { k: null, ready: false }, meReady = false, inLobby = false, snap = null, sendT = 0;
+let mode = 'duel';   // 遊び方：'duel' 撃ち合い / 'board' 将棋モード（部屋を作った側が決める）
 
 // ================= 部屋を作る・入る =================
 export function showOnline(msg = '') {
@@ -43,7 +45,7 @@ export function showOnline(msg = '') {
 }
 const cb = {
   code: (c: string) => waiting(`<div class="ol-code">${c}</div><p>このコードを友達に伝えてね。入ってくるのを待っています…</p>`),
-  connected: () => { foe = { k: null, ready: false }; meReady = false; sendPick(); showLobby(); },
+  connected: () => { foe = { k: null, ready: false }; meReady = false; mode = 'duel'; sendPick(); if (Net.host) Net.send({ t: 'mode', m: mode }); showLobby(); },
   error: (t: string) => showOnline(t),
 };
 function waiting(html: string) {
@@ -67,9 +69,11 @@ export function showLobby() {
   const me = PIECES[settings.myPiece], f = foe.k && PIECES[foe.k];
   overlay(`<div class="screen wide">
     <h2 class="h">友達と対戦　<small>部屋 ${Net.code}</small></h2>
-    <section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
-      <p class="detail"><b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `「${SKILLS[k].name}」${SKILLS[k].help}`).join('　')}</p></section>
-    <div class="ol-foe">相手の駒：${f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : ''}</div>
+    <div class="panel form"><div class="row"><span>遊び方<small>${Net.host ? 'あなたが決める' : '部屋を作った人が決める'}</small></span>
+      <div class="seg" id="olMode">${[['duel', '撃ち合い'], ['board', '将棋モード']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${Net.host ? '' : ' disabled'}>${n}</button>`).join('')}</div></div></div>
+    ${mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは撃ち合い</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
+      <p class="detail"><b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `「${SKILLS[k].name}」${SKILLS[k].help}`).join('　')}</p></section>`}
+    <div class="ol-foe">相手：${mode === 'board' ? '' : f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : '<span>準備中</span>'}</div>
     <div class="menu"><button class="btn sub" id="olLeave">抜ける</button><button class="btn${meReady ? ' sub' : ''}" id="olReady">${meReady ? '準備OK を取り消す' : '準備OK'}</button></div>
   </div>`, true);
   document.querySelectorAll<HTMLElement>('#olPick button').forEach(b => b.onclick = e => {
@@ -77,23 +81,33 @@ export function showLobby() {
     settings.myPiece = b.dataset.k; saveSettings(); meReady = false;
     sendPick(); showLobby();
   });
+  document.querySelectorAll<HTMLElement>('#olMode button').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    if (!Net.host) return;
+    mode = b.dataset.v; meReady = false; Net.send({ t: 'mode', m: mode }); sendPick(); showLobby();
+  });
   on('olReady', () => { meReady = !meReady; sendPick(); showLobby(); maybeStart(); });
   on('olLeave', leave);
 }
-function maybeStart() { if (Net.host && inLobby && meReady && foe.ready && foe.k) { Net.send({ t: 'start' }); begin(); } }
+function maybeStart() { if (Net.host && inLobby && meReady && foe.ready && foe.k) { Net.send({ t: 'start', m: mode }); begin(); } }
 function begin() {
   inLobby = false; meReady = false; foe.ready = false; snap = null; sendT = 0;
-  startMatch(foe.k);
+  if (mode === 'board') BoardMode.startOnline(Net.host);
+  else startMatch(foe.k);
 }
+// 撃ち合いが始まるとき（将棋モードの撃ち合いでも）：前の様子を捨てる
+export function resetNetMatch() { snap = null; sendT = 0; }
 // 部屋から抜ける（相手にも知らせる）
 export function leave() {
   Net.send({ t: 'bye' });
   leaveRoom(); inLobby = false;
   gs.paused = false;
+  if (BoardMode.online) BoardMode.close();
   resetMatch(); showTitle();
 }
 function lost() {
   inLobby = false;
+  if (BoardMode.online) BoardMode.close();
   if (document.pointerLockElement) document.exitPointerLock();
   gs.paused = false;
   resetMatch(); showOnline('相手との接続が切れました');
@@ -105,7 +119,9 @@ Net.onClose = lost;
 Net.onMsg = (m: any) => {
   switch (m.t) {
     case 'pick': foe.k = m.k; foe.ready = m.ready; if (inLobby) { showLobby(); maybeStart(); } break;
-    case 'start': if (!Net.host) begin(); break;
+    case 'start': if (!Net.host) { mode = m.m || 'duel'; begin(); } break;
+    case 'mode': mode = m.m; meReady = false; sendPick(); if (inLobby) showLobby(); break;
+    case 'bm': case 'bp': case 'bwait': case 'bresign': BoardMode.onNet(m); break;
     case 'bye': leaveRoom(); lost(); break;
     case 's': snap = m; break;
     case 'fire': if (inMatch()) remoteFire(m); break;

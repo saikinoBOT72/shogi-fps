@@ -106,7 +106,6 @@ export function loop(now) {
     if (gs.state === 'fight') {
       checkRam(player, bot, dmg => damageBot({ dmg, head: false, point: eyeOf(bot), kv: [bot.vel.x, bot.vy, bot.vel.z] }));
       if (!Net.on) checkRam(bot, player, dmg => damagePlayer(dmg, bot.pos));
-      if (stats.time >= TIME_LIMIT) endMatch(null);
     }
   }
   const pdt = run ? dt : 0;

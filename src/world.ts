@@ -229,7 +229,7 @@ export const WATER_Y = GROUND + 0.4;
         else solidBox(c - 0.5, c + 0.5, G0, top, at - width / 2, at + width / 2, stoneM, true);
       }
     };
-    stairs('z', -21, 20, 1, V, T2, 4); stairs('z', 8, 20, 1, V, T2, 4);        // 谷 → 2m
+    stairs('z', -21, 20, 1, V, T2, 4); stairs('z', 18, 20, 1, V, T2, 4);       // 谷 → 2m（右の家の横）
     stairs('z', 30, 36, 1, T2, T4, 4); stairs('z', -55, 36, 1, T2, T4, 4);     // 2m → 4m
     stairs('z', 45, 50, 1, T4, PL, 4); stairs('z', -5, 50, 1, T4, PL, 4);      // 4m → 高台
     stairs('z', -27, 54, -1, PL, HB, 4);                                        // 高台 → 丘

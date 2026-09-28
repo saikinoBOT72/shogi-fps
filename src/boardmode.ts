@@ -8,6 +8,8 @@ import { PIECE_DEPTH, boardTex, canvasTex, darkWoodTex, pieceGeo, renderer, spec
 import { pieceSolidMats } from './physics';
 import { resetMatch } from './game';
 import { hideOverlay, keysHTML, overlay, showTitle, startMatch } from './screens';
+import { Net } from './net';
+import { leave, showLobby } from './online';
 
 export const BoardMode = (() => {
   const S = 1.15;                                   // マスの大きさ
@@ -69,7 +71,7 @@ export const BoardMode = (() => {
   // ---------- 将棋のルール（成りは未実装） ----------
   const HAND_ORDER = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
   let board, hands, turn, selected, targets, lastMove, preview, busy, over, anim = null;
-  let gen = 0;   // gen: 対局ごとの番号（途中でやめた対局の続きを止める）
+  let gen = 0, online = false;   // online: 友達と対戦（相手 = 1 は CPU ではなく友達。自分は必ず手前側）   // gen: 対局ごとの番号（途中でやめた対局の続きを止める）
   const inB = (x, y) => x >= 0 && x < 9 && y >= 0 && y < 9;
   const fwd = o => (o === 0 ? -1 : 1);
   const fromEnd = (o, y) => (o === 0 ? y : 8 - y);   // 0 が相手陣の一番奥
@@ -83,7 +85,7 @@ export const BoardMode = (() => {
 
   // 途中の対局を保存（1手ごと）。決着したら消す
   const SAVE = 'shogiFps.board';
-  const save = () => { try { localStorage.setItem(SAVE, JSON.stringify({ board, hands, turn, lastMove })); } catch (e) {} };
+  const save = () => { if (online) return; try { localStorage.setItem(SAVE, JSON.stringify({ board, hands, turn, lastMove })); } catch (e) {} };
   const clearSave = () => { try { localStorage.removeItem(SAVE); } catch (e) {} };
   function loadSave() {
     try { const d = JSON.parse(localStorage.getItem(SAVE) || 'null'); return d && d.board && d.hands ? d : null; } catch (e) { return null; }
@@ -314,6 +316,7 @@ export const BoardMode = (() => {
     if (selected && targets.some(t => t[0] === x && t[1] === y)) {
       const m = selected.kind === 'drop' ? { kind: 'drop', type: selected.type, tx: x, ty: y } : { kind: 'move', fx: selected.x, fy: selected.y, tx: x, ty: y };
       selected = null; targets = [];
+      if (online) Net.send({ t: 'bm', m: flip(m) });
       doMove(m, 0);
       return;
     }
@@ -335,14 +338,15 @@ export const BoardMode = (() => {
       overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
         <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
         <p>${playerIsAttacker ? `勝てば相手の「${fn}」を取れる。負けるとあなたの「${mn}」を取られる` : `守り切れば攻めてきた「${fn}」を取れる。負けるとあなたの「${mn}」を取られる`}</p>
-        <p>制限時間 ${TIME_LIMIT} 秒・時間切れは守った側の勝ち</p>
         ${me.promoted || foe.promoted ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
         <button class="btn" id="bmFight">撃ち合い開始</button><button class="btn ghost" id="bmQuit2">タイトルへ</button>${keysHTML()}`, true);
       $('bmFight').onclick = e => { e.stopPropagation(); startMatch(); };
+      // 友達と対戦：おたがいこの画面に来たら、少し待って一緒に始める
+      if (online) { $('bmFight').style.display = 'none'; meWait = true; Net.send({ t: 'bwait' }); tryFight(); }
       $('bmQuit2').onclick = e => { e.stopPropagation(); quit(); };
     });
   }
-  // 撃ち合いの結果（win: プレイヤーの勝ち true / 負け false / 時間切れ null）
+  // 撃ち合いの結果（win: プレイヤーの勝ち true / 負け false）
   function battleResult(win) {
     const ctx = gs.matchCtx;
     const attackerWon = win === null ? false : (win === true) === ctx.playerIsAttacker;
@@ -350,7 +354,6 @@ export const BoardMode = (() => {
     $('hud').style.display = 'none';
     overlay(`<div class="res" style="color:${playerWon ? 'var(--kin-2)' : 'var(--shu-1)'}">${
       ctx.playerIsAttacker ? (attackerWon ? '駒を取った！' : '取り返された…') : (attackerWon ? '駒を取られた…' : '守り切った！')}</div>
-      <p>${win === null ? '時間切れ：守った側の勝ち' : ''}</p>
       <button class="btn" id="bmBack">盤面へ戻る</button><button class="btn ghost" id="bmQuit3">タイトルへ</button>`, true);
     $('bmQuit3').onclick = e => { e.stopPropagation(); quit(); };
     $('bmBack').onclick = e => {
@@ -358,6 +361,7 @@ export const BoardMode = (() => {
       gs.matchCtx = null;
       hideOverlay(); gs.state = 'board'; showUI(true);
       const r = battleDone; battleDone = null; r(attackerWon);
+      setTimeout(pump, 0);
     };
   }
 
@@ -407,7 +411,9 @@ export const BoardMode = (() => {
     // 成り：敵陣に入る・敵陣から出る・敵陣の中で動いたとき（行き所がなければ必ず成る。CPUはいつも成る）
     const moved = m.kind === 'move' && !m.lost && winner === null ? board[m.ty][m.tx] : null;
     if (moved && canPromote(moved) && (inZone(owner, m.fy) || inZone(owner, m.ty))) {
-      moved.promoted = owner === 1 || deadEnd(moved.type, owner, m.ty) || await askPromote(moved);
+      const forced = deadEnd(moved.type, owner, m.ty);
+      moved.promoted = forced || (owner === 1 ? (online ? await waitNet('bp') : true) : await askPromote(moved));
+      if (online && owner === 0 && !forced) Net.send({ t: 'bp', v: moved.promoted });
       if (moved.promoted) SFX.play('ding');
     }
     if (g !== gen) return;
@@ -417,7 +423,11 @@ export const BoardMode = (() => {
     turn = 1 - owner;
     save();
     busy = false;
-    if (turn === 1) aiTurn(); else turnMsg();
+    nextTurn();
+  }
+  function nextTurn() {
+    if (!online) { if (turn === 1) aiTurn(); else turnMsg(); return; }
+    if (turn === 1) { setMsg('相手の番…'); pump(); } else turnMsg();
   }
   async function aiTurn() {
     if (over) return;
@@ -436,6 +446,39 @@ export const BoardMode = (() => {
     await doMove(m, 1);
   }
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // ---------- 友達と対戦：届いたもの ----------
+  const flip = m => (m.kind === 'drop' ? { kind: 'drop', type: m.type, tx: 8 - m.tx, ty: 8 - m.ty } : { kind: 'move', fx: 8 - m.fx, fy: 8 - m.fy, tx: 8 - m.tx, ty: 8 - m.ty });
+  let inbox = [], waiters = [], meWait = false, foeWait = false;
+  // 種類 t のものが届くまで待つ（先に届いていればすぐ）
+  function waitNet(t) {
+    const i = inbox.findIndex(x => x.t === t);
+    if (i >= 0) return Promise.resolve(inbox.splice(i, 1)[0].v);
+    return new Promise(r => waiters.push({ t, r }));
+  }
+  // 相手の手：自分の番の途中（撃ち合いの結果画面など）なら、盤に戻るまで取っておく
+  function pump() {
+    if (!online || over || busy || turn !== 1 || gs.state !== 'board') return;
+    const i = inbox.findIndex(x => x.t === 'bm');
+    if (i < 0) return;
+    const m = inbox.splice(i, 1)[0].m;
+    if (m.kind === 'move' && board[m.ty][m.tx]) setMsg(`相手の「${label(board[m.fy][m.fx])}」が、あなたの「${label(board[m.ty][m.tx])}」を取りに来た！`);
+    doMove(m, 1);
+  }
+  function tryFight() {
+    if (!meWait || !foeWait) return;
+    meWait = foeWait = false;
+    const g = gen;
+    setTimeout(() => { if (g === gen && battleDone) startMatch(); }, 2200);
+  }
+  function onNet(m) {
+    if (!online) return;
+    if (m.t === 'bwait') { foeWait = true; tryFight(); return; }
+    if (m.t === 'bresign') { if (!over) { gen++; gameOver(0, '相手が投了しました'); } return; }
+    const w = waiters.findIndex(x => x.t === m.t);
+    if (w >= 0) { waiters.splice(w, 1)[0].r(m.v); return; }
+    inbox.push(m);
+    pump();
+  }
   function askPromote(p) {
     return new Promise(res => {
       overlay(`<div class="res" style="font-size:46px">成りますか？</div>
@@ -457,8 +500,9 @@ export const BoardMode = (() => {
     overlay(`<div class="res" style="color:${winner === 0 ? 'var(--kin-2)' : winner === 1 ? 'var(--shu-1)' : 'var(--text)'}">${winner === 0 ? '勝利' : winner === 1 ? '敗北' : '引き分け'}</div>
       <p>${why || (winner === 0 ? '相手の玉を討ち取った！' : 'あなたの王が討たれた…')}</p>
       <button class="btn" id="bmAgain">もう一局</button><button class="btn ghost" id="bmTitle">タイトルへ</button>`, true);
-    $('bmAgain').onclick = e => { e.stopPropagation(); start(); };
-    $('bmTitle').onclick = e => { e.stopPropagation(); exit(); };
+    $('bmAgain').onclick = e => { e.stopPropagation(); if (online) { close(); showLobby(); } else start(); };
+    $('bmTitle').onclick = e => { e.stopPropagation(); if (online) { close(); leave(); } else exit(); };
+    if (online) $('bmAgain').textContent = 'もう一局（部屋に戻る）';
   }
 
   // ---------- UI ----------
@@ -471,12 +515,21 @@ export const BoardMode = (() => {
     <div class="bm-help">駒をクリック → 光ったマスへ。赤いマスは相手の駒：撃ち合いで勝てば取れる、負けると取られる</div>`;
   document.body.appendChild(ui);
   function showUI(v) { ui.style.display = v ? 'block' : 'none'; }
-  $('bmResign').onclick = e => { e.stopPropagation(); if (!over && confirm('投了しますか？')) { gen++; gameOver(1, '投了'); } };
+  $('bmResign').onclick = e => { e.stopPropagation(); if (!over && confirm('投了しますか？')) { gen++; if (online) Net.send({ t: 'bresign' }); gameOver(1, '投了'); } };
   $('bmQuit').onclick = e => { e.stopPropagation(); quit(); };
   // 対局の途中でタイトルへ（相手の番・撃ち合いの前後でも）
   function quit() {
     if (!over && !confirm('対局をやめてタイトルへ戻りますか？')) return;
-    battleDone = null; hideOverlay(); exit();
+    battleDone = null; hideOverlay();
+    if (online) { close(); leave(); } else exit();
+  }
+  // 盤を片付ける（タイトルやロビーに移る前）
+  function close() { gs.matchCtx = null; over = true; gen++; battleDone = null; online = false; inbox = []; waiters = []; showUI(false); }
+  // 友達と対戦を始める（部屋を作った側が先手）
+  function startOnline(host) {
+    start(false, true);
+    turn = host ? 0 : 1;
+    refresh(); nextTurn();
   }
 
   // タイトルから：途中の対局があれば「続きから／最初から」を選ぶ
@@ -489,9 +542,10 @@ export const BoardMode = (() => {
     $('bmNew').onclick = e => { e.stopPropagation(); clearSave(); start(); };
     $('bmBackT').onclick = e => { e.stopPropagation(); showTitle(); };
   }
-  function start(resume = false) {
+  function start(resume = false, net = false) {
     SFX.init();
     gen++;
+    online = net; inbox = []; waiters = []; meWait = foeWait = false;
     initBoard();
     const d = resume && loadSave();
     if (d) { board = d.board; hands = d.hands; turn = d.turn; lastMove = d.lastMove; }
@@ -501,7 +555,7 @@ export const BoardMode = (() => {
     hideOverlay(); $('hud').style.display = 'none';
     showUI(true);
     refresh();
-    if (turn === 1) aiTurn(); else turnMsg();
+    nextTurn();
   }
   function exit() {
     gs.matchCtx = null; over = true; gen++;
@@ -531,7 +585,7 @@ export const BoardMode = (() => {
 
   showUI(false);
   return {
-    start, open, exit, abort, update, battleResult, scene: bScene, cam: bCam,
+    start, open, exit, abort, close, startOnline, onNet, get online() { return online; }, update, battleResult, scene: bScene, cam: bCam,
     // 確認用：盤面を直接いじって表示を更新する（開発中のテストに使う）
     debug: { get board() { return board; }, get hands() { return hands; }, refresh: () => refresh(), drops: (o, t) => dropSquares(board, o, t), inCheck: o => inCheck(board, o) },
   };

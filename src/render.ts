@@ -65,7 +65,8 @@ sun.position.copy(SUN_DIR).multiplyScalar(60);
 sun.castShadow = Q.shadow > 0;
 sun.shadow.mapSize.set(Q.shadow || 512, Q.shadow || 512);
 Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 20, far: 120 });
-sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
+// 影の縞（シャドウアクネ）が出ないよう、影の地図の1マスぶんくらい面から浮かせる（地図が粗いほど大きく）
+sun.shadow.bias = -0.0005; sun.shadow.normalBias = Math.max(0.05, 64 / (Q.shadow || 512) * 1.6);
 scene.add(sun); scene.add(sun.target);
 
 // ---------- テクスチャ ----------

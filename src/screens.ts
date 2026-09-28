@@ -9,7 +9,7 @@ import { SKINS } from './guns/skins';
 import { initPips } from './hud';
 import { BoardMode } from './boardmode';
 import { Net } from './net';
-import { leave, showLobby, showOnline } from './online';
+import { leave, resetNetMatch, showLobby, showOnline } from './online';
 
 // ================= 共通 =================
 export function overlay(html, dim?) {
@@ -218,6 +218,7 @@ export function showResult(win) {
 // ================= 対局の開始・一時停止 =================
 export function startMatch(foeType?: string) {
   SFX.init();
+  if (Net.on) resetNetMatch();
   resetMatch(foeType || (gs.matchCtx ? gs.matchCtx.foeType : resolveFoe()));
   initPips();
   $('meName').textContent = `${player.def.name}　${player.w.name}`;
