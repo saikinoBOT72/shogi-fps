@@ -426,7 +426,7 @@ export function updatePlayer(dt) {
   p.wantClimb = !!(down('jump') && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
   if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('step', null, 0.6); p.climbSnd = 0.22; }
   p.running = down('run');
-  p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1) * (p.w.speed || 1);
+  p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1) * (p.w.moveMul || 1);
   moveEntity(p, wish, dt);
   skillTick(p, dt);
   regenTick(p, dt);

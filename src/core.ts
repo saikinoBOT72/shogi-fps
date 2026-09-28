@@ -46,9 +46,9 @@ export const WEAPONS = {
     move: 0.016, air: 0.04, ads: 0.4, mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
   },
   // ナイフ（全員が持つ）：目の前を切りつける。ダメージは弱め、背中からは back 倍
-  // range: 届く距離(m) / cone: 当たる向きの広さ(内積) / speed: 持っている間の移動の速さの倍率
+  // range: 届く距離(m) / cone: 当たる向きの広さ(内積) / moveMul: 持っている間の移動の速さの倍率
   knife: {
-    name: 'カランビット', model: 'karambit', kind: 'melee', dmg: 30, back: 1.5, range: 2.3, cone: 0.8, speed: 1.1, head: 1,
+    name: 'カランビット', model: 'karambit', kind: 'melee', dmg: 30, back: 1.5, range: 2.3, cone: 0.8, moveMul: 1.1, head: 1,
     rate: 0.5, spread: 0, bloomShot: 0, bloomMax: 0, bloomRecover: 1, move: 0, air: 0, ads: 1, mag: 1, reload: 0.1, auto: true, recoil: 0, falloff: [999, 1000, 1], pref: 2,
   },
   // 連射で押し切る。近〜中距離
