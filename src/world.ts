@@ -2,7 +2,7 @@
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { BH, C, GROUND, H, V3, clamp, rand } from './core';
-import { boardTex, canvasTex, darkWoodTex, flatten, kanjiMat, makePiece, mat, planeGeo, scene, toon } from './render';
+import { boardTex, canvasTex, darkWoodTex, flatten, kanjiMat, makePiece, mat, planeGeo, scene, sky, toon } from './render';
 
 // ================= 地形・小道具 =================
 export const propMeshes = [];   // 弾・視線を遮る
@@ -350,8 +350,11 @@ export function insideCollider(x, z, R, y = 0) {
     g.computeBoundingSphere();
     const mesh = new THREE.Mesh(g, m);
     mesh.castShadow = mesh.receiveShadow = true;
+    mesh.matrixAutoUpdate = false; mesh.updateMatrix();
     scene.add(mesh); propMeshes.push(mesh);
   }
+  // 背景・地面など動かない物も、毎フレームの位置の計算を省く
+  for (const o of scene.children) if (o !== sky && !clouds.includes(o) && (o as any).isMesh && !(o as any).userData.phys) { o.matrixAutoUpdate = false; o.updateMatrix(); }
   // 弾・視線の判定を速くする（まとめた大きなメッシュでも、近くの三角形だけ調べる）
   for (const o of propMeshes) o.traverse((m: any) => { if (m.isMesh) m.geometry.computeBoundsTree(); });
 }

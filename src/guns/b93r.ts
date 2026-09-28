@@ -111,7 +111,7 @@ export function buildB93R(opt: { skin?: string; hand?: THREE.Material } = {}) {
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
     info: { name: 'ベレッタ 93R', real: '全長 240mm・銃身 156mm（3点バースト）', reload: 1.6 },
-    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
+    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.75 },
     events: { release: anim => { if (anim.has('fireLast')) { anim.stop('fireLast'); anim.play('release'); } } },
   });
 }

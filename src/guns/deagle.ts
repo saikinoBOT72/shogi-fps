@@ -182,7 +182,7 @@ export function buildDeagle(opt: GunOpt = {}) {
     // 前の銃と同じ形の項目（スライドは動きの仕組みで動かすので、ここでは動かさない）
     slide, slideZ: slide.position.z, slideAmt: 0,
     // 一人称の構え：大きさ・腰だめ・覗き込みの位置
-    vmScale: 1.1, vmYaw: -0.1,
+    vmScale: 1.1, vmYaw: -0.1, vmSize: 0.72,   // vmSize：一人称での大きさの倍率
     hip: new THREE.Vector3(0.17, -0.2, -0.44), ads: new THREE.Vector3(0.12, -0.25, -0.42),
     info: { name: 'デザートイーグル', real: '全長 269mm・高さ 149mm' },
     get skin() { return skin; }, setSkin,

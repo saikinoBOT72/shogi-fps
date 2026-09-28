@@ -81,6 +81,7 @@ export function buildYumi(opt: { hand?: THREE.Material } = {}) {
   // 見本ページ用：「撃つ」で引いて放つ
   let demo = -1;
   const anim = {
+    clear() { demo = -1; arrow.visible = true; setDraw(0); }, stop() {}, play() {}, has() { return false; }, rebase() {},
     update(dt: number) {
       if (demo < 0) return;
       demo += dt;

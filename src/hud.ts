@@ -82,6 +82,16 @@ export function updateHUD(dt) {
   xh[0].style.top = (-gap - 9) + 'px'; xh[1].style.top = gap + 'px';
   xh[2].style.left = (-gap - 9) + 'px'; xh[3].style.left = gap + 'px';
   $('xh').style.opacity = p.dead || VM.scoped ? 0 : 1;
+  // 次に撃てるまで（リロード中はリロードの進み）を照準の下の細いゲージで
+  let ck = -1;
+  if (p.reloading > 0) ck = 1 - p.reloading / p.w.reload;
+  else {
+    if (p.cd > hud.lastCd + 1e-3) hud.cdMax = p.cd;   // 撃った（間隔が始まった）
+    if (p.cd > 0 && hud.cdMax >= 0.2) ck = 1 - p.cd / hud.cdMax;   // 連射の速い武器はちらつくので出さない
+  }
+  hud.lastCd = p.cd;
+  setStyle($('cdBar'), 'opacity', ck >= 0 && !p.dead ? '1' : '0');
+  if (ck >= 0) setStyle($('cdBar').firstChild, 'transform', `scaleX(${Math.max(0, ck).toFixed(2)})`);
   setStyle($('scope'), 'display', VM.scoped ? 'block' : 'none');
   // 弓の引き具合のリング
   const dr = p.w.kind === 'bow' && !p.dead ? p.draw || 0 : 0;
@@ -156,7 +166,7 @@ export function updateHUD(dt) {
   setText('timer', Math.max(0, Math.ceil(TIME_LIMIT - stats.time)));
 }
 // 前回と同じ値なら DOM に触らない（毎フレームの書き換えは重い）
-export const hud = { hurt: 0, dash: 0, ammo: -1, ready: null, cache: new Map() };
+export const hud: any = { hurt: 0, dash: 0, ammo: -1, ready: null, cache: new Map(), lastCd: 0, cdMax: 0 };
 export function changed(key, v) { if (hud.cache.get(key) === v) return false; hud.cache.set(key, v); return true; }
 export function setHTML(id, v) { if (changed(id + ':h', v)) $(id).innerHTML = v; }
 export function setText(id, v) { if (changed(id + ':t', v)) $(id).textContent = v; }

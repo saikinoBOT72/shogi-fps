@@ -156,14 +156,14 @@ vmScene.add(new THREE.HemisphereLight(C(P.ao[2]), C(P.kiji[0]), 0.8 * LIGHT));
 export const vmSun = new THREE.DirectionalLight(C(P.shiro[2]), 1.6 * LIGHT); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
 export const vmFlashLight = new THREE.PointLight(C(P.kin[2]), 0, 2, 1); vmScene.add(vmFlashLight);
 // 一人称の銃の構えの目安（fitViewModel で使う）
-export const VM_FIT = { grip: [0.55, -0.78], muzzle: [0.15, -0.14], gripDepth: 0.2, reach: 0.45, adsDrop: [-0.1, -0.25] };
+export const VM_FIT = { grip: [0.55, -0.78], muzzle: [0.15, -0.14], gripDepth: 0.2, reach: 0.45, adsBelow: 0.17 };   // adsBelow：覗き込みで銃口を照準のどれだけ下に置くか（画面の縦の半分に対する割合）
 export const VM: any = (() => {
   const root = new THREE.Group();
   const models: any = {};
   for (const k of Object.keys(GUN_BUILDERS)) models[k] = buildGun(k);
   for (const [k, m] of Object.entries(models) as [string, any][]) {
     m.g.visible = false; root.add(m.g);
-    if (k === 'bow') m.g.scale.setScalar(0.34); else fitViewModel(m);
+    if (k === 'bow') m.g.scale.setScalar(0.44); else fitViewModel(m);
   }
   addEventListener('resize', () => { for (const [k, m] of Object.entries(models) as [string, any][]) if (k !== 'bow') fitViewModel(m); });
   vmScene.add(root);
@@ -246,9 +246,15 @@ export function fitViewModel(m) {
   const w = T.clone().sub(G);
   m.g.rotation.order = 'YXZ';
   m.g.rotation.set(Math.atan2(w.y, Math.hypot(w.x, w.z)) - Math.atan2(d.y, -d.z), Math.atan2(-w.x, -w.z), 0);
-  m.g.scale.setScalar(w.length() / d.length());
+  const size = m.vmSize || 1;
+  m.g.scale.setScalar(w.length() / d.length() * size);
   m.hip = G;
-  m.ads = at(F.grip[0] + F.adsDrop[0], F.grip[1] + F.adsDrop[1], F.gripDepth);
+  // 覗き込み：銃口がまっすぐ前を向くように傾けを戻し（adsRot）、照準の真下に構える
+  m.g.updateMatrix();
+  const dW = d.clone().applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(m.g.rotation)).multiplyScalar(m.g.scale.x);
+  m.adsRot = [-Math.atan2(dW.y, Math.hypot(dW.x, dW.z)), -Math.atan2(-dW.x, -dW.z)];
+  const gd = 0.2, L = dW.length();
+  m.ads = new V3(0.015, -F.adsBelow * th * (gd + L) - 0.012, -gd);
 }
 // 撃ったときの銃の跳ね上がり
 export const kickOf = w => w.kind === 'melee' ? 0 : w.kind === 'bow' ? 0.6 : w.kind === 'grenade' ? 1.6 : clamp(w.recoil / 0.022, 1, 2.2);

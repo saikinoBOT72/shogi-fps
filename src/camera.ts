@@ -110,7 +110,8 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
     base.y - VM.sway.y * (1 - ads * 0.7) + bobY * 0.7 * (1 - ads) - rl * 0.12 - VM.dip * 0.05 - VM.equip * 0.35 - VM.dash * 0.08 - VM.guard * 0.1,
     base.z + VM.kick * 0.07
   );
-  r.rotation.set(VM.kick * 0.22 - rl * 0.55 - VM.equip * 0.6 - VM.dash * 0.3, VM.sway.x * 1.5, VM.sway.x * 1.2 + rl * 0.45 + VM.dash * 0.35);
+  const ar = VM.pist.adsRot || [0, 0];   // 覗き込むと銃口をまっすぐ前へ
+  r.rotation.set(VM.kick * 0.22 - rl * 0.55 - VM.equip * 0.6 - VM.dash * 0.3 + ar[0] * ads, VM.sway.x * 1.5 + ar[1] * ads, VM.sway.x * 1.2 + rl * 0.45 + VM.dash * 0.35);
   if (!VM.pist.anim) VM.pist.slide.position.z = VM.pist.slideZ + VM.slideT * VM.pist.slideAmt;
   // 盾（守りの構え）：下からせり上がる
   VM.shield.visible = VM.guard > 0.02;
