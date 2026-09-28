@@ -79,7 +79,8 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
   const edge: Pt[] = [[-73, -60], [-78, -84], [-79, -113], [-76, -143], [-72, -164], [-65, -176]];
   B.add('slide', bladeGeo(spine, edge), knife);
 
-  if (opt.hand) { const h = handMesh(opt.hand, 0.7, 0.8, 0.95); h.position.set(0, -0.004, 0.002); rhand.add(h); }   // 握りを包む拳
+  // 拳は握りを包まず、ナイフの裏側（x が + の側）に置く：ナイフが手の表面にくっついて見える
+  if (opt.hand) { const h = handMesh(opt.hand, 0.7, 0.8, 0.95); h.position.set(0.034, -0.004, 0.002); rhand.add(h); }
   const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(-78, -160));   // 刃先
   const eject = new THREE.Object3D(); B.root.add(eject);
 
@@ -126,6 +127,6 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
   });
   // 一人称の持ち方：横から刃の形が見える向きで、刃先を画面のまん中の方へ向ける（rot は Z→Y→X の順）
   // 写真の持ち方：拳の上に輪（人差し指）、握りは拳の中を縦に通り、刃は拳の左から出て先が上へ反る
-  model.vmFixed = { scale: 1.45, rot: [0, Math.PI / 2 - 0.35, -Math.PI / 2], hip: new THREE.Vector3(0.3, -0.1, -0.42), ads: new THREE.Vector3(0.3, -0.1, -0.42) };
+  model.vmFixed = { scale: 1.45, rot: [0, Math.PI / 2 - 0.35, -Math.PI / 2], turn: -Math.PI / 4, hip: new THREE.Vector3(0.3, -0.1, -0.42), ads: new THREE.Vector3(0.3, -0.1, -0.42) };
   return model;
 }

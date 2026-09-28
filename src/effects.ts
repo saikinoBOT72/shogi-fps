@@ -230,6 +230,8 @@ export function fitViewModel(m) {
   if (m.vmFixed) {
     const f = m.vmFixed;
     m.g.rotation.order = 'ZYX'; m.g.rotation.set(f.rot[0], f.rot[1], f.rot[2]); m.g.scale.setScalar(f.scale);
+    // turn：最後に縦の軸で回す（刃先を前へ向ける量）
+    if (f.turn) m.g.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), f.turn));
     m.hip = f.hip; m.ads = f.ads;
     return;
   }
