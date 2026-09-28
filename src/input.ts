@@ -3,7 +3,7 @@ import { gs } from './state';
 import { settings } from './core';
 import { cam, renderer } from './render';
 import { vmCam } from './effects';
-import { isPlaying } from './game';
+import { isPlaying, player, switchWeapon } from './game';
 import { onLocked, pause } from './screens';
 
 // ================= 入力 =================
@@ -17,21 +17,44 @@ gs.jumpPressed = 0;
 export let lockGrace = 0, lockFailed = false;
 gs.mdx = 0;
 gs.mdy = 0;
-addEventListener('keydown', e => {
+// キー・マウスのボタンを押したとき（押した瞬間だけの操作もここで）。マウスのボタンは 'Mouse1'（ホイール）'Mouse3'/'Mouse4'（横）
+function press(code: string) {
   if (gs.rebinding) return;   // キー設定の入力待ち
+  const K = (settings as any).keys, first = !keys[code];
+  if (code === K.jump && first) gs.jumpPressed = 0.15;
+  if (code === K.fullscreen && first) toggleFullscreen();
+  if (first && isPlaying() && gs.state === 'fight') {
+    if (code === K.weapon1) switchWeapon(player, 'knife');
+    if (code === K.weapon2) switchWeapon(player, 'main');
+  }
+  keys[code] = true;
+}
+addEventListener('keydown', e => {
+  if (gs.rebinding) return;
   const K = (settings as any).keys;
-  if (e.code === K.jump) { e.preventDefault(); if (!keys[e.code]) gs.jumpPressed = 0.15; }
-  if (e.code === 'Space' || e.code === 'Tab') e.preventDefault();
-  if (e.code === K.fullscreen && !e.repeat) toggleFullscreen();
-  keys[e.code] = true;
+  if (e.code === K.jump || e.code === 'Space' || e.code === 'Tab') e.preventDefault();
+  press(e.code);
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('mousedown', e => {
+  if (e.button !== 0 && e.button !== 2) { if (e.button >= 3) e.preventDefault(); press('Mouse' + e.button); return; }
   if (!isPlaying()) return;
   if (e.button === 0) { gs.mouseDown = true; gs.triggerUsed = false; }
   if (e.button === 2) gs.rightDown = true;
 });
-addEventListener('mouseup', e => { if (e.button === 0) gs.mouseDown = false; if (e.button === 2) gs.rightDown = false; });
+addEventListener('mouseup', e => {
+  if (e.button >= 3) e.preventDefault();   // 横のボタンでブラウザが「戻る」をしないように
+  if (e.button !== 0 && e.button !== 2) { keys['Mouse' + e.button] = false; return; }
+  if (e.button === 0) gs.mouseDown = false; if (e.button === 2) gs.rightDown = false;
+});
+addEventListener('auxclick', e => e.preventDefault());
+// ホイールで武器を切り替える
+let wheelT = 0;
+addEventListener('wheel', e => {
+  if (!isPlaying() || gs.state !== 'fight' || performance.now() < wheelT) return;
+  wheelT = performance.now() + 180;
+  switchWeapon(player, 'toggle');
+}, { passive: true });
 addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
   const locked = document.pointerLockElement === renderer.domElement;

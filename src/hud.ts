@@ -68,7 +68,10 @@ export function initPips() {
   hud.ammo = -1; hud.cache.clear();
   initSkills();
   $('pips').innerHTML = '';
-  for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
+  if (player.w.kind !== 'melee') for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
+  // 武器の名前：今持っている方を明るく
+  const K = (settings as any).keys, knife = player.w.kind === 'melee';
+  $('wepName').innerHTML = `<span class="${knife ? 'on' : ''}">${keyName(K.weapon1)} ナイフ</span>　<span class="${knife ? '' : 'on'}">${keyName(K.weapon2)} ${player.mainW.name}</span>`;
 }
 export function updateHUD(dt) {
   const p = player;
@@ -113,7 +116,10 @@ export function updateHUD(dt) {
   hud.hurt = Math.max(0, hud.hurt - dt * 2.2); setStyle($('hurt'), 'opacity', hud.hurt.toFixed(2));
   hud.dash = act(p, 'dash') ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
 
-  if (p.w.kind === 'bow') {
+  if (p.w.kind === 'melee') {
+    setHTML('ammoNum', '—');
+    setStyle($('reloadTxt'), 'opacity', '0');
+  } else if (p.w.kind === 'bow') {
     // 弓は弾数なし。引き具合を表示
     setHTML('ammoNum', `${Math.round((p.draw || 0) * 100)}<small>%</small>`);
     setStyle($('reloadTxt'), 'opacity', '0');
@@ -123,7 +129,7 @@ export function updateHUD(dt) {
     $('ammoNum').classList.toggle('low', p.ammo <= 3);
     [...$('pips').children].forEach((c, i) => c.classList.toggle('e', i >= p.ammo));
   }
-  if (p.w.kind !== 'bow') {
+  if (p.w.kind !== 'bow' && p.w.kind !== 'melee') {
     setStyle($('reloadTxt'), 'opacity', p.reloading > 0 ? '1' : (p.ammo === 0 ? (0.7 + Math.sin(performance.now() / 120) * 0.3).toFixed(2) : '0'));
     setText('reloadTxt', p.reloading > 0 ? 'リロード中' : 'R でリロード');
   }

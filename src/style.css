@@ -254,3 +254,6 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .keys .kbd-btn { font: 700 13px var(--font-ui); min-width: 64px; padding: 4px 10px; border-radius: 6px; cursor: pointer; color: var(--text); background: color-mix(in srgb, var(--sumi-2) 80%, transparent); border: 1px solid var(--line) }
 .keys .kbd-btn:hover { border-color: var(--accent) }
 .keys .kbd-btn.wait { color: var(--accent); border-color: var(--accent) }
+
+/* 武器の切り替え表示：今持っている方を明るく */
+#wepName span { opacity: .45 } #wepName span.on { opacity: 1; color: var(--accent) }

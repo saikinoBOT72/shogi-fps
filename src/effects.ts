@@ -198,7 +198,7 @@ export const VM: any = (() => {
     // 撃った（反動・光・部品の動き）。empty：最後の1発
     fire(w, empty = false) {
       vm.kick = kickOf(w); vm.slideT = 1;
-      if (w.kind !== 'bow') vm.flashT = 0.05;
+      if (w.kind !== 'bow' && w.kind !== 'melee') vm.flashT = 0.05;
       if (vm.pist.fire) vm.pist.fire(empty);
     },
     reload(dur) { if (vm.pist.reload) vm.pist.reload(dur); },
@@ -226,6 +226,13 @@ export const VM: any = (() => {
 //   短い銃（ハンドガン）は銃口の位置を手前にして、大きくなりすぎないようにする
 export function fitViewModel(m) {
   if (m.anim) m.anim.rebase();
+  // 決まった持ち方の武器（ナイフなど）：向き・大きさ・位置をそのまま使う
+  if (m.vmFixed) {
+    const f = m.vmFixed;
+    m.g.rotation.order = 'ZYX'; m.g.rotation.set(f.rot[0], f.rot[1], f.rot[2]); m.g.scale.setScalar(f.scale);
+    m.hip = f.hip; m.ads = f.ads;
+    return;
+  }
   const th = Math.tan(THREE.MathUtils.degToRad(58 / 2)), a = innerWidth / innerHeight;
   const at = (nx, ny, t) => new V3(nx * th * a * t, ny * th * t, -t);
   m.g.rotation.set(0, 0, 0); m.g.scale.setScalar(1); m.g.updateMatrixWorld(true);
@@ -242,7 +249,7 @@ export function fitViewModel(m) {
   m.ads = at(F.grip[0] + F.adsDrop[0], F.grip[1] + F.adsDrop[1], F.gripDepth);
 }
 // 撃ったときの銃の跳ね上がり
-export const kickOf = w => w.kind === 'bow' ? 0.6 : w.kind === 'grenade' ? 1.6 : clamp(w.recoil / 0.022, 1, 2.2);
+export const kickOf = w => w.kind === 'melee' ? 0 : w.kind === 'bow' ? 0.6 : w.kind === 'grenade' ? 1.6 : clamp(w.recoil / 0.022, 1, 2.2);
 // 構えの位置（低めに構え、照準で狙う）。覗き込みも画面の下へ下げてズームするだけ
 export const HIP = new V3(0.2, -0.24, -0.48);
 

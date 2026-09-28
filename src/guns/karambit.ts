@@ -119,9 +119,12 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
       ],
     },
   };
-  return makeGun({
+  const model = makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'hagane',
     info: { name: 'カランビット', real: '全長 190mm・刃 100mm' },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
   });
+  // 一人称の持ち方：横から刃の形が見える向きで、刃先を画面のまん中の方へ向ける（rot は Z→Y→X の順）
+  model.vmFixed = { scale: 1.6, rot: [0, -Math.PI / 2 + 0.35, -2.2], hip: new THREE.Vector3(0.2, -0.2, -0.42), ads: new THREE.Vector3(0.2, -0.2, -0.42) };
+  return model;
 }

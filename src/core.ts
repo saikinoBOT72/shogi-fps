@@ -45,6 +45,12 @@ export const WEAPONS = {
     name: 'ベレッタ 93R', model: 'burst', dmg: 22, head: 1.6, rate: 0.55, burst: 3, burstGap: 0.07, spread: 0.008, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
     move: 0.016, air: 0.04, ads: 0.4, mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
   },
+  // ナイフ（全員が持つ）：目の前を切りつける。ダメージは弱め、背中からは back 倍
+  // range: 届く距離(m) / cone: 当たる向きの広さ(内積) / speed: 持っている間の移動の速さの倍率
+  knife: {
+    name: 'カランビット', model: 'karambit', kind: 'melee', dmg: 30, back: 1.5, range: 2.3, cone: 0.8, speed: 1.1, head: 1,
+    rate: 0.5, spread: 0, bloomShot: 0, bloomMax: 0, bloomRecover: 1, move: 0, air: 0, ads: 1, mag: 1, reload: 0.1, auto: true, recoil: 0, falloff: [999, 1000, 1], pref: 2,
+  },
   // 連射で押し切る。近〜中距離
   smg: {
     name: 'MP5K', model: 'mp5', dmg: 10, head: 1.4, rate: 0.075, spread: 0.012, bloomShot: 0.004, bloomMax: 0.045, bloomRecover: 0.15,
@@ -141,12 +147,12 @@ try { Object.assign(settings, JSON.parse(localStorage.getItem('shogifps') || '{}
 // キー割り当て（e.code）。マウスの撃つ・覗き込みは固定
 export const KEY_ACTIONS: [string, string][] = [
   ['forward', '前'], ['back', '後ろ'], ['left', '左'], ['right', '右'], ['run', '走る（押している間）'], ['jump', 'ジャンプ（壁に向かって長押しで登る）'],
-  ['reload', 'リロード'], ['skill', 'スキル1'], ['skill2', 'スキル2'], ['inspect', '銃を眺める'], ['fullscreen', 'フルスクリーン'],
+  ['reload', 'リロード'], ['skill', 'スキル1'], ['skill2', 'スキル2'], ['weapon1', '武器1（ナイフ）'], ['weapon2', '武器2（メイン）'], ['inspect', '武器を眺める'], ['fullscreen', 'フルスクリーン'],
 ];
-export const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', run: 'ShiftLeft', jump: 'Space', reload: 'KeyR', skill: 'KeyE', skill2: 'KeyQ', inspect: 'KeyV', fullscreen: 'KeyF' };
+export const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', run: 'ShiftLeft', jump: 'Space', reload: 'KeyR', skill: 'KeyE', skill2: 'KeyQ', weapon1: 'Digit1', weapon2: 'Digit2', inspect: 'KeyV', fullscreen: 'KeyF' };
 (settings as any).keys = Object.assign({}, DEFAULT_KEYS, (settings as any).keys || {});
 // e.code を読みやすい名前に
-export const keyName = (code: string) => ({ Space: 'Space', ShiftLeft: '左Shift', ShiftRight: '右Shift', ControlLeft: '左Ctrl', ControlRight: '右Ctrl', AltLeft: '左Alt', AltRight: '右Alt', Tab: 'Tab', CapsLock: 'CapsLock', Backquote: '`' } as any)[code]
+export const keyName = (code: string) => ({ Mouse1: 'ホイールボタン', Mouse3: 'マウス戻る', Mouse4: 'マウス進む', Space: 'Space', ShiftLeft: '左Shift', ShiftRight: '右Shift', ControlLeft: '左Ctrl', ControlRight: '右Ctrl', AltLeft: '左Alt', AltRight: '右Alt', Tab: 'Tab', CapsLock: 'CapsLock', Backquote: '`' } as any)[code]
   || code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'テンキー').replace(/^Arrow/, '矢印');
 export const saveSettings = () => { try { localStorage.setItem('shogifps', JSON.stringify(settings)); } catch (e) {} };
 // 画質（pr: 描画解像度の倍率 / shadow: 影の解像度, 0 で影なし / aa: アンチエイリアス）

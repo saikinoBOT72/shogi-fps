@@ -71,7 +71,7 @@ export const keysHTML = (edit = false) => {
     return sks[i] ? `${what}：${sks[i].name}（${sks[i].help}）` : `${what}：なし`;
   }
   return `<div class="keys">
-    ${KEY_ACTIONS.map(bind).join('')}${k('マウス', '狙う')}${k('左クリック', '撃つ（弓は長押しで引く）')}${k('右クリック', '覗き込み')}${k('ESC', '一時停止')}
+    ${KEY_ACTIONS.map(bind).join('')}${k('ホイール', '武器の切り替え')}${k('マウス', '狙う')}${k('左クリック', '撃つ（弓は長押しで引く）')}${k('右クリック', '覗き込み')}${k('ESC', '一時停止')}
   </div>`;
 };
 // キー設定：ボタンを押してから、割り当てたいキーを押す（ESC でやめる）。同じキーを使っていた操作とは入れ替える
@@ -80,19 +80,21 @@ function bindKeys(rerender: () => void) {
     e.stopPropagation();
     if (gs.rebinding) return;
     gs.rebinding = true; b.textContent = 'キーを押す…'; b.classList.add('wait');
-    const onKey = (ev: KeyboardEvent) => {
-      ev.preventDefault(); ev.stopPropagation();
-      removeEventListener('keydown', onKey, true);
+    const done = (code: string) => {
+      removeEventListener('keydown', onKey, true); removeEventListener('mousedown', onMouse, true);
       gs.rebinding = false;
       const K = (settings as any).keys, a = b.dataset.a;
-      if (ev.code !== 'Escape') {
-        const other = Object.keys(K).find(x => x !== a && K[x] === ev.code);
+      if (code !== 'Escape') {
+        const other = Object.keys(K).find(x => x !== a && K[x] === code);
         if (other) K[other] = K[a];
-        K[a] = ev.code; saveSettings();
+        K[a] = code; saveSettings();
       }
       rerender();
     };
-    addEventListener('keydown', onKey, true);
+    const onKey = (ev: KeyboardEvent) => { ev.preventDefault(); ev.stopPropagation(); done(ev.code); };
+    // 左・右クリックは撃つ・覗き込み用なので、それ以外（ホイールボタン・横のボタン）だけ
+    const onMouse = (ev: MouseEvent) => { if (ev.button === 0 || ev.button === 2) return; ev.preventDefault(); ev.stopPropagation(); done('Mouse' + ev.button); };
+    setTimeout(() => { addEventListener('keydown', onKey, true); addEventListener('mousedown', onMouse, true); }, 0);
   });
 }
 function showControls(back: () => void) {
@@ -219,7 +221,6 @@ export function startMatch() {
   initPips();
   $('meName').textContent = `${player.def.name}　${player.w.name}`;
   $('foeTag').textContent = bot.def.name;
-  $('wepName').textContent = player.w.name;
   $('center').textContent = '';
   gs.state = 'countdown'; gs.stateT = 0; gs.paused = true;
   playerActor.root.visible = false;

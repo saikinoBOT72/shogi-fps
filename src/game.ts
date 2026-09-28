@@ -13,7 +13,7 @@ import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
 import { down, keys } from './input';
 import { PERSONAS, aiHear, damagePlayer } from './ai';
-import { killBot, showHitmarker } from './hud';
+import { initPips, killBot, showHitmarker } from './hud';
 import { Replay } from './replay';
 
 // ================= ゲーム状態 =================
@@ -37,6 +37,7 @@ export function makeEntity(type, isBot) {
     // スキルの枠：id / sk: 中身 / cd: 待ち時間 / charges: 使える回数 / t: 効いている残り時間 / dir: 使った向き
     slots: (def.skills || []).map(id => ({ id, sk: SKILLS[id], cd: 0, charges: SKILLS[id].charges || 1, t: 0, dir: new V3(), rammed: false })),
     stepPhase: 0, flashT: 0, draw: 0, sinceHit: 99, burstLeft: 0,
+    mainW: w, mainAmmo: w.mag,   // メイン武器（ナイフに持ち替えている間の弾数も覚えておく）
   };
 }
 // 駒の見た目を用意（種類が変わったときだけ作り直す）
@@ -420,12 +421,12 @@ export function updatePlayer(dt) {
   }
   gs.jumpPressed -= dt;
   const guardOrDash = p.slots.some(s => s.t > 0 && ['guard', 'dash', 'step', 'leap'].includes(s.sk.type)) || !!Gadgets.ctrlOf(p);   // 覗き込めないスキル中
-  p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash ? 1 : 0, p.w.adsSpeed || 14, dt);
+  p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash && p.w.kind !== 'melee' ? 1 : 0, p.w.adsSpeed || 14, dt);
   // 壁に向かってジャンプ長押しで登る
   p.wantClimb = !!(down('jump') && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
   if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('step', null, 0.6); p.climbSnd = 0.22; }
   p.running = down('run');
-  p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1);
+  p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1) * (p.w.speed || 1);
   moveEntity(p, wish, dt);
   skillTick(p, dt);
   regenTick(p, dt);
@@ -462,8 +463,36 @@ export function updatePlayer(dt) {
   }
 }
 
+// 武器の持ち替え：'knife'（ナイフ）/ 'main'（メイン武器）/ 'toggle'
+export function switchWeapon(e, which) {
+  const isKnife = e.w.kind === 'melee';
+  const toKnife = which === 'toggle' ? !isKnife : which === 'knife';
+  if (toKnife === isKnife || e.dead) return;
+  if (toKnife) { e.mainAmmo = e.ammo; e.w = WEAPONS.knife; e.ammo = 1; }
+  else { e.w = e.mainW; e.ammo = e.mainAmmo; }
+  e.reloading = 0; e.draw = 0; e.drawing = false; e.burstLeft = 0; e.bloom = 0;
+  e.cd = Math.max(e.cd, 0.3);   // 持ち替えの間は撃てない
+  if (!e.isBot) { VM.setWeapon(e.w.model); VM.ready(); initPips(); SFX.play('reloadEnd'); }
+}
+// ナイフで切る：目の前の届く範囲の相手に当たる。背中からは強い
+export function meleePlayer() {
+  const p = player, w = p.w;
+  p.cd = w.rate;
+  onAttack(p); endGuard(p);
+  VM.fire(w);
+  SFX.play('dash', null);
+  const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
+  const eye = eyeOf(p), chest = new V3(bot.pos.x, bot.pos.y + bot.height * 0.6, bot.pos.z);
+  const to = chest.clone().sub(eye), d = to.length();
+  if (bot.dead || d > w.range + bot.radius || to.normalize().dot(dir) < w.cone || !hasLOS(eye, chest, true)) return;
+  const behind = facingOf(bot).dot(p.pos.clone().sub(bot.pos).setY(0).normalize()) < -0.3;
+  const dmg = w.dmg * (behind ? w.back : 1) * skillDamageMul(bot, p.pos);
+  damageBot({ dmg, head: false, point: chest.clone().addScaledVector(to, -0.3) });
+  view.shake = Math.max(view.shake, 0.15);
+}
 export function shootPlayer() {
   const p = player;
+  if (p.w.kind === 'melee') { meleePlayer(); return; }
   cam.updateMatrixWorld();
   const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   const muzzle = cam.localToWorld(new V3(lerp(0.19, 0, p.adsT) * 0.9, -0.14, -0.9));
