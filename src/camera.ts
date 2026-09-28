@@ -5,7 +5,7 @@ import { LIGHT, SKILLS, V3, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, sky } from './render';
 import { HIP, Particles, VM, vmCam, vmFlashLight } from './effects';
-import { act, bot, botActor, eyeOf, player, playerActor, view } from './game';
+import { act, bot, botActor, eyeOf, player, playerActor, surfOf, view } from './game';
 
 // ================= カメラ・銃の動き =================
 export function updateCamera(dt, rdt) {
@@ -159,7 +159,7 @@ export function animateActor(A, e, dt, lookAt) {
   const mk = e.onGround ? clamp(spd / e.def.speed, 0, 1) : 0;
   const prev = Math.sin(e.stepPhase);
   e.stepPhase += dt * (6 + spd * 1.3);
-  if (e.isBot && mk > 0.3 && prev > 0 && Math.sin(e.stepPhase) <= 0) SFX.play('step', e.pos, 1);
+  if (e.isBot && mk > 0.3 && prev > 0 && Math.sin(e.stepPhase) <= 0) SFX.play('step', e.pos, 1, surfOf(e));
   const inv = A.root.rotation.y;
   const lf = e.vel.x * Math.sin(inv) + e.vel.z * Math.cos(inv);  // 前後
   const ls = e.vel.x * Math.cos(inv) - e.vel.z * Math.sin(inv);  // 左右

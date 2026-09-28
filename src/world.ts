@@ -1,21 +1,28 @@
 // マップ（谷と二つの丘）・背景・障害物と当たり判定
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
-import { BH, C, GROUND, H, V3, clamp, rand } from './core';
-import { boardTex, canvasTex, darkWoodTex, flatten, kanjiMat, makePiece, mat, planeGeo, scene, sky, toon } from './render';
+import { BH, C, GROUND, H, LIGHT, V3, clamp, rand, settings } from './core';
+import { gs } from './state';
+import { SUN_DIR, boardTex, canvasTex, darkWoodTex, flatGeo, flatten, hemi, kanjiMat, makePiece, mat, planeGeo, scene, sky, sun, toon } from './render';
 
 // ================= 地形・小道具 =================
+// 今のマップのもの（マップを切り替えると中身が入れ替わる）
 export const propMeshes = [];   // 弾・視線を遮る
 export const colliders = [];    // 移動の当たり判定（上に乗れる）
+const baseProps = [];           // どのマップにもある物（外周の地面）
 // walk: 上を歩ける面（盤・段・階段）。経路探索で「床」として扱う
+// 作っている途中のマップに足す
 export function addSolid(obj, cyl?, walk?) {
-  scene.add(obj); propMeshes.push(obj);
+  cur.group.add(obj); cur.props.push(obj);
   flatten(obj);
   // 透明な板（字など）は影を落とさない
   obj.traverse((o: any) => { if (o.isMesh) { o.castShadow = !o.material.transparent; o.receiveShadow = true; } });
   obj.updateMatrixWorld(true);
-  if (cyl) colliders.push({ kind: 'cyl', ...cyl, walk: !!walk });
-  else { const b = new THREE.Box3().setFromObject(obj); colliders.push({ kind: 'box', min: b.min, max: b.max, walk: !!walk }); }
+  // 上面の材質から床の種類（足音用。材質の userData.surf、なければ草・土）
+  let m: any = obj.material; if (!m) obj.traverse((o: any) => { if (!m && o.isMesh) m = o.material; });
+  const surf = (Array.isArray(m) ? m[2] : m)?.userData?.surf || 'grass';
+  if (cyl) cur.colliders.push({ kind: 'cyl', ...cyl, walk: !!walk, surf });
+  else { const b = new THREE.Box3().setFromObject(obj); cur.colliders.push({ kind: 'box', min: b.min, max: b.max, walk: !!walk, surf }); }
 }
 // その場所の地面の高さ（歩ける面の一番上）。最初に使うときに 1m のマス目で覚える
 let hmap: Float32Array = null;
@@ -43,6 +50,9 @@ export const earthM = mat(P.kiji[0], { roughness: 1 });
 export const turfM = mat(P.moegi[1], { roughness: 1 });
 export const leafMs = [mat(P.midori[1]), mat(P.moegi[1]), mat(P.midori[0])];
 export const trunkM = mat(P.kiji[0]);
+// 床の種類（足音）
+for (const m of [stoneM, roofM, plasterM]) m.userData.surf = 'stone';
+woodSideM.userData.surf = 'wood';
 
 // 外周の地面（弾や矢が当たるように propMeshes に入れる）
 {
@@ -54,7 +64,7 @@ export const trunkM = mat(P.kiji[0]);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(10, 10);
   const g = new THREE.Mesh(new THREE.PlaneGeometry(2 * H + 8, 2 * H + 8), toon({ map: tex, roughness: 1 }));
   g.rotation.x = -Math.PI / 2; g.position.y = GROUND; g.receiveShadow = true;
-  scene.add(g); propMeshes.push(g);
+  scene.add(g); baseProps.push(g);
 }
 
 // ---------- 背景を1つのメッシュにまとめる（描画回数を減らして軽くする） ----------
@@ -131,63 +141,93 @@ export const clouds = [];
   }
 }
 
-// ================= 地形：谷と二つの丘（132m 四方・点対称） =================
-// 高さ：川底 = GROUND、谷 V、段々 T2・T4、高台 PL、丘 HB（下の段）・HT（頂上）、吊り橋 ROPE、崖の小道 LEDGE
-export const LV = { V: GROUND + 1, T2: GROUND + 3, T4: GROUND + 5, PL: GROUND + 7, HB: GROUND + 8, HT: GROUND + 11, ROPE: GROUND + 6, LEDGE: GROUND + 4 };
-// 出撃：あなたは左の橋の南のたもと（相手は点対称の右の橋の北のたもと）
+// ================= マップ：いくつか作っておき、選んだものだけを見せる =================
+// 今のマップの高さ（出撃は LV.V の高さ）・出撃地点・水面の高さ（これより低い所は水の中で遅い）。マップを切り替えると中身が変わる
+export const LV: any = {};
 export const SPAWN = { x: -34, z: 9 };
-// 川（この高さより低い所にいると水の中：遅くなる）
-export const WATER_Y = GROUND + 0.4;
+export let WATER_Y = GROUND + 0.4;
+export let mapId = '';
+export const MAP_LIST = [['valley', '谷と二つの丘'], ['temple', '山寺の石段（日暮れ）']];
+export const onMapChange: ((id: string) => void)[] = [];   // 切り替えたときに呼ぶ（経路探索・物理）
+const MAPS: Record<string, any> = {};
+export const mapLV = (id: string) => MAPS[id].lv;
+let cur: any = null;
+function beginMap(id, o) {
+  cur = MAPS[id] = Object.assign({ id, group: new THREE.Group(), props: [], colliders: [] }, o);
+  cur.group.visible = false; scene.add(cur.group);
+}
+// 当たり判定のない飾り（block: 弾・視線は遮る）
+function deco(obj, block = true) { cur.group.add(obj); if (block) cur.props.push(obj); obj.traverse((o: any) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return obj; }
 
 // ================= 置き物（すべて点対称に置いて公平に） =================
-{
-  const G0 = GROUND;
-  // 下端の高さ y0 に置く箱（mats: 1つ、または [右,左,上,下,前,後]）
-  const boxMesh = (w, h, d, mats) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
-  // 白壁の塀（瓦の笠つき）。長さ len は x 方向
-  const wall = (len, h) => {
-    const g = new THREE.Group();
-    const w = boxMesh(len, h, 0.8, plasterM); w.position.y = h / 2;
-    const base = boxMesh(len + 0.1, 0.6, 0.9, stoneM); base.position.y = 0.3;
-    const cap = boxMesh(len + 0.6, 0.35, 1.4, roofM); cap.position.y = h + 0.1;
-    g.add(w, base, cap); return g;
-  };
-  const rock = s => {
-    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 0), stoneM);
-    m.scale.set(s * rand(1, 1.4), s * rand(0.7, 1), s * rand(1, 1.3)); m.position.y = s * 0.55; m.rotation.y = rand(0, 3);
-    const g = new THREE.Group(); g.add(m); return g;
-  };
-  const tree = s => {
-    const g = new THREE.Group();
-    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.35 * s, 0.5 * s, 3 * s, 6), trunkM); t.position.y = 1.5 * s; g.add(t);
-    for (let k = 0; k < 3; k++) {
-      const c = new THREE.Mesh(new THREE.ConeGeometry((2.6 - k * 0.6) * s, 3 * s, 7), leafMs[k]);
-      c.position.y = (3.2 + k * 1.5) * s; c.rotation.y = rand(0, 3); g.add(c);
-    }
-    return g;
-  };
-  // 段（上が芝、横が土）
-  const terrace = (w, d, h) => { const g = new THREE.Group(); const m = boxMesh(w, h, d, [earthM, earthM, turfM, earthM, earthM, earthM]); m.position.y = h / 2; g.add(m); return g; };
-  // (x, z) と (-x, -z) の2か所に置く。y0 は下端の高さ
-  const place = (make, x, z, ry = 0, y0 = G0, cyl?, walk?) => {
-    [[1, 0], [-1, Math.PI]].forEach(([s, add]) => {
-      const o = make(); o.position.set(x * s, y0, z * s); o.rotation.y = ry + add;
-      addSolid(o, cyl && { x: x * s, z: z * s, r: cyl.r, y0, y1: y0 + cyl.h }, walk);
-    });
-  };
+const G0 = GROUND;
+// 下端の高さ y0 に置く箱（mats: 1つ、または [右,左,上,下,前,後]）
+const boxMesh = (w, h, d, mats) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+// 白壁の塀（瓦の笠つき）。長さ len は x 方向
+const wall = (len, h) => {
+  const g = new THREE.Group();
+  const w = boxMesh(len, h, 0.8, plasterM); w.position.y = h / 2;
+  const base = boxMesh(len + 0.1, 0.6, 0.9, stoneM); base.position.y = 0.3;
+  const cap = boxMesh(len + 0.6, 0.35, 1.4, roofM); cap.position.y = h + 0.1;
+  g.add(w, base, cap); return g;
+};
+const rock = (s, m = stoneM) => {
+  const r = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 0), m);
+  r.scale.set(s * rand(1, 1.4), s * rand(0.7, 1), s * rand(1, 1.3)); r.position.y = s * 0.55; r.rotation.y = rand(0, 3);
+  const g = new THREE.Group(); g.add(r); return g;
+};
+const tree = (s, leaves = leafMs) => {
+  const g = new THREE.Group();
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.35 * s, 0.5 * s, 3 * s, 6), trunkM); t.position.y = 1.5 * s; g.add(t);
+  for (let k = 0; k < 3; k++) {
+    const c = new THREE.Mesh(new THREE.ConeGeometry((2.6 - k * 0.6) * s, 3 * s, 7), leaves[k]);
+    c.position.y = (3.2 + k * 1.5) * s; c.rotation.y = rand(0, 3); g.add(c);
+  }
+  return g;
+};
+// (x, z) と (-x, -z) の2か所に置く。y0 は下端の高さ
+const place = (make, x, z, ry = 0, y0 = G0, cyl?, walk?) => {
+  [[1, 0], [-1, Math.PI]].forEach(([s, add]) => {
+    const o = make(); o.position.set(x * s, y0, z * s); o.rotation.y = ry + add;
+    addSolid(o, cyl && { x: x * s, z: z * s, r: cyl.r, y0, y1: y0 + cyl.h }, walk);
+  });
+};
+// 箱（x0..x1, y0..y1, z0..z1）を置く。both なら点対称の場所にも
+const solidBox = (x0, x1, y0, y1, z0, z1, mats, walk = false, both = true) => {
+  for (const s of both ? [1, -1] : [1]) {
+    const m = boxMesh(x1 - x0, y1 - y0, z1 - z0, mats);
+    m.position.set(s * (x0 + x1) / 2, (y0 + y1) / 2, s * (z0 + z1) / 2);
+    addSolid(m, null, walk);
+  }
+};
+// 地面から top までの土地（歩ける）
+const land = (x0, x1, z0, z1, top, mats, both = true) => solidBox(x0, x1, G0, top, z0, z1, mats, true, both);
+// 上面の色で高さが分かるように（横は土や石）
+const topM = hex => mat(hex, { roughness: 1 });
+const sides = (side, top) => [side, side, top, side, side, side];
+// 階段（段の縁から低い側へ。1段 0.42m 以下なので歩いて上り下りできる）
+// axis: 'z' なら x=at の位置で z 方向に並ぶ。edge: 高い段の縁、hi: 高い側の向き
+const stairsAt = (axis, at, edge, hi, yLow, yHigh, width, m = stoneM) => {
+  const n = Math.ceil((yHigh - yLow) / 0.42 - 1e-6), dh = (yHigh - yLow) / n;
+  for (let i = 1; i <= n; i++) {
+    const top = yLow + dh * i, c = edge - hi * (n - i + 0.5);
+    if (axis === 'z') solidBox(at - width / 2, at + width / 2, G0, top, c - 0.5, c + 0.5, m, true);
+    else solidBox(c - 0.5, c + 0.5, G0, top, at - width / 2, at + width / 2, m, true);
+  }
+};
+
+// ================= マップ1：谷と二つの丘（132m 四方・点対称） =================
+// 高さ：川底 = GROUND、谷 V、段々 T2・T4、高台 PL、丘 HB（下の段）・HT（頂上）、吊り橋 ROPE、崖の小道 LEDGE
+function buildValley() {
+  beginMap('valley', {
+    lv: { V: G0 + 1, T2: G0 + 3, T4: G0 + 5, PL: G0 + 7, HB: G0 + 8, HT: G0 + 11, ROPE: G0 + 6, LEDGE: G0 + 4 },
+    spawn: { x: -34, z: 9 },   // 左の橋の南のたもと（相手は点対称の右の橋の北のたもと）
+    water: G0 + 0.4,
+    atmos: () => ({ top: C(P.ao[1]), hor: C(P.ao[2]), bot: C(P.moegi[2]), sunDir: new V3(0.45, 0.75, 0.35), sunCol: C(P.shiro[2]), sunI: 1.15,
+      hemiSky: C(P.ao[2]), hemiGround: C(P.kiji[0]), hemiI: 0.45, fog: C(P.ao[2]), near: 90, far: 430, clouds: true }),
+  });
+  const { V, T2, T4, PL, HB, HT, ROPE, LEDGE } = cur.lv;
   {
-    const G0 = GROUND, { V, T2, T4, PL, HB, HT, ROPE, LEDGE } = LV;
-    const boxMesh = (w, h, d, mats) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
-    // 箱（x0..x1, y0..y1, z0..z1）を置く。both なら点対称の場所にも
-    const solidBox = (x0, x1, y0, y1, z0, z1, mats, walk = false, both = true) => {
-      for (const s of both ? [1, -1] : [1]) {
-        const m = boxMesh(x1 - x0, y1 - y0, z1 - z0, mats);
-        m.position.set(s * (x0 + x1) / 2, (y0 + y1) / 2, s * (z0 + z1) / 2);
-        addSolid(m, null, walk);
-      }
-    };
-    // 地面から top までの土地（歩ける）
-    const land = (x0, x1, z0, z1, top, mats, both = true) => solidBox(x0, x1, G0, top, z0, z1, mats, true, both);
     // 上面の色で高さが分かるように（横は土や石）
     const topM = hex => mat(hex, { roughness: 1 });
     const sides = (side, top) => [side, side, top, side, side, side];
@@ -203,8 +243,8 @@ export const WATER_Y = GROUND + 0.4;
     land(-38, -17, 36, 48, HT, hillM);       // 丘の頂上 10m
     land(57, 66, 3, 20, LEDGE, ledgeM);      // 崖の小道（谷の横 3m）
     // 川底の砂と水面（水面は弾が通る）
-    { const bed = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 6), mat(P.kiji[1])); bed.rotation.x = -Math.PI / 2; bed.position.set(0, G0 + 0.02, 0); bed.receiveShadow = true; scene.add(bed); }
-    { const w = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 6.2), toon({ color: C(P.mizu[1]), transparent: true, opacity: 0.72 })); w.rotation.x = -Math.PI / 2; w.position.set(0, G0 + 0.7, 0); scene.add(w); }
+    { const bed = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 6), mat(P.kiji[1])); bed.rotation.x = -Math.PI / 2; bed.position.set(0, G0 + 0.02, 0); bed.receiveShadow = true; cur.group.add(bed); }
+    { const w = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 6.2), toon({ color: C(P.mizu[1]), transparent: true, opacity: 0.72 })); w.rotation.x = -Math.PI / 2; w.position.set(0, G0 + 0.7, 0); cur.group.add(w); }
     // 川から上がる石段（岸ごとに2か所）
     solidBox(-16.5, -13.5, G0, G0 + 0.5, 2, 3, stoneM, true); solidBox(48.5, 51.5, G0, G0 + 0.5, 2, 3, stoneM, true);
   
@@ -215,8 +255,8 @@ export const WATER_Y = GROUND + 0.4;
     land(-2, 2, 11, 15, ROPE, sides(stoneM, topM(P.nezumi[1])));
     solidBox(-1.2, 1.2, ROPE - 0.3, ROPE, -11, 11, woodSideM, true, false);
     for (const x of [-1.3, 1.3]) {
-      const rope = boxMesh(0.06, 0.06, 22, mat(P.kiji[0])); rope.position.set(x, ROPE + 0.9, 0); scene.add(rope);
-      for (const z of [-11, -5.5, 0, 5.5, 11]) { const post = boxMesh(0.12, 0.9, 0.12, woodSideM); post.position.set(x, ROPE + 0.45, z); scene.add(post); }
+      const rope = boxMesh(0.06, 0.06, 22, mat(P.kiji[0])); rope.position.set(x, ROPE + 0.9, 0); cur.group.add(rope);
+      for (const z of [-11, -5.5, 0, 5.5, 11]) { const post = boxMesh(0.12, 0.9, 0.12, woodSideM); post.position.set(x, ROPE + 0.45, z); cur.group.add(post); }
     }
   
     // ----- 階段（段の縁から低い側へ。1段 0.42m 以下なので歩いて上り下りできる） -----
@@ -278,6 +318,174 @@ export const WATER_Y = GROUND + 0.4;
     solidBox(-H - 3, H + 3, G0, PL + 4, H, H + 3, stoneM);
     solidBox(H, H + 3, G0, PL + 4, -H - 3, H + 3, stoneM);
   }
+  finishMap();
+}
+
+// ================= マップ2：山寺の石段（日暮れ・110m 四方・点対称） =================
+// 麓 LOW → 中段 MID（5m 上）→ 境内 TOP（さらに 5m 上）。真ん中に本堂。出撃は麓の隅の山門
+const moonStoneM = mat(P.nezumi[0], { roughness: 1 });
+moonStoneM.userData.surf = 'stone';
+const bellM = mat(P.kin[0], { roughness: 0.5 });   // 鐘（撃つと鳴る）
+const lanternLitM = new THREE.MeshBasicMaterial({ color: P.kin[2] });
+const glowTex = canvasTex(64, 64, (g, w) => {
+  const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+  r.addColorStop(0, rgba(P.kin[2], 0.9)); r.addColorStop(0.35, rgba(P.daidai[2], 0.35)); r.addColorStop(1, rgba(P.daidai[1], 0));
+  g.fillStyle = r; g.fillRect(0, 0, w, w);
+});
+const glowM = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+function buildTemple() {
+  const LOW = G0 + 0.4, MID = LOW + 5, TOP = MID + 5;
+  beginMap('temple', {
+    lv: { V: LOW, LOW, MID, TOP },
+    spawn: { x: -46.5, z: -46.5 },
+    water: G0 + 0.3,
+    // dark: こわい（暗い・霧が濃い）/ そうでなければ見やすい
+    atmos: dark => ({
+      top: C(P.ai[0]).multiplyScalar(dark ? 0.28 : 0.5), hor: C(P.daidai[1]).multiplyScalar(dark ? 0.55 : 0.85), bot: C(P.sumi[0]),
+      sunDir: new V3(-0.9, 0.2, 0.35), sunCol: C(P.daidai[2]), sunI: dark ? 0.5 : 0.8,
+      hemiSky: C(P.ai[1]), hemiGround: C(P.sumi[0]), hemiI: dark ? 0.16 : 0.3,
+      fog: C(P.ai[0]).multiplyScalar(dark ? 0.3 : 0.5), near: dark ? 8 : 20, far: dark ? 85 : 150, clouds: false,
+    }),
+  });
+  const darkStoneM = moonStoneM;
+  const lowM = sides(earthM, topM(P.midori[0])), midM = sides(darkStoneM, topM(P.moegi[0])), topGravelM = sides(darkStoneM, topM(P.nezumi[0]));
+  topGravelM[2].userData.surf = 'gravel';
+  const redM = mat(P.shu[1], { roughness: 0.8 });
+
+  // ----- 土地（池の所だけ低い） -----
+  land(-55, 55, -55, -52, LOW, lowM, false);
+  land(-55, 15, -52, -42, LOW, lowM, false); land(33, 55, -52, -42, LOW, lowM, false);
+  land(-55, 55, -42, 42, LOW, lowM, false);
+  land(-55, -33, 42, 52, LOW, lowM, false); land(-15, 55, 42, 52, LOW, lowM, false);
+  land(-55, 55, 52, 55, LOW, lowM, false);
+  land(-37, 37, -37, 37, MID, midM, false);          // 中段（縁は崖）
+  land(-17, 17, -17, 17, TOP, topGravelM, false);    // 境内（砂利）
+  // 池（黒い水。中は遅い）
+  for (const s of [1, -1]) {
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(18, 10), toon({ color: C(P.ai[0]).multiplyScalar(0.5), transparent: true, opacity: 0.85 }));
+    w.rotation.x = -Math.PI / 2; w.position.set(24 * s, G0 + 0.25, -47 * s); cur.group.add(w);
+  }
+  // ----- 外周の崖 -----
+  solidBox(-58, 58, G0, G0 + 16, 55, 58, darkStoneM);
+  solidBox(55, 58, G0, G0 + 16, -58, 58, darkStoneM);
+
+  // ----- 階段 -----
+  stairsAt('z', -26.5, -37, 1, LOW, MID, 5);    // 長い石段：麓 → 中段
+  stairsAt('z', 0, -17, 1, MID, TOP, 6);        // 正面の石段：中段 → 境内
+  stairsAt('x', 5, -17, 1, MID, TOP, 3);        // 裏道：崖ぞいの細い石段
+  // 参道（山門 → 長い石段）
+  for (const s of [1, -1]) { const p = new THREE.Mesh(new THREE.PlaneGeometry(12, 3), mat(P.kiji[0], { roughness: 1 })); p.rotation.x = -Math.PI / 2; p.position.set(-35 * s, LOW + 0.02, -46.5 * s); p.receiveShadow = true; cur.group.add(p); }
+
+  // ----- 山門（出撃）：柱4本と屋根。境内側に白壁 -----
+  for (const [x, z] of [[-51, -49.5], [-42, -49.5], [-51, -43.5], [-42, -43.5]])
+    place(() => { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 4.2, 6), woodSideM); p.position.y = 2.1; g.add(p); return g; }, x, z, 0, LOW, { r: 0.3, h: 4.2 });
+  solidBox(-52.5, -40.5, LOW + 4.2, LOW + 4.8, -50.5, -42.5, roofM, true);
+  solidBox(-51.5, -41.5, LOW + 4.8, LOW + 5.4, -47, -46, roofM);
+  solidBox(-52, -43, LOW, LOW + 3, -42.8, -42.3, plasterM);
+
+  // ----- 鳥居（正面の石段の下） -----
+  place(() => { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 4.6, 8), redM); p.position.y = 2.3; g.add(p); return g; }, -3.8, -31, 0, MID, { r: 0.35, h: 4.6 });
+  place(() => { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 4.6, 8), redM); p.position.y = 2.3; g.add(p); return g; }, 3.8, -31, 0, MID, { r: 0.35, h: 4.6 });
+  for (const s of [1, -1]) {
+    const k = boxMesh(10.4, 0.45, 0.6, redM); k.position.set(0, MID + 4.75, -31 * s); deco(k);
+    const n = boxMesh(8.6, 0.3, 0.4, redM); n.position.set(0, MID + 3.9, -31 * s); deco(n);
+    const t = boxMesh(11, 0.25, 0.8, mat(P.sumi[1])); t.position.set(0, MID + 5.1, -31 * s); deco(t);
+  }
+
+  // ----- 本堂（真ん中に1つ）：縁側の床、四方に入口のある壁、2段の屋根 -----
+  const floorM = sides(woodSideM, topM(P.kiji[0])); floorM[2].userData.surf = 'wood';
+  land(-11, 11, -8, 8, TOP + 0.4, floorM, false);
+  const WY0 = TOP + 0.4, WY1 = TOP + 3.8;
+  for (const [x0, x1] of [[-9.8, -1.6], [1.6, 9.8]]) solidBox(x0, x1, WY0, WY1, -6.8, -6.45, plasterM);   // 北（と南）の壁
+  for (const [z0, z1] of [[-6.8, -1.6], [1.6, 6.8]]) solidBox(-9.8, -9.45, WY0, WY1, z0, z1, plasterM);   // 西（と東）の壁
+  for (const [x, z] of [[-10.7, -7.7], [-5, -7.7], [5, -7.7], [10.7, -7.7], [-10.7, -3.5], [-10.7, 3.5], [-5, 0]])
+    place(() => { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, WY1 - WY0, 6), woodSideM); p.position.y = (WY1 - WY0) / 2; g.add(p); return g; }, x, z, 0, WY0, { r: 0.25, h: WY1 - WY0 });
+  solidBox(-12, 12, WY1, WY1 + 0.6, -9.5, 9.5, roofM, true, false);
+  solidBox(-7.5, 7.5, WY1 + 0.6, WY1 + 1.8, -4.5, 4.5, roofM, true, false);
+  solidBox(-8.2, 8.2, WY1 + 1.8, WY1 + 2.3, -0.5, 0.5, roofM, true, false);
+  solidBox(-1.5, 1.5, WY0, WY0 + 1.1, -1, 1, woodSideM, false, false);   // 祭壇
+  { const s = new THREE.Sprite(glowM); s.scale.setScalar(4); s.position.set(0, WY0 + 1.8, 0); cur.group.add(s); }
+
+  // ----- 鐘楼（境内の角。石の台は壁登りで上がる） -----
+  land(-15, -10, -15, -10, TOP + 2.6, sides(darkStoneM, topM(P.nezumi[0])));
+  for (const [x, z] of [[-14.6, -14.6], [-10.4, -14.6], [-14.6, -10.4], [-10.4, -10.4]])
+    place(() => { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.6, 6), woodSideM); p.position.y = 1.3; g.add(p); return g; }, x, z, 0, TOP + 2.6, { r: 0.18, h: 2.6 });
+  solidBox(-15.8, -9.2, TOP + 5.2, TOP + 5.7, -15.8, -9.2, roofM);
+  for (const s of [1, -1]) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, 1.3, 10), bellM); b.position.set(-12.5 * s, TOP + 4.3, -12.5 * s); deco(b); }
+
+  // ----- 石垣（境内・中段の縁の低い遮蔽） -----
+  solidBox(5, 14, TOP, TOP + 1.2, -17, -16.3, darkStoneM);
+  solidBox(-17, -16.3, TOP, TOP + 1.2, -11, -4, darkStoneM);
+  solidBox(-20, -12, MID, MID + 1.2, -37, -36.3, darkStoneM);
+  solidBox(-37, -36.3, MID, MID + 1.2, 8, 16, darkStoneM);
+
+  // ----- 墓地（中段の隅。墓石が低い遮蔽） -----
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 3; j++) {
+    const x = 11 + i * 4.4 + rand(-0.4, 0.4), z = -33 + j * 4;
+    solidBox(x - 0.4, x + 0.4, MID, MID + rand(1, 1.4), z - 0.2, z + 0.2, darkStoneM);
+    solidBox(x - 0.55, x + 0.55, MID, MID + 0.3, z - 0.4, z + 0.4, stoneM);
+  }
+  for (const s of [1, -1]) for (let i = 0; i < 8; i++) {
+    const t = boxMesh(0.12, 1.8, 0.04, mat(P.kiji[1])); t.position.set((12 + i * 2.6) * s, MID + 0.9, (-35.2 + rand(-0.2, 0.2)) * s); t.rotation.z = rand(-0.15, 0.15); deco(t, false);
+  }
+
+  // ----- 石灯籠（暗い中の灯り） -----
+  const lantern = () => {
+    const g = new THREE.Group();
+    const add = (m, w, h, y, d = w) => { const b = boxMesh(w, h, d, m); b.position.y = y; g.add(b); };
+    add(stoneM, 0.7, 0.3, 0.15); add(stoneM, 0.28, 0.9, 0.75); add(stoneM, 0.62, 0.15, 1.27);
+    add(lanternLitM, 0.46, 0.4, 1.55); add(roofM, 0.9, 0.22, 1.86); add(roofM, 0.3, 0.2, 2.07);
+    return g;
+  };
+  const lanterns = [[-30.4, -48.5, LOW], [-22.6, -48.5, LOW], [-30.4, -44, LOW], [-22.6, -44, LOW], [-30.4, -39.5, LOW], [-22.6, -39.5, LOW],
+    [-4.8, -26, MID], [4.8, -26, MID], [-7.5, -13.5, TOP], [7.5, -13.5, TOP], [-40, -41.8, LOW]];
+  for (const [x, z, y] of lanterns) {
+    place(lantern, x, z, 0, y, { r: 0.4, h: 2.2 });
+    for (const s of [1, -1]) { const sp = new THREE.Sprite(glowM); sp.scale.setScalar(3.2); sp.position.set(x * s, y + 1.55, z * s); cur.group.add(sp); }
+  }
+
+  // ----- 竹林（太めの竹の株を不規則に。当たり判定は株ごとにまとめて） -----
+  // 濃い所と薄い所をなだらかな波で作り、株どうしは少し離す。株は 1〜4 本
+  const stalks = [], tops = [];
+  const grove = (x0, x1, z0, z1, y) => {
+    const pts = [], dens = (x, z) => 0.55 + 0.45 * Math.sin(x * 0.55 + z * 0.23) * Math.cos(z * 0.47 - x * 0.19);
+    for (let tries = 0; tries < (x1 - x0) * (z1 - z0) * 1.2; tries++) {
+      const cx = rand(x0 + 0.6, x1 - 0.6), cz = rand(z0 + 0.6, z1 - 0.6);
+      if (Math.random() > dens(cx, cz)) continue;
+      if (pts.some(([px, pz]) => (px - cx) ** 2 + (pz - cz) ** 2 < 1.5 * 1.5)) continue;
+      pts.push([cx, cz]);
+    }
+    for (const [cx, cz] of pts) {
+      const n = 1 + Math.floor(Math.random() * 4), spread = n > 1 ? rand(0.25, 0.55) : 0;
+      const parts = [...Array(n)].map(() => [rand(0, 6.3), rand(0.3, 1) * spread, rand(0.11, 0.17), rand(7, 11), rand(-0.05, 0.05)]);
+      const topY = rand(6.5, 9.5), topS = rand(1.6, 2.4);
+      for (const s of [1, -1]) {
+        for (const [a, r, rad, h, lean] of parts) {
+          const x = (cx + Math.cos(a) * r) * s, z = (cz + Math.sin(a) * r) * s;
+          stalks.push(M4(x, y + h / 2, z, 0, rad, h).premultiply(new THREE.Matrix4().makeRotationZ(lean * s)).setPosition(x, y + h / 2, z));
+        }
+        tops.push(M4(cx * s, y + topY, cz * s, 0, topS, 0.8));
+        cur.colliders.push({ kind: 'cyl', x: cx * s, z: cz * s, r: spread + 0.2, y0: y, y1: y + 7, walk: false });
+      }
+    }
+  };
+  grove(-35, -22, -15, 1, MID);
+  grove(-55, -42, 3, 33, LOW);
+  const stalkG = new THREE.CylinderGeometry(0.85, 1, 1, 6), topG = flatGeo(new THREE.IcosahedronGeometry(1, 0));
+  const inst = (geo, m, list, block) => {
+    const im = new THREE.InstancedMesh(geo, m, list.length);
+    list.forEach((mm, i) => im.setMatrixAt(i, mm));
+    im.castShadow = true; im.receiveShadow = true; im.computeBoundingSphere();
+    cur.group.add(im); if (block) cur.props.push(im);
+  };
+  inst(stalkG, mat(P.moegi[1]), stalks, true);
+  inst(topG, mat(P.midori[0]), tops, false);
+
+  // ----- 岩・木 -----
+  const darkLeaf = [mat(P.midori[0]), mat(P.moegi[0]), mat(P.midori[0])];
+  for (const [x, z, y, s] of [[-5, -47, LOW, 1.4], [44, -38, LOW, 1.2], [-44, -24, LOW, 1.5], [26, -20, MID, 1.1]]) place(() => rock(s, darkStoneM), x, z, rand(0, 3), y);
+  for (const [x, z, y, s] of [[-46, -18, LOW, 1.1], [-12, -46, LOW, 1], [40, -48, LOW, 1.2], [-31, 26, MID, 0.9]]) place(() => tree(s, darkLeaf), x, z, rand(0, 3), y, { r: 0.45 * s, h: 3 * s });
+  finishMap();
 }
 
 // (x, z) が障害物の中か。y はその場所に立つ高さ（それより低い段や盤は乗れるので障害物扱いしない）
@@ -291,12 +499,13 @@ export function insideCollider(x, z, R, y = 0) {
 }
 
 // 動かない置き物を材質ごとに1つのメッシュへまとめる（描画回数を減らして軽くする。当たり判定は元の形のまま）
-{
+function finishMap() {
+  const props = cur.props, group = cur.group;
   const groups = new Map(), merged = [];
   scene.updateMatrixWorld(true);
-  for (const obj of propMeshes) {
+  for (const obj of props) {
     obj.traverse((o: any) => {
-      if (!o.isMesh || Array.isArray(o.material) || o.material.transparent) return;
+      if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || o.material.transparent) return;
       const k = o.material.uuid;
       if (!groups.has(k)) groups.set(k, { mat: o.material, geos: [] });
       groups.get(k).geos.push((o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld));
@@ -312,8 +521,8 @@ export function insideCollider(x, z, R, y = 0) {
   };
   merged.forEach(o => o.parent && o.parent.remove(o));
   // 中身が無くなった置き物は外し、まとめたメッシュを弾・視線の判定に入れる
-  const rest = propMeshes.filter(obj => { let has = false; obj.traverse((o: any) => { if (o.isMesh && o.parent) has = true; }); return has || obj.isMesh && obj.parent; });
-  propMeshes.length = 0; propMeshes.push(...rest);
+  const rest = props.filter(obj => { let has = false; obj.traverse((o: any) => { if (o.isMesh && o.parent) has = true; }); return has || obj.isMesh && obj.parent; });
+  props.length = 0; props.push(...rest);
   for (const { mat: m, geos } of groups.values()) {
     const g = new THREE.BufferGeometry();
     ['position', 'normal', 'uv'].forEach(n => { const a = concat(geos, n); if (a) g.setAttribute(n, a); });
@@ -321,11 +530,49 @@ export function insideCollider(x, z, R, y = 0) {
     g.computeBoundingSphere();
     const mesh = new THREE.Mesh(g, m);
     mesh.castShadow = mesh.receiveShadow = true;
-    mesh.matrixAutoUpdate = false; mesh.updateMatrix();
-    scene.add(mesh); propMeshes.push(mesh);
+    if (m === bellM) mesh.userData.bell = true;   // 撃つと鐘が鳴る
+    group.add(mesh); props.push(mesh);
   }
-  // 背景・地面など動かない物も、毎フレームの位置の計算を省く
-  for (const o of scene.children) if (o !== sky && !clouds.includes(o) && (o as any).isMesh && !(o as any).userData.phys) { o.matrixAutoUpdate = false; o.updateMatrix(); }
+  // 動かない物は、毎フレームの位置の計算を省く
+  group.traverse((o: any) => { if (o !== group) { o.matrixAutoUpdate = false; o.updateMatrix(); } });
+  group.updateMatrixWorld(true);
   // 弾・視線の判定を速くする（まとめた大きなメッシュでも、近くの三角形だけ調べる）
-  for (const o of propMeshes) o.traverse((m: any) => { if (m.isMesh) m.geometry.computeBoundsTree(); });
+  for (const o of props) o.traverse((m: any) => { if (m.isMesh && !m.isInstancedMesh) m.geometry.computeBoundsTree(); });
 }
+
+// ================= マップの切り替え =================
+// 空・日の光・霧を、今のマップ（と暗さの設定）に合わせる。暗さはオンラインなら部屋を作った人の設定
+export function applyAtmos() {
+  const m = MAPS[mapId];
+  if (!m) return;
+  const a = m.atmos((gs.netDark || settings.dark) !== 'soft');
+  const u = (sky.material as any).uniforms;
+  u.top.value.copy(a.top); u.hor.value.copy(a.hor); u.bot.value.copy(a.bot);
+  SUN_DIR.copy(a.sunDir).normalize();
+  sun.color.copy(a.sunCol); sun.intensity = a.sunI * LIGHT;
+  hemi.color.copy(a.hemiSky); hemi.groundColor.copy(a.hemiGround); hemi.intensity = a.hemiI * LIGHT;
+  const f = scene.fog as THREE.Fog;
+  f.color.copy(a.fog); f.near = a.near; f.far = a.far;
+  for (const c of clouds) c.visible = a.clouds;
+}
+export function useMap(id: string) {
+  if (!MAPS[id]) id = 'valley';
+  const m = MAPS[id], changed = mapId !== id;
+  mapId = id;
+  for (const x of Object.values(MAPS)) x.group.visible = x === m;
+  propMeshes.length = 0; propMeshes.push(...baseProps, ...m.props);
+  colliders.length = 0; colliders.push(...m.colliders);
+  for (const k of Object.keys(LV)) delete LV[k];
+  Object.assign(LV, m.lv);
+  SPAWN.x = m.spawn.x; SPAWN.z = m.spawn.z; WATER_Y = m.water;
+  hmap = null;
+  applyAtmos();
+  if (changed) onMapChange.forEach(f => f(id));
+}
+
+buildValley();
+buildTemple();
+useMap(settings.map);
+// 背景・地面など動かない物も、毎フレームの位置の計算を省く
+for (const o of scene.children) if (o !== sky && !clouds.includes(o) && (o as any).isMesh && !(o as any).userData.phys) { o.matrixAutoUpdate = false; o.updateMatrix(); }
+for (const o of baseProps) o.geometry.computeBoundsTree();

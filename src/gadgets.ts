@@ -56,7 +56,7 @@ function throwC4(e, aim: any, sk) {
   const pos = eyeOf(e).addScaledVector(aim, 0.5);
   m.position.copy(pos);
   c4s.push({ owner: e, sk, m, pos, vel: aim.clone().setY(Math.min(aim.y, 0.1)).multiplyScalar(sk.throw).add(new V3(0, 2, 0)), stuck: false, ent: null, off: null, t: 0 });
-  SFX.play('clunk', e.isBot ? pos : null);
+  SFX.play('skC4', e.isBot ? pos : null);
 }
 function detonate(e) {
   const i = c4s.findIndex(c => c.owner === e);
@@ -76,12 +76,12 @@ function updateC4(dt) {
       if (body && (!wall || body.distanceTo(c.pos) < wall.distance)) {
         const t = foeOf(c.owner);
         c.ent = t; c.off = body.clone().sub(t.pos); c.pos.copy(body); c.stuck = true;
-        SFX.play('clunk', body);
+        SFX.play('skC4Stick', body);
       } else if (wall) {
         const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : new V3(0, 1, 0);
         c.pos.copy(wall.point).addScaledVector(n, 0.05); c.stuck = true;
         c.m.lookAt(c.pos.clone().add(n)); c.m.rotateX(Math.PI / 2);
-        SFX.play('clunk', wall.point);
+        SFX.play('skC4Stick', wall.point);
       } else c.pos.copy(next);
       if (!c.stuck) c.m.rotation.x += dt * 8;
     }
@@ -119,7 +119,7 @@ function launch(e, aim: any, sk) {
   const M = { owner: e, sk, m, pos, yaw, pitch, dir: dirOf(yaw, pitch), t: 0, ctrl: true };
   missiles.push(M);
   m.position.copy(pos);
-  SFX.play('launcher', e.isBot ? pos : null);
+  SFX.play('skMissile', e.isBot ? pos : null);
 }
 function boom(M) {
   const i = missiles.indexOf(M);
@@ -158,12 +158,12 @@ function toss(kind, e, aim, sk) {
   const pos = eyeOf(e).addScaledVector(aim, 0.6);
   m.position.copy(pos);
   throws.push({ kind, owner: e, sk, m, pos, vel: aim.clone().multiplyScalar(sk.speed).add(new V3(0, 3, 0)), t: 0, stuck: false });
-  SFX.play('clunk', e.isBot ? pos : null);
+  SFX.play(kind === 'flash' ? 'skFlashPin' : 'skC4', e.isBot ? pos : null);
 }
 // 閃光：見ていた駒の目をくらませる（向き・距離・物陰で強さが変わる）
 function flashAt(p, sk) {
   for (let i = 0; i < 26; i++) Particles.glow(p.clone().add(new V3(rand(-1, 1), rand(-0.5, 1), rand(-1, 1))), P.shiro[2]);
-  SFX.play('boom', p);
+  SFX.play('skFlash', p);
   for (const e of [player, bot]) {
     if (!e || e.dead) continue;
     const eye = eyeOf(e), d = eye.distanceTo(p);
@@ -182,7 +182,7 @@ function warp(T, p, n) {
   e.pos.copy(p).addScaledVector(n, 0.6); e.pos.y = Math.max(e.pos.y, p.y + 0.05);
   e.vel.set(0, 0, 0); e.vy = 0; e.onGround = false;
   for (let i = 0; i < 14; i++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.fuji[1]);
-  SFX.play('homing', e.isBot ? e.pos : null);
+  SFX.play('skPearl', e.isBot ? e.pos : null);
   if (e.isBot) { if (Net.on) return; bot.hp -= T.sk.selfDmg; if (bot.hp <= 0 && !bot.dead) killBot(); } else damagePlayer(T.sk.selfDmg, e.pos);
 }
 function updateThrows(dt) {
@@ -213,7 +213,7 @@ function shockwave(e, sk) {
   const c = e.pos.clone().add(new V3(0, 0.6, 0));
   const m = track(new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: P.kin[2], transparent: true, opacity: 0.8, depthWrite: false })));
   m.position.copy(c); rings.push({ m, t: 0, r: sk.radius });
-  Particles.dust(e.pos, 30, 3); SFX.play('boom', e.pos);
+  Particles.dust(e.pos, 30, 3); SFX.play('skShock', e.isBot ? e.pos : null);
   PHYS.blast(c, sk.radius, sk.knock * 0.5);
   if (!e.isBot) view.shake = Math.max(view.shake, 0.5);
   const t = foeOf(e);

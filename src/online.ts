@@ -15,13 +15,19 @@ import { Gadgets } from './gadgets';
 import { damagePlayer } from './ai';
 import { killBot } from './hud';
 import { BoardMode } from './boardmode';
+import { bindMapPick, mapPickHTML } from './screens';
+import { applyAtmos } from './world';
 
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
 const V = (a: number[]) => new V3(a[0], a[1], a[2]);
 const inMatch = () => gs.state === 'countdown' || gs.state === 'fight';
 
 let foe = { k: null, ready: false }, meReady = false, inLobby = false, snap = null, sendT = 0;
-let mode = 'duel';   // 遊び方：'duel' 撃ち合い / 'board' 将棋モード（部屋を作った側が決める）
+let mode = 'duel';
+const room = { map: 'valley', dark: 'scary' };   // マップと暗さ（部屋を作った人が決める）
+// 部屋の設定を画面の背景にも反映
+function applyRoom() { gs.netMap = room.map; gs.netDark = room.dark; resetMatch(); applyAtmos(); }
+const sendRoom = () => Net.send({ t: 'room', map: room.map, dark: room.dark });   // 遊び方：'duel' 撃ち合い / 'board' 将棋モード（部屋を作った側が決める）
 
 // ================= 部屋を作る・入る =================
 export function showOnline(msg = '') {
@@ -45,7 +51,11 @@ export function showOnline(msg = '') {
 }
 const cb = {
   code: (c: string) => waiting(`<div class="ol-code">${c}</div><p>このコードを友達に伝えてね。入ってくるのを待っています…</p>`),
-  connected: () => { foe = { k: null, ready: false }; meReady = false; mode = 'duel'; sendPick(); if (Net.host) Net.send({ t: 'mode', m: mode }); showLobby(); },
+  connected: () => {
+    foe = { k: null, ready: false }; meReady = false; mode = 'duel';
+    if (Net.host) { room.map = settings.map; room.dark = settings.dark; Net.send({ t: 'mode', m: mode }); sendRoom(); }
+    applyRoom(); sendPick(); showLobby();
+  },
   error: (t: string) => showOnline(t),
 };
 function waiting(html: string) {
@@ -71,6 +81,7 @@ export function showLobby() {
     <h2 class="h">友達と対戦　<small>部屋 ${Net.code}</small></h2>
     <div class="panel form"><div class="row"><span>遊び方<small>${Net.host ? 'あなたが決める' : '部屋を作った人が決める'}</small></span>
       <div class="seg" id="olMode">${[['duel', '撃ち合い'], ['board', '将棋モード']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${Net.host ? '' : ' disabled'}>${n}</button>`).join('')}</div></div></div>
+    ${mapPickHTML(room, !Net.host)}
     ${mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは撃ち合い</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
       <p class="detail"><b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `「${SKILLS[k].name}」${SKILLS[k].help}`).join('　')}</p></section>`}
     <div class="ol-foe">相手：${mode === 'board' ? '' : f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : '<span>準備中</span>'}</div>
@@ -86,6 +97,7 @@ export function showLobby() {
     if (!Net.host) return;
     mode = b.dataset.v; meReady = false; Net.send({ t: 'mode', m: mode }); sendPick(); showLobby();
   });
+  bindMapPick((k, v) => { if (!Net.host) return; room[k] = v; meReady = false; sendRoom(); sendPick(); applyRoom(); showLobby(); });
   on('olReady', () => { meReady = !meReady; sendPick(); showLobby(); maybeStart(); });
   on('olLeave', leave);
 }
@@ -101,12 +113,12 @@ export function resetNetMatch() { snap = null; sendT = 0; }
 export function leave() {
   Net.send({ t: 'bye' });
   leaveRoom(); inLobby = false;
-  gs.paused = false;
+  gs.paused = false; gs.netMap = gs.netDark = null;
   if (BoardMode.online) BoardMode.close();
   resetMatch(); showTitle();
 }
 function lost() {
-  inLobby = false;
+  inLobby = false; gs.netMap = gs.netDark = null;
   if (BoardMode.online) BoardMode.close();
   if (document.pointerLockElement) document.exitPointerLock();
   gs.paused = false;
@@ -120,12 +132,13 @@ Net.onMsg = (m: any) => {
   switch (m.t) {
     case 'pick': foe.k = m.k; foe.ready = m.ready; if (inLobby) { showLobby(); maybeStart(); } break;
     case 'start': if (!Net.host) { mode = m.m || 'duel'; begin(); } break;
+    case 'room': room.map = m.map; room.dark = m.dark; meReady = false; sendPick(); applyRoom(); if (inLobby) showLobby(); break;
     case 'mode': mode = m.m; meReady = false; sendPick(); if (inLobby) showLobby(); break;
     case 'bm': case 'bp': case 'bwait': case 'bresign': BoardMode.onNet(m); break;
     case 'bye': leaveRoom(); lost(); break;
     case 's': snap = m; break;
     case 'fire': if (inMatch()) remoteFire(m); break;
-    case 'melee': if (inMatch()) SFX.play('dash', bot.pos); break;
+    case 'melee': if (inMatch()) SFX.play('knife', bot.pos); break;
     case 'arrow':
       if (!inMatch()) break;
       Arrows.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, head: m.hd, gravity: m.g, drag: m.dr || 0, homing: !!m.hm, turn: m.tu || 0, full: !!m.fu });
@@ -135,7 +148,7 @@ Net.onMsg = (m: any) => {
       if (!inMatch()) break;
       Grenades.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, radius: m.r, gravity: m.g, fuse: m.fu,
         big: !!m.big, knock: m.kn, lift: m.li, self: m.se });
-      SFX.play('launcher', V(m.p));
+      SFX.play('m79', V(m.p));
       break;
     case 'skill':
       if (!inMatch() || bot.dead) break;

@@ -26,7 +26,7 @@ import { gs } from './state';
 import { $, Q, TIME_LIMIT, V3, clamp, settings } from './core';
 import { SFX } from './audio';
 import { SUN_DIR, cam, renderer, scene, sky, sun } from './render';
-import { clouds } from './world';
+import { clouds, mapId } from './world';
 import { PHYS } from './physics';
 import { DmgNums, Particles, Tracers, vmCam, vmScene } from './effects';
 import { Arrows } from './arrows';
@@ -53,6 +53,7 @@ export function loop(now) {
   const sc = gs.state === 'title' || !player ? new V3() : player.pos;
   sun.target.position.set(sc.x, 0, sc.z); sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 60);
   gs.sndBudget = 4;
+  SFX.ambience(gs.state === 'board' ? null : mapId);   // 環境音（盤面では流さない）
 
   clouds.forEach(c => { c.position.x += dt * 2; if (c.position.x > 450) c.position.x = -450; });
 
@@ -96,8 +97,8 @@ export function loop(now) {
     gs.stateT += rdt;
     if (gs.state === 'countdown') {
       const n = 3 - Math.floor(gs.stateT);
-      if (n !== lastBeep && n >= 1 && n <= 3) { lastBeep = n; showCenter(n); SFX.play('beep', false); }
-      if (gs.stateT >= 3) { gs.state = 'fight'; lastBeep = -1; showCenter('FIGHT!', 'var(--kin-2)'); SFX.play('beep', true); setTimeout(() => { if ($('center').textContent === 'FIGHT!') $('center').textContent = ''; }, 900); }
+      if (n !== lastBeep && n >= 1 && n <= 3) { lastBeep = n; showCenter(n); SFX.play('count'); }
+      if (gs.stateT >= 3) { gs.state = 'fight'; lastBeep = -1; showCenter('FIGHT!', 'var(--kin-2)'); SFX.play('fight'); setTimeout(() => { if ($('center').textContent === 'FIGHT!') $('center').textContent = ''; }, 900); }
     }
     if (gs.state === 'fight') stats.time += dt;
     updatePlayer(dt);

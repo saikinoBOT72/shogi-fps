@@ -215,7 +215,7 @@ export const BoardMode = (() => {
   const sparkGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
   const sparkMs = [P.daidai[2], P.ki[2], P.shu[1]].map(c => new THREE.MeshBasicMaterial({ color: c }));
   function blowUp(list, x) {
-    SFX.play('boom');
+    SFX.play('nifu');
     for (const [p, y] of list) {
       const at = sq(x, y);
       const g = pieceMesh(p); g.position.copy(at); bScene.add(g);
@@ -300,8 +300,9 @@ export const BoardMode = (() => {
   }
   const setMsg = t => { $('bmMsg').textContent = t; };
   function turnMsg() {
-    const k = findKing(board, 0);
-    setMsg('あなたの番' + (k && attackedBy(board, 1, k[0], k[1]) ? ' ― 王手！' : ''));
+    const k = findKing(board, 0), check = k && attackedBy(board, 1, k[0], k[1]);
+    setMsg('あなたの番' + (check ? ' ― 王手！' : ''));
+    if (check) SFX.play('check');
   }
 
   // ---------- 操作 ----------
@@ -321,7 +322,7 @@ export const BoardMode = (() => {
       return;
     }
     const p = board[y][x];
-    if (p && p.owner === 0) { selected = { kind: 'move', x, y }; targets = movesOf(board, x, y); SFX.play('clunk'); }
+    if (p && p.owner === 0) { selected = { kind: 'move', x, y }; targets = movesOf(board, x, y); SFX.play('sel'); }
     else { selected = null; targets = []; }
     refresh();
   });
@@ -334,16 +335,16 @@ export const BoardMode = (() => {
       const me = playerIsAttacker ? att : def, foe = playerIsAttacker ? def : att;
       gs.matchCtx = { myType: me.type, foeType: foe.type, playerIsAttacker };
       showUI(false);
+      SFX.play('battle');
       const mn = label(me), fn = label(foe);
       overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
         <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
         <p>${playerIsAttacker ? `勝てば相手の「${fn}」を取れる。負けるとあなたの「${mn}」を取られる` : `守り切れば攻めてきた「${fn}」を取れる。負けるとあなたの「${mn}」を取られる`}</p>
         ${me.promoted || foe.promoted ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
-        <button class="btn" id="bmFight">撃ち合い開始</button><button class="btn ghost" id="bmQuit2">タイトルへ</button>${keysHTML()}`, true);
+        <button class="btn" id="bmFight">撃ち合い開始</button>${keysHTML()}`, true);
       $('bmFight').onclick = e => { e.stopPropagation(); startMatch(); };
       // 友達と対戦：おたがいこの画面に来たら、少し待って一緒に始める
       if (online) { $('bmFight').style.display = 'none'; meWait = true; Net.send({ t: 'bwait' }); tryFight(); }
-      $('bmQuit2').onclick = e => { e.stopPropagation(); quit(); };
     });
   }
   // 撃ち合いの結果（win: プレイヤーの勝ち true / 負け false）
@@ -354,8 +355,7 @@ export const BoardMode = (() => {
     $('hud').style.display = 'none';
     overlay(`<div class="res" style="color:${playerWon ? 'var(--kin-2)' : 'var(--shu-1)'}">${
       ctx.playerIsAttacker ? (attackerWon ? '駒を取った！' : '取り返された…') : (attackerWon ? '駒を取られた…' : '守り切った！')}</div>
-      <button class="btn" id="bmBack">盤面へ戻る</button><button class="btn ghost" id="bmQuit3">タイトルへ</button>`, true);
-    $('bmQuit3').onclick = e => { e.stopPropagation(); quit(); };
+      <button class="btn" id="bmBack">盤面へ戻る</button>`, true);
     $('bmBack').onclick = e => {
       e.stopPropagation();
       gs.matchCtx = null;
@@ -373,7 +373,7 @@ export const BoardMode = (() => {
       const boom = m.type === 'P' && nifu(board, owner, m.tx);
       hands[owner].splice(hands[owner].indexOf(m.type), 1);
       board[m.ty][m.tx] = { type: m.type, owner };
-      SFX.play('clunk');
+      SFX.play('place');
       if (boom) {
         // 二歩：その筋の自分の駒がすべて爆発四散
         refresh(m); await sleep(500);
@@ -405,7 +405,7 @@ export const BoardMode = (() => {
         }
       } else {
         board[m.ty][m.tx] = p; board[m.fy][m.fx] = null;
-        SFX.play('clunk');
+        SFX.play('place');
       }
     }
     // 成り：敵陣に入る・敵陣から出る・敵陣の中で動いたとき（行き所がなければ必ず成る。CPUはいつも成る）
@@ -414,7 +414,7 @@ export const BoardMode = (() => {
       const forced = deadEnd(moved.type, owner, m.ty);
       moved.promoted = forced || (owner === 1 ? (online ? await waitNet('bp') : true) : await askPromote(moved));
       if (online && owner === 0 && !forced) Net.send({ t: 'bp', v: moved.promoted });
-      if (moved.promoted) SFX.play('ding');
+      if (moved.promoted) SFX.play('promo');
     }
     if (g !== gen) return;
     lastMove = m.lost ? null : m; preview = null;
@@ -484,9 +484,7 @@ export const BoardMode = (() => {
       overlay(`<div class="res" style="font-size:46px">成りますか？</div>
         <div class="vs-line"><b class="bm-koma">${label(p)}</b><em>→</em><b class="bm-koma" style="color:var(--shu-0)">${PRO[p.type]}</b></div>
         <p>成ると盤上の動きが変わります（撃ち合いの性能はまだ元の駒のままです）</p>
-        <div class="modes"><button class="btn" id="bmPro">成る</button><button class="btn ghost-btn" id="bmNoPro">成らない</button></div>
-        <button class="btn ghost" id="bmQuit4">タイトルへ</button>`, true);
-      $('bmQuit4').onclick = e => { e.stopPropagation(); quit(); };
+        <div class="modes"><button class="btn" id="bmPro">成る</button><button class="btn ghost-btn" id="bmNoPro">成らない</button></div>`, true);
       $('bmPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(true); };
       $('bmNoPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(false); };
     });
@@ -496,6 +494,7 @@ export const BoardMode = (() => {
   function gameOver(winner, why = '') {
     over = true; busy = true;
     clearSave();
+    if (winner >= 0) SFX.play(winner === 0 ? 'win' : 'lose');
     setMsg('');
     overlay(`<div class="res" style="color:${winner === 0 ? 'var(--kin-2)' : winner === 1 ? 'var(--shu-1)' : 'var(--text)'}">${winner === 0 ? '勝利' : winner === 1 ? '敗北' : '引き分け'}</div>
       <p>${why || (winner === 0 ? '相手の玉を討ち取った！' : 'あなたの王が討たれた…')}</p>
@@ -508,10 +507,10 @@ export const BoardMode = (() => {
   // ---------- UI ----------
   const ui = document.createElement('div');
   ui.id = 'bmUI';
-  ui.innerHTML = `<div id="bmMsg" class="shadow"></div>
+  ui.innerHTML = `<button class="small bm-quit" id="bmQuit">タイトルへ</button><div id="bmMsg" class="shadow"></div>
     <div class="bm-panel bm-e"><h4>相手の持ち駒</h4><div id="bmHandE"></div></div>
     <div class="bm-panel bm-p"><h4>あなたの持ち駒（クリックで打つ）</h4><div id="bmHandP"></div></div>
-    <div class="bm-btns"><button class="small" id="bmResign">投了</button><button class="small" id="bmQuit">タイトルへ</button></div>
+    <div class="bm-btns"><button class="small" id="bmResign">投了</button></div>
     <div class="bm-help">駒をクリック → 光ったマスへ。赤いマスは相手の駒：撃ち合いで勝てば取れる、負けると取られる</div>`;
   document.body.appendChild(ui);
   function showUI(v) { ui.style.display = v ? 'block' : 'none'; }

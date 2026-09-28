@@ -59,7 +59,8 @@ export const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THR
 sky.renderOrder = -1; sky.frustumCulled = false;
 scene.add(sky);
 
-scene.add(new THREE.HemisphereLight(C(P.ao[2]), C(P.kiji[0]), 0.45 * LIGHT));
+export const hemi = new THREE.HemisphereLight(C(P.ao[2]), C(P.kiji[0]), 0.45 * LIGHT);
+scene.add(hemi);
 export const sun = new THREE.DirectionalLight(C(P.shiro[2]), 1.15 * LIGHT);
 sun.position.copy(SUN_DIR).multiplyScalar(60);
 sun.castShadow = Q.shadow > 0;
@@ -161,7 +162,7 @@ export function makePiece(ch, w, h, t, woodMat = pieceWoodMat, small = false) {
 // ハンドガン：デザートイーグル（src/guns/deagle.ts。実銃の寸法から作った見本）
 export const handMat = toon({ map: woodTex, flatShading: true });
 export function buildPistol() {
-  return buildDeagle({ skin: settings.gunSkin, hand: handMat });
+  return buildDeagle({ hand: handMat });
 }
 // 武器の見た目（WEAPONS の model の名前 → 作る関数）
 export const GUN_BUILDERS = {

@@ -35,6 +35,7 @@ export function endMatch(win) {
   gs.state = 'end'; gs.stateT = 0; gs.mouseDown = false; gs.rightDown = false;
   stats.time = TIME_LIMIT - Math.max(0, TIME_LIMIT - stats.time);
   showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? 'var(--kin-2)' : 'var(--shu-1)');
+  if (win !== null) setTimeout(() => SFX.play(win ? 'win' : 'lose'), 600);
   const toResult = () => { if (document.pointerLockElement) document.exitPointerLock(); showResult(win); };
   // 決着がついたら、決めた側の視点で直前を再生してから結果へ（時間切れは再生なし）
   setTimeout(() => { if (win === null || !Replay.start(win, toResult)) toResult(); }, win === false ? 1700 : 1900);

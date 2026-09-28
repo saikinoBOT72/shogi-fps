@@ -1,14 +1,14 @@
 // 経路探索：地面を 1m のマス目にして、段差（階段でつながった所だけ）を考えながら A* で道を探す
 import { GROUND, H, V3 } from './core';
-import { colliders } from './world';
+import { colliders, onMapChange } from './world';
 
 export const Nav = (() => {
   const N = 2 * H, off = H, R = 0.5, STEP = 0.45;   // STEP: 歩いて上り下りできる段差
   const hgt = new Float32Array(N * N), block = new Uint8Array(N * N);
   // 床として使うのは地面から立っている面だけ（屋根や吊り橋のような宙に浮いた床は、下の地面を隠さないように外す）
+  // マスの高さ（盤・段・階段の上面）と、通れないマス。マップを切り替えたら作り直す
+  function build() {
   const walkC = colliders.filter(c => c.walk && c.kind === 'box' && c.min.y <= GROUND + 0.05), solidC = colliders.filter(c => !c.walk);
-
-  // マスの高さ（盤・段・階段の上面）と、通れないマス
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = i - off + 0.5, z = j - off + 0.5;
     let h = GROUND;
@@ -23,6 +23,9 @@ export const Nav = (() => {
     }
     block[j * N + i] = b ? 1 : 0;
   }
+  }
+  build();
+  onMapChange.push(build);
   const idx = (x, z) => { const i = Math.floor(x + off), j = Math.floor(z + off); return i < 0 || j < 0 || i >= N || j >= N ? -1 : j * N + i; };
   const center = k => new V3((k % N) - off + 0.5, hgt[k], Math.floor(k / N) - off + 0.5);
 

@@ -6,7 +6,7 @@ import { gs } from './state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, scene } from './render';
-import { LV, SPAWN, WATER_Y, colliders, groundAt } from './world';
+import { LV, SPAWN, WATER_Y, colliders, groundAt, useMap } from './world';
 import { PHYS, blockers, physOf } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
@@ -60,6 +60,7 @@ export function resolveFoe() {
 }
 
 export function resetMatch(foeType?) {
+  useMap(gs.netMap || settings.map);   // オンラインでは部屋を作った人が選んだマップ
   const myType = gs.matchCtx ? gs.matchCtx.myType : PIECES[settings.myPiece] ? settings.myPiece : 'P';
   foeType = foeType || (gs.matchCtx && gs.matchCtx.foeType) || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
   ensureActors(myType, foeType);
@@ -93,10 +94,12 @@ export const ray = new THREE.Raycaster();
 (ray as any).firstHitOnly = true;   // 各メッシュで一番手前の当たりだけ調べる（高速化）
 export const eyeOf = e => new V3(e.pos.x, e.pos.y + e.eyeH, e.pos.z);
 
+// 立っている床の種類（足音用）：水の中なら 'water'
+export const surfOf = e => (e.pos.y < WATER_Y ? 'water' : e.surf || 'grass');
 export function collide(e) {
   const R = e.radius;
   e.onGround = false; e.wallN = null;
-  if (e.pos.y <= GROUND) { e.pos.y = GROUND; if (e.vy < 0) e.vy = 0; e.onGround = true; }
+  if (e.pos.y <= GROUND) { e.pos.y = GROUND; if (e.vy < 0) e.vy = 0; e.onGround = true; e.surf = 'grass'; }
   for (const c of colliders) {
     let cx, cz, top, bottom;
     if (c.kind === 'box') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = c.max.y; bottom = c.min.y; }
@@ -110,7 +113,7 @@ export function collide(e) {
     // 上面より上にいる間は何もしない（ジャンプ中に上面へ吸い寄せられないように）
     if (e.pos.y > top) continue;
     // 着地：上面を上から通り過ぎたか、上面のすぐ下（低い段差は自動で上がる）
-    if (e.vy <= 0 && (e.pos.y >= top - 0.4 || (e.prevY ?? e.pos.y) >= top)) { e.pos.y = top; e.vy = 0; e.onGround = true; continue; }
+    if (e.vy <= 0 && (e.pos.y >= top - 0.4 || (e.prevY ?? e.pos.y) >= top)) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = c.surf; continue; }
     if (e.pos.y + e.height <= bottom || e.pos.y >= top) continue;
     let nx, nz, push;
     if (d2 > 1e-8) { const d = Math.sqrt(d2); nx = dx / d; nz = dz / d; push = R - d; }
@@ -194,7 +197,7 @@ export function moveEntity(e, wish, dt) {
   e.moving = Math.hypot(e.vel.x, e.vel.z) > 1;
 }
 export function tryJump(e) {
-  if (e.airT < 0.1 && !e.jumped) { e.vy = e.def.jump; e.jumped = true; e.onGround = false; e.airT = 1; return true; }
+  if (e.airT < 0.1 && !e.jumped) { e.vy = e.def.jump; e.jumped = true; e.onGround = false; e.airT = 1; if (!e.isBot) SFX.play('jump'); return true; }
   return false;
 }
 // 桂跳びの着地：周りの相手と小物を吹き飛ばす
@@ -238,7 +241,7 @@ export const canFire = e => e.cd <= 0 && e.reloading <= 0 && e.ammo > 0 && !e.de
 export function startReload(e) {
   if (e.reloading > 0 || e.ammo >= e.w.mag) return;
   e.reloading = e.w.reload; e.burstLeft = 0;
-  if (!e.isBot) { SFX.play('reloadStart'); VM.reload(e.w.reload); }
+  if (!e.isBot) { SFX.play('reload', e.w.model, e.w.reload); VM.reload(e.w.reload); }
 }
 export function weaponTick(e, dt) {
   e.cd -= dt;
@@ -258,7 +261,7 @@ export function weaponTick(e, dt) {
   e.bloom = Math.max(0, e.bloom - e.w.bloomRecover * dt);
   if (e.reloading > 0) {
     e.reloading -= dt;
-    if (e.reloading <= 0) { e.ammo = e.w.mag; if (!e.isBot) SFX.play('reloadEnd'); }
+    if (e.reloading <= 0) e.ammo = e.w.mag;
   }
 }
 
@@ -340,6 +343,8 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
       const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : d.clone().negate();
       Particles.impact(wall.point, n);
       const ph = physOf(wall);
+      // 鐘楼の鐘：鳴らすと遠くまで響く（居場所がばれる）
+      if (wall.object.userData.bell && performance.now() - (gs.bellT || 0) > 400) { gs.bellT = performance.now(); SFX.play('bell', wall.point); aiHear(wall.point, 60); }
       if (ph) { PHYS.hit(ph, wall.point, d, w.dmg * 0.15); Particles.wood(wall.point, n, 4, 0.5); }
       else Decals.add(wall.point, n);
       if (sound) SFX.play(Math.random() < 0.3 ? 'ricochet' : 'thud', wall.point);
@@ -374,7 +379,7 @@ export function useSkill(e, i, dir, force = false) {
   if (!s || e.dead) return false;
   const sk = s.sk;
   // もう一度押す系：C4 の起爆・ミサイルの操作をやめる
-  if (sk.type === 'c4' && Gadgets.c4Of(e)) { Gadgets.detonate(e); return true; }
+  if (sk.type === 'c4' && Gadgets.c4Of(e)) { SFX.play('skC4b', e.isBot ? e.pos : null); Gadgets.detonate(e); return true; }
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
   if (!force && (s.charges <= 0 || s.t > 0)) return false;
   if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
@@ -388,11 +393,11 @@ export function useSkill(e, i, dir, force = false) {
   s.t = sk.duration; s.rammed = false;
   const t = sk.type;
   if (t === 'step') {
-    SFX.play('dash', e.pos);
+    SFX.play('skStep', e.isBot ? e.pos : null);
     Particles.dust(e.pos, 5, 0.9);
     if (!e.isBot) { view.shake = Math.max(view.shake, 0.15); view.stepRoll = s.dir.dot(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw))) > 0 ? -1 : 1; }
   } else if (t === 'homing' || t === 'bigshot' || t === 'volley') {
-    SFX.play('homing', e.isBot ? e.pos : null);
+    SFX.play(t === 'homing' ? 'skHoming' : t === 'volley' ? 'skVolley' : 'skBig', e.isBot ? e.pos : null);
   } else if (t === 'leap') {
     e.vy = sk.up; e.vel.copy(s.dir).multiplyScalar(sk.fwd);
     e.onGround = false; e.jumped = true; e.airT = 1;
@@ -401,7 +406,7 @@ export function useSkill(e, i, dir, force = false) {
   } else if (t === 'smoke') {
     Smoke.spawn(e.pos.clone().add(new V3(0, 1.2, 0)), sk.radius, sk.life);
   } else if (t === 'xray' || t === 'cloak') {
-    if (!e.isBot) SFX.play('pierce');
+    if (!e.isBot) SFX.play(t === 'xray' ? 'skXray' : 'skCloak');
     if (t === 'cloak') for (let k = 0; k < 12; k++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.shiro[2]);
   } else if (t === 'boxes') {
     // 目の前に横並びで3つ置く
@@ -411,9 +416,9 @@ export function useSkill(e, i, dir, force = false) {
       PHYS.spawnBox(p.x, Math.max(groundAt(p.x, p.z), e.pos.y), p.z, Math.atan2(s.dir.x, s.dir.z));
       Particles.dust(p, 6, 1);
     }
-    SFX.play('knock', e.isBot ? e.pos : null, 0.8, 0.7);
+    SFX.play('skBoxes', e.isBot ? e.pos : null);
   } else if (t === 'grapple') {
-    s.target = hook; SFX.play('dash', e.isBot ? e.pos : null);
+    s.target = hook; SFX.play('skGrapple', e.isBot ? e.pos : null);
   } else if (t === 'flash' || t === 'pearl') {
     if (t === 'flash') onAttack(e);
     Gadgets.toss(t, e, aim, sk);
@@ -427,11 +432,11 @@ export function useSkill(e, i, dir, force = false) {
     SFX.play('heal');
   } else if (t === 'dash') {
     e.vy = Math.max(e.vy, 2);
-    SFX.play('dash', e.pos);
+    SFX.play('skDash', e.isBot ? e.pos : null);
     Particles.dust(e.pos, 8, 1.3);
     if (!e.isBot) view.shake = Math.max(view.shake, 0.25);
   } else {
-    SFX.play('guardUp', e.pos);
+    SFX.play('guardUp', e.isBot ? e.pos : null);
     if (!e.isBot) view.shake = Math.max(view.shake, 0.12);
   }
   return true;
@@ -465,7 +470,7 @@ export function updatePlayer(dt) {
       p.skillHeld[i] = k;
     });
     // V：銃を眺める
-    if (down('inspect') && !p.inspectHeld) VM.inspect();
+    if (down('inspect') && !p.inspectHeld) { VM.inspect(); SFX.play('inspect'); }
     p.inspectHeld = down('inspect');
   }
   gs.jumpPressed -= dt;
@@ -473,7 +478,7 @@ export function updatePlayer(dt) {
   p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash && p.w.kind !== 'melee' ? 1 : 0, p.w.adsSpeed || 14, dt);
   // 壁に向かってジャンプ長押しで登る
   p.wantClimb = !!(down('jump') && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
-  if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('step', null, 0.6); p.climbSnd = 0.22; }
+  if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('climb'); p.climbSnd = 0.22; }
   p.running = down('run');
   p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1) * (p.w.moveMul || 1);
   moveEntity(p, wish, dt);
@@ -484,7 +489,7 @@ export function updatePlayer(dt) {
   if (p.onGround && p.moving) {
     const prev = Math.sin(view.bobPhase * 2);
     view.bobPhase += dt * Math.hypot(p.vel.x, p.vel.z) * 1.35;
-    if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { SFX.play('step', null, 0.7); if ((p.adsT || 0) < 0.5) aiHear(p.pos, 10); }
+    if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { SFX.play('step', null, 0.7, surfOf(p)); if ((p.adsT || 0) < 0.5) aiHear(p.pos, 10); }
   }
 
   weaponTick(p, dt);
@@ -521,7 +526,7 @@ export function switchWeapon(e, which) {
   else { e.w = e.mainW; e.ammo = e.mainAmmo; }
   e.reloading = 0; e.draw = 0; e.drawing = false; e.burstLeft = 0; e.bloom = 0;
   e.cd = Math.max(e.cd, 0.3);   // 持ち替えの間は撃てない
-  if (!e.isBot) { VM.setWeapon(e.w.model); VM.ready(); initPips(); SFX.play('reloadEnd'); }
+  if (!e.isBot) { VM.setWeapon(e.w.model); VM.ready(); initPips(); SFX.play('swap'); }
 }
 // ナイフで切る：目の前の届く範囲の相手に当たる。背中からは強い
 export function meleePlayer() {
@@ -529,7 +534,7 @@ export function meleePlayer() {
   p.cd = w.rate;
   onAttack(p); endGuard(p);
   VM.fire(w);
-  SFX.play('dash', null);
+  SFX.play('knife', null);
   if (Net.on) Net.send({ t: 'melee' });
   const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   const eye = eyeOf(p), chest = new V3(bot.pos.x, bot.pos.y + bot.height * 0.6, bot.pos.z);
@@ -576,7 +581,7 @@ export function fireGrenade(e, dir, origin) {
   if (big) big.t = 0;
   Grenades.fire({ owner: e, target: e === player ? bot : player, pos: origin, vel: d.multiplyScalar(w.speed), dmg: w.dmg, radius: big ? big.sk.radius : w.radius, gravity: w.gravity, fuse: w.fuse,
     big: !!big, knock: big ? big.sk.knock : w.knock, lift: big ? big.sk.lift : w.lift, self: w.self });
-  SFX.play('launcher', e.isBot ? origin : null);
+  SFX.play('m79', e.isBot ? origin : null);
   if (Net.on && e === player) Net.send({ t: 'gren', p: vec(origin), v: vec(d), dmg: w.dmg, r: big ? big.sk.radius : w.radius, g: w.gravity, fu: w.fuse,
     big: big ? 1 : 0, kn: big ? big.sk.knock : w.knock, li: big ? big.sk.lift : w.lift, se: w.self });
 }

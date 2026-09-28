@@ -270,3 +270,9 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .ol-code { font: 900 46px var(--font-ui); letter-spacing: .25em; color: var(--accent); text-align: center }
 .ol-input { font: 700 18px var(--font-ui); width: 110px; padding: 6px 10px; text-transform: uppercase; letter-spacing: .2em; color: var(--text); background: color-mix(in srgb, var(--sumi-2) 80%, transparent); border: 1px solid var(--line); border-radius: 6px }
 .ol-foe { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 15px }
+
+/* タイトル：ベータ版の印 */
+.beta { display: inline-block; font: 900 18px var(--font-ui); letter-spacing: .35em; padding: 4px 10px 4px 16px; color: var(--shu-2); border: 2px solid var(--shu-1); border-radius: 6px; background: color-mix(in srgb, var(--shu-0) 25%, transparent); transform: rotate(-4deg); margin-top: -4px }
+/* 将棋モード：盤面の左上のタイトルへ */
+.bm-quit { position: absolute; left: 18px; top: 18px; pointer-events: auto }
+.bm-e { top: 60px }

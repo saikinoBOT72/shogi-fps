@@ -5,11 +5,11 @@ import { SFX } from './audio';
 import { requestLock } from './input';
 import { bot, botActor, player, playerActor, resetMatch, resolveFoe, stats } from './game';
 import { VM } from './effects';
-import { SKINS } from './guns/skins';
 import { initPips } from './hud';
 import { BoardMode } from './boardmode';
 import { Net } from './net';
 import { leave, resetNetMatch, showLobby, showOnline } from './online';
+import { MAP_LIST, applyAtmos } from './world';
 
 // ================= 共通 =================
 export function overlay(html, dim?) {
@@ -28,7 +28,6 @@ export function settingsHTML() {
     <div class="row"><span>マウス感度 <b id="sensV">${settings.sens.toFixed(2)}</b></span><input id="sens" type="range" min="0.2" max="3" step="0.05" value="${settings.sens}"></div>
     <div class="row"><span>画質<small>重いときは「低」</small></span>${seg('qSeg', Object.entries(QUALITIES).map(([k, q]: any) => [k, q.name]), settings.quality)}</div>
     <div class="row"><span>FPS表示</span>${seg('fpsSeg', [['1', 'ON'], ['0', 'OFF']], settings.showFps ? '1' : '0')}</div>
-    <div class="row"><span>ハンドガンの塗装</span>${seg('skinSeg', Object.entries(SKINS).map(([k, s]) => [k, s.name]), settings.gunSkin)}</div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
   </div>`;
 }
@@ -39,7 +38,6 @@ export function bindSettings() {
   });
   segBind('diffSeg', v => { settings.diff = v; });
   segBind('qSeg', v => { settings.quality = v; if (gs.state === 'title') location.reload(); });   // 画質は作り直しが必要なので再読み込み
-  segBind('skinSeg', v => { settings.gunSkin = v; VM.setSkin(v); [playerActor, botActor].forEach(a => a && a.gun.setSkin && WEAPONS[PIECES[a.type].weapon].model === 'pistol' && a.gun.setSkin(v)); });
   segBind('fpsSeg', v => { settings.showFps = v === '1'; if (!settings.showFps) $('fps').textContent = ''; });
   $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').textContent = settings.sens.toFixed(2); saveSettings(); };
   $('vol').oninput = e => { settings.vol = +e.target.value; SFX.setVol(settings.vol); saveSettings(); };
@@ -117,19 +115,46 @@ export function showTitle() {
   gs.state = 'title'; $('hud').style.display = 'none';
   overlay(`<div class="screen title">
     <div class="logo">将棋<span>FPS</span></div>
+    <div class="beta">ベータ版</div>
     <div class="tagline">駒を取るときは、撃ち合いで決める。</div>
     <div class="modes">
-      <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは撃ち合い</small></button>
-      <button class="mode" id="goDuel"><b>撃ち合い</b><small>好きな駒どうしで 1 対 1</small></button>
-      <button class="mode" id="goOnline"><b>友達と対戦</b><small>部屋のコードで友達と撃ち合い</small></button>
+      <button class="mode" id="goSolo"><b>一人で遊ぶ</b><small>CPU と将棋モード・撃ち合い</small></button>
+      <button class="mode" id="goOnline"><b>友達と遊ぶ</b><small>部屋のコードで友達と対戦</small></button>
     </div>
     <div class="menu"><button class="btn sub" id="openSettings">設定</button><button class="btn sub" id="openControls">操作方法</button></div>
   </div>`);
-  on('goBoard', () => BoardMode.open());
-  on('goDuel', showPieceSelect);
+  on('goSolo', showSolo);
   on('goOnline', () => showOnline());
   on('openSettings', () => showSettings(showTitle));
   on('openControls', () => showControls(showTitle));
+}
+
+// マップと暗さ（v: { map, dark }。dis: 選べない＝部屋を作った人が決める）
+export function mapPickHTML(v, dis = false) {
+  const seg = (id, items, cur) => `<div class="seg" id="${id}">${items.map(([k, n]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}"${dis ? ' disabled' : ''}>${n}</button>`).join('')}</div>`;
+  return `<div class="panel form"><div class="row"><span>マップ</span>${seg('mapSeg', MAP_LIST, v.map)}</div>
+    ${v.map === 'temple' ? `<div class="row"><span>暗さ</span>${seg('darkSeg', [['scary', 'こわい'], ['soft', '見やすい']], v.dark)}</div>` : ''}</div>`;
+}
+export function bindMapPick(onPick: (key: 'map' | 'dark', v: string) => void) {
+  for (const [id, key] of [['mapSeg', 'map'], ['darkSeg', 'dark']] as const)
+    document.querySelectorAll<HTMLElement>(`#${id} button`).forEach(b => b.onclick = e => { e.stopPropagation(); onPick(key, b.dataset.v); });
+}
+// 一人で遊ぶ：CPU と
+function showSolo() {
+  gs.state = 'title';
+  overlay(`<div class="screen title">
+    <h2 class="h">一人で遊ぶ</h2>
+    ${mapPickHTML(settings)}
+    <div class="modes">
+      <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは撃ち合い</small></button>
+      <button class="mode" id="goDuel"><b>撃ち合い</b><small>好きな駒どうしで 1 対 1</small></button>
+    </div>
+    <div class="menu"><button class="btn sub" id="back">戻る</button></div>
+  </div>`);
+  bindMapPick((k, v) => { settings[k] = v; saveSettings(); if (k === 'map') resetMatch(); else applyAtmos(); showSolo(); });
+  on('goBoard', () => BoardMode.open());
+  on('goDuel', showPieceSelect);
+  on('back', showTitle);
 }
 
 // ================= 駒選択（撃ち合い） =================
@@ -164,7 +189,7 @@ function showPieceSelect() {
     <div class="menu"><button class="btn sub" id="back">戻る</button><button class="btn" id="go">対局開始</button></div>
   </div>`, true);
   bindPieceSelect();
-  on('back', showTitle);
+  on('back', showSolo);
   on('go', startMatch);
 }
 
@@ -241,4 +266,6 @@ export function pause() {
   gs.paused = true; gs.mouseDown = false; gs.rightDown = false;
   showPause();
 }
+// ボタンを押した音（画面のどのボタンでも）
+addEventListener('pointerdown', e => { if ((e.target as HTMLElement).closest && (e.target as HTMLElement).closest('button')) { SFX.init(); SFX.play('btn'); } }, true);
 $('overlay').addEventListener('click', () => { if (gs.paused && (gs.state === 'countdown' || gs.state === 'fight')) { SFX.init(); requestLock(); } });

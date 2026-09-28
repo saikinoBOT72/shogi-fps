@@ -37,7 +37,7 @@ export function explodeAt(p, owner, dmgBase, radius, o: any = {}) {
   PHYS.blast(p, radius * 1.6, knock * 0.8);
   Particles.explosion(p);
   if (big) { Particles.explosion(p.clone().add(new V3(0.8, 0.3, 0))); Particles.explosion(p.clone().add(new V3(-0.8, 0.5, 0.4))); }
-  SFX.play('boom', p);
+  SFX.play(big ? 'bigboom' : 'boom', p);
   const dp = p.distanceTo(eyeOf(player));
   view.shake = Math.max(view.shake, clamp(1 - dp / 18, 0, 1) * (big ? 1.2 : 0.9));
 }

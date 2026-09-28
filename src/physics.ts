@@ -7,7 +7,7 @@ import { gs } from './state';
 import { BH, G, GROUND, clamp, rand } from './core';
 import { SFX } from './audio';
 import { PIECE_DEPTH, canvasTex, mat, pieceGeo, pieceWoodMat, scene, toon, woodGrain } from './render';
-import { LV, colliders, insideCollider, propMeshes } from './world';
+import { colliders, insideCollider, mapId, mapLV, onMapChange, propMeshes } from './world';
 
 // ================= 物理演算（cannon.js）：撃つ・押す・体当たりで動く小物 =================
 export const physMeshes = [];
@@ -52,13 +52,16 @@ export const PHYS = (() => {
   // 外周の地面（盤や障害物は下の colliders から作る）
   const gq = new CANNON.Quaternion(); gq.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
   addStatic(new CANNON.Plane(), 0, GROUND, 0, gq);
-  // 動かない障害物
-  for (const c of colliders) {
-    if (c.kind === 'box') {
-      addStatic(new CANNON.Box(new CANNON.Vec3((c.max.x - c.min.x) / 2, (c.max.y - c.min.y) / 2, (c.max.z - c.min.z) / 2)),
-        (c.max.x + c.min.x) / 2, (c.max.y + c.min.y) / 2, (c.max.z + c.min.z) / 2);
-    } else addStatic(new CANNON.Cylinder(c.r, c.r, c.y1 - c.y0, 10), c.x, (c.y0 + c.y1) / 2, c.z);   // cannon-es の円柱は縦向き
+  // 動かない障害物（今のマップのもの。切り替えたら作り直す）
+  let statics = [];
+  function buildStatics() {
+    statics.forEach(b => world.removeBody(b));
+    statics = colliders.map(c => c.kind === 'box'
+      ? addStatic(new CANNON.Box(new CANNON.Vec3((c.max.x - c.min.x) / 2, (c.max.y - c.min.y) / 2, (c.max.z - c.min.z) / 2)),
+        (c.max.x + c.min.x) / 2, (c.max.y + c.min.y) / 2, (c.max.z + c.min.z) / 2)
+      : addStatic(new CANNON.Cylinder(c.r, c.r, c.y1 - c.y0, 10), c.x, (c.y0 + c.y1) / 2, c.z));   // cannon-es の円柱は縦向き
   }
+  buildStatics();
 
   // ドミノ同士は滑りやすく（もたれ合って止まらないように）
   const dominoMat = new CANNON.Material("domino");
@@ -82,11 +85,11 @@ export const PHYS = (() => {
     if (q) body.quaternion.copy(q);
     world.addBody(body);
     scene.add(obj);
-    const it: any = { body, obj, pitch, domino, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
+    const it: any = { body, obj, pitch, domino, map: placing, off: false, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
     kinds[kind].items.push(it);
     body.addEventListener('collide', e => {
       const v = Math.abs(e.contact.getImpactVelocityAlongNormal()), now = performance.now();
-      if (v > 1.8 && now - it.lastSnd > 90 && gs.sndBudget > 0) { it.lastSnd = now; gs.sndBudget--; SFX.play('knock', body.position, clamp(v / 9, 0.15, 1), pitch); }
+      if (v > 1.8 && now - it.lastSnd > 90 && gs.sndBudget > 0) { it.lastSnd = now; gs.sndBudget--; SFX.play('prop', kind, body.position, clamp(v / 9, 0.15, 1)); }
     });
     items.push(it);
     return it;
@@ -143,9 +146,46 @@ export const PHYS = (() => {
   kinds.bale = { geo: bake(baleObj()), mat: vcM, items: [] };
   kinds.cart = { geo: bake(cartObj()), mat: vcM, items: [] };
   kinds.log = { geo: bake(logObj()), mat: vcM, items: [] };
+  // 山寺の小物：賽銭箱（重い遮蔽）と手桶（軽くてよく飛ぶ）
+  const saisenObj = () => {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.8, 0.9), barkM); g.add(body);
+    for (let i = 0; i < 7; i++) { const sl = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.92), cutM); sl.position.set(-0.6 + i * 0.2, 0.43, 0); g.add(sl); }
+    for (const x of [-0.72, 0.72]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.96), hoopM); f.position.set(x, 0.02, 0); g.add(f); }
+    return g;
+  };
+  const okeObj = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.22, 0.36, 10), cutM));
+    for (const y of [-0.1, 0.1]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.25, 0.04, 10), hoopM); h.position.y = y; g.add(h); }
+    const hd = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.3, 0.06), barkM); hd.position.set(0, 0.3, 0); g.add(hd);
+    return g;
+  };
+  kinds.saisen = { geo: bake(saisenObj()), mat: vcM, items: [] };
+  kinds.oke = { geo: bake(okeObj()), mat: vcM, items: [] };
+  function placeTemple() {
+    placing = 'temple';
+    const { LOW, MID, TOP } = mapLV('temple');
+    [1, -1].forEach(s => {
+      // 本堂の横に積んだ奉納の酒樽
+      for (const z of [-1.1, 0, 1.1]) addBody('barrel', new CANNON.Cylinder(0.45, 0.45, 1.1, 10), 3, 12.8 * s, TOP + 0.55, z * s, null, 0.8);
+      addBody('barrel', new CANNON.Cylinder(0.45, 0.45, 1.1, 10), 3, 12.8 * s, TOP + 1.66, -0.55 * s, null, 0.8);
+      // 賽銭箱（本堂の入口の前）
+      addDynamic('saisen', [0.75, 0.45, 0.48], 45, 0, TOP + 0.45, -9.8 * s, 0, 0.45);
+      // 手桶（墓地と池のそば）
+      for (const [x, z, y] of [[12, -29.5, MID], [20.5, -29.5, MID], [27, -25.2, MID], [14, -41, LOW], [-18, -40.5, LOW]])
+        addBody('oke', new CANNON.Cylinder(0.25, 0.25, 0.36, 8), 0.8, x * s, y + 0.2, z * s, null, 1.3);
+      // 木箱・米俵・丸太
+      for (const [x, z, y] of [[-26, -33, MID], [8, -21, MID], [-38, -30, LOW], [30, -39.5, LOW], [-20, -44, LOW]])
+        addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, x * s, y + cs / 2, z * s, rand(-0.3, 0.3), 0.65);
+      for (const x of [-44, -42.8]) addDynamic('bale', [0.55, 0.3, 0.35], 25, x * s, LOW + 0.3, -41.3 * s, 0, 0.5);
+      addBody('log', new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, -30 * s, MID + 0.3, -19.5 * s, lying, 0.7);
+    });
+  }
 
-  // 配置（点対称）。高さは world.ts の LV
-  const { V, T2, HB, HT, PL } = LV, cs = 1.2;
+  // 配置（点対称）。マップごとに置き、選んでいないマップの物は外しておく
+  let placing = 'valley';
+  const { V, T2, HB, HT, PL } = mapLV('valley'), cs = 1.2;
   const lying = new CANNON.Quaternion(); lying.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), Math.PI / 2);   // 丸太は横に寝かせる
   [1, -1].forEach(s => {
     // 木箱：関所の横のピラミッドと、あちこちの遮蔽
@@ -163,11 +203,13 @@ export const PHYS = (() => {
     for (const x of [-35, -31, -27]) addBody('log', new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, x * s, HB + 0.3, 32.2 * s, lying, 0.7);
   });
 
+  placeTemple();
+
   // スキル「木箱」で置く木箱（両者 6 個ずつ、足りなければ古いものから使い回す）
   const pool = [];
   for (let i = 0; i < 12; i++) {
     const it = addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, 0, -100, 0, 0, 0.65);
-    it.pool = true; world.removeBody(it.body);
+    it.pool = true; it.map = null; world.removeBody(it.body);
     pool.push(it);
   }
   let poolI = 0;
@@ -195,16 +237,29 @@ export const PHYS = (() => {
     }
     return kin[key];
   }
-  const M4 = new THREE.Matrix4(), ONE = new THREE.Vector3(1, 1, 1);
+  const M4 = new THREE.Matrix4(), ONE = new THREE.Vector3(1, 1, 1), HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
   function sync() {
     for (const it of items) {
+      if (it.off) { it.inst.setMatrixAt(it.idx, HIDE); continue; }
       it.obj.position.copy(it.body.position); it.obj.quaternion.copy(it.body.quaternion); it.obj.updateMatrixWorld();
       it.inst.setMatrixAt(it.idx, M4.compose(it.obj.position, it.obj.quaternion, ONE));
     }
     for (const im of insts) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
   }
   sync();
+  // マップを切り替える：動かない障害物を作り直し、そのマップの小物だけを世界に入れる
+  function setMap(id) {
+    buildStatics();
+    for (const it of items) {
+      if (it.pool) continue;
+      const off = it.map !== id;
+      if (off === it.off) continue;
+      it.off = off;
+      if (off) world.removeBody(it.body); else world.addBody(it.body);
+    }
+  }
   return {
+    setMap,
     awake: () => items.reduce((n, it) => n + (it.body.sleepState !== CANNON.Body.SLEEPING ? 1 : 0), 0),   // 起きている（動いている）小物の数
     step(dt, ents) {
       for (const [k, e] of ents) {
@@ -216,7 +271,7 @@ export const PHYS = (() => {
         if (e.dead) continue;
         for (const it of items) {
           const ib = it.body;
-          if (ib.sleepState !== CANNON.Body.SLEEPING) continue;
+          if (it.off || ib.sleepState !== CANNON.Body.SLEEPING) continue;
           const dx = ib.position.x - e.pos.x, dz = ib.position.z - e.pos.z;
           const r = ib.boundingRadius + e.radius + 0.3;
           if (dx * dx + dz * dz < r * r && ib.position.y < e.pos.y + e.height + 1) ib.wakeUp();
@@ -225,7 +280,7 @@ export const PHYS = (() => {
       // ドミノの補正：少しでも傾いたら倒れる向きに少し後押し（箱の角同士の接触で止まりがちなので）
       const up = new CANNON.Vec3(), ax = new CANNON.Vec3(), Y = new CANNON.Vec3(0, 1, 0);
       for (const it of items) {
-        if (!it.domino || it.body.sleepState === CANNON.Body.SLEEPING) continue;
+        if (it.off || !it.domino || it.body.sleepState === CANNON.Body.SLEEPING) continue;
         it.body.quaternion.vmult(Y, up);
         const tilt = Math.acos(clamp(up.y, -1, 1));
         if (tilt < 0.05 || tilt > 1.45) continue;
@@ -244,6 +299,7 @@ export const PHYS = (() => {
     // 周りを吹き飛ばす
     blast(pos, radius, power) {
       for (const it of items) {
+        if (it.off) continue;
         const b = it.body, dx = b.position.x - pos.x, dy = b.position.y - pos.y, dz = b.position.z - pos.z, d = Math.hypot(dx, dy, dz);
         if (d > radius || d < 1e-3) continue;
         const k = power * b.mass * (1 - d / radius) / d;
@@ -275,6 +331,7 @@ export const PHYS = (() => {
     reset() {
       for (const it of pool) if (world.bodies.includes(it.body)) world.removeBody(it.body);
       for (const it of items) {
+        if (it.off) continue;
         const b = it.body;
         b.position.copy(it.home.p); b.quaternion.copy(it.home.q);
         b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
@@ -286,3 +343,5 @@ export const PHYS = (() => {
   };
 })();
 blockers = propMeshes.concat(physMeshes);
+PHYS.setMap(mapId); PHYS.reset();
+onMapChange.push(id => { PHYS.setMap(id); PHYS.reset(); blockers = propMeshes.concat(physMeshes); });
