@@ -42,7 +42,7 @@ export const WEAPONS = {
   },
   // 3発バースト（銀）。1発が重く、撃つほど上に跳ねる癖の強い銃。burstGap: バースト内の間隔
   burst: {
-    name: 'バーストピストル', model: 'burst', dmg: 22, head: 1.6, rate: 0.55, burst: 3, burstGap: 0.07, spread: 0.008, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
+    name: 'ベレッタ 93R', model: 'burst', dmg: 22, head: 1.6, rate: 0.55, burst: 3, burstGap: 0.07, spread: 0.008, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
     move: 0.016, air: 0.04, ads: 0.4, mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
   },
   // 連射で押し切る。近〜中距離
@@ -76,7 +76,7 @@ export const WEAPONS = {
   // 放物線で飛び、跳ねて爆発。radius: 爆風の範囲 / fuse: 爆発までの秒 / speed: 撃ち出す速さ
   launcher: {
     // knock: 横に吹き飛ばす強さ / lift: 上に飛ばす強さ / self: 自分へのダメージ倍率
-    name: 'グレネード', model: 'launcher', kind: 'grenade', dmg: 35, knock: 20, lift: 14, self: 0.1, radius: 3.5, speed: 38, gravity: 9, fuse: 3, rate: 0.9, spread: 0.01,
+    name: 'M79', model: 'm79', kind: 'grenade', dmg: 35, knock: 20, lift: 14, self: 0.1, radius: 3.5, speed: 38, gravity: 9, fuse: 3, rate: 0.9, spread: 0.01,
     bloomShot: 0, bloomMax: 0, bloomRecover: 0.1, move: 0.01, air: 0.02, ads: 0.6, mag: 4, reload: 2.6, auto: false, recoil: 0.05, falloff: [999, 1000, 1], pref: 13,
   },
   // 近いほど強い。8粒 × 8 ダメージ
