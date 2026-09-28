@@ -64,11 +64,6 @@ export const WEAPONS = {
     rate: 0.15, spread: 0.002, drawSpread: 0.03, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.012, air: 0.03, ads: 0.6, mag: 1, reload: 0.45, auto: false, recoil: 0.012, falloff: [999, 1000, 1], pref: 16,
   },
-  // 1発が重い6連発。空中でもほとんどブレない（桂向け）
-  revolver: {
-    name: 'リボルバー', model: 'revolver', dmg: 36, head: 1.8, rate: 0.42, spread: 0.006, bloomShot: 0.02, bloomMax: 0.05, bloomRecover: 0.12,
-    move: 0.012, air: 0.004, ads: 0.4, mag: 6, reload: 2.0, auto: false, recoil: 0.04, falloff: [16, 35, 0.7], pref: 12,
-  },
   // 覗き込むとスコープ（zoom: 覗いたときの視野）。覗かないとほぼ当たらない
   sniper: {
     name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1, adsSpeed: 10, spread: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,

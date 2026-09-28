@@ -1,8 +1,6 @@
 // タイトル・駒選択・設定・操作方法・一時停止・結果画面
-import { PerfLog } from './perflog';
 import { gs } from './state';
 import { $, DEFAULT_KEYS, DIFFS, KEY_ACTIONS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, keyName, saveSettings, settings } from './core';
-import { openTune } from './tune';
 import { SFX } from './audio';
 import { requestLock } from './input';
 import { bot, botActor, player, playerActor, resetMatch, resolveFoe, stats } from './game';
@@ -30,7 +28,6 @@ export function settingsHTML() {
     <div class="row"><span>FPS表示</span>${seg('fpsSeg', [['1', 'ON'], ['0', 'OFF']], settings.showFps ? '1' : '0')}</div>
     <div class="row"><span>ハンドガンの塗装</span>${seg('skinSeg', Object.entries(SKINS).map(([k, s]) => [k, s.name]), settings.gunSkin)}</div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
-    <div class="row"><span>数値の調整<small>ダメージ・速さなど</small></span><button class="btn small" id="tuneBtn">調整パネル</button></div>
   </div>`;
 }
 export function bindSettings() {
@@ -45,7 +42,6 @@ export function bindSettings() {
   $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').textContent = settings.sens.toFixed(2); saveSettings(); };
   $('vol').oninput = e => { settings.vol = +e.target.value; SFX.setVol(settings.vol); saveSettings(); };
   ['sens', 'vol'].forEach(id => $(id).onclick = e => e.stopPropagation());
-  on('tuneBtn', openTune);
 }
 function showSettings(back: () => void) {
   overlay(`<div class="screen">
@@ -176,7 +172,6 @@ export function showPause() {
       <button class="btn" id="resume">再開</button>
       <button class="btn sub" id="pSettings">設定</button>
       <button class="btn sub" id="pControls">操作方法</button>
-      <button class="btn sub" id="pPerf">重さログ</button>
       <button class="btn sub" id="quit">タイトルへ</button>
     </div>
     <p class="note">画面をクリックしても再開できます</p>
@@ -184,32 +179,12 @@ export function showPause() {
   on('resume', () => { SFX.init(); requestLock(); });
   on('pSettings', () => showSettings(showPause));
   on('pControls', () => showControls(showPause));
-  on('pPerf', () => showPerfLog(showPause));
   on('quit', () => {
     gs.paused = false;
     if (gs.matchCtx) BoardMode.abort();
     if (settings.quality !== QUALITY_AT_LOAD) { location.reload(); return; }
     resetMatch(); showTitle();
   });
-}
-
-// ================= 重さログ（コピーして送る） =================
-function showPerfLog(back: () => void) {
-  const text = PerfLog.text();
-  overlay(`<div class="screen wide">
-    <h2 class="h">重さログ</h2>
-    <p class="note">FPS が 50 を下回った瞬間（1コマ 20ms 超え）の記録です。「コピー」を押して、そのまま貼り付けて送ってください。</p>
-    <textarea id="perfText" readonly class="perf-text"></textarea>
-    <div class="menu"><button class="btn sub" id="back">戻る</button><button class="btn" id="copyPerf">コピー</button></div>
-  </div>`, true);
-  ($('perfText') as HTMLTextAreaElement).value = text;
-  $('perfText').onclick = e => e.stopPropagation();
-  on('copyPerf', () => {
-    const done = () => { $('copyPerf').textContent = 'コピーしました'; };
-    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => { ($('perfText') as HTMLTextAreaElement).select(); document.execCommand('copy'); done(); });
-    else { ($('perfText') as HTMLTextAreaElement).select(); document.execCommand('copy'); done(); }
-  });
-  on('back', back);
 }
 
 // ================= 結果 =================
@@ -227,13 +202,9 @@ export function showResult(win) {
     </div>
     <div class="menu">
       <button class="btn sub" id="toTitle">タイトルへ</button>
-      <button class="btn sub" id="resTune">調整パネル</button>
-      <button class="btn sub" id="resPerf">重さログ</button>
       <button class="btn" id="again">もう一局</button>
     </div>
   </div>`, true);
-  on('resTune', openTune);
-  on('resPerf', () => showPerfLog(() => showResult(win)));
   on('again', startMatch);
   on('toTitle', () => { resetMatch(); showTitle(); });
 }
@@ -241,7 +212,6 @@ export function showResult(win) {
 // ================= 対局の開始・一時停止 =================
 export function startMatch() {
   SFX.init();
-  PerfLog.reset(`画質:${QUALITIES[settings.quality].name} 画面 ${innerWidth}x${innerHeight} 倍率x${(devicePixelRatio || 1).toFixed(2)} / 駒:${(PIECES[gs.matchCtx ? gs.matchCtx.myType : settings.myPiece] || PIECES.P).name}`);
   resetMatch(gs.matchCtx ? gs.matchCtx.foeType : resolveFoe());
   initPips();
   $('meName').textContent = `${player.def.name}　${player.w.name}`;

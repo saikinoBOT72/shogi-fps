@@ -1,2 +1,6 @@
 node_modules/
 dist/
+# この PC だけで使う開発用の物（武器の見本ページ・メモ）
+guns.html
+src/gunview.ts
+docs/

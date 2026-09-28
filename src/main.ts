@@ -1,5 +1,4 @@
 // メインループ
-import { PerfLog } from './perflog';
 import { Gadgets } from './gadgets';
 import { P } from './palette';
 import './style.css';
@@ -44,10 +43,7 @@ import { BoardMode } from './boardmode';
 export let last = performance.now(), titleT = 0, lastBeep = -1;
 export function loop(now) {
   requestAnimationFrame(loop);
-  const interval = now - last;   // 重さログ用（前のコマからの本当の時間）
   const rdt = clamp((now - last) / 1000, 0, 0.05); last = now;   // 時計が戻っても壊れないよう 0 未満にしない
-  PerfLog.start();
-  renderer.info.autoReset = false; renderer.info.reset();   // 描画の数はコマ全体で数える
   if (gs.slowmoT > 0) { gs.slowmoT -= rdt; if (gs.slowmoT <= 0) gs.timeScale = 1; }
   const dt = rdt * gs.timeScale;
   perfTick(rdt);
@@ -100,9 +96,8 @@ export function loop(now) {
       if (gs.stateT >= 3) { gs.state = 'fight'; lastBeep = -1; showCenter('FIGHT!', 'var(--kin-2)'); SFX.play('beep', true); setTimeout(() => { if ($('center').textContent === 'FIGHT!') $('center').textContent = ''; }, 900); }
     }
     if (gs.state === 'fight') stats.time += dt;
-    PerfLog.mark('他');
-    updatePlayer(dt); PerfLog.mark('自分');
-    updateBot(dt); PerfLog.mark('CPU');
+    updatePlayer(dt);
+    updateBot(dt);
     separate(player, bot);
     if (gs.state === 'fight') {
       checkRam(player, bot, dmg => damageBot({ dmg, head: false, point: eyeOf(bot) }));
@@ -112,21 +107,17 @@ export function loop(now) {
   }
   const pdt = gs.paused ? 0 : dt;
   animateActor(botActor, bot, pdt, bot.dead ? null : bot.aimPt || player.pos);
-  PerfLog.mark('駒の動き');
-  PHYS.step(pdt, [['player', player], ['bot', bot]]); PerfLog.mark('物理');
+ 
+  PHYS.step(pdt, [['player', player], ['bot', bot]]);
   if (!gs.paused) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); Gadgets.update(dt); }
-  PerfLog.mark('弾・道具');
+ 
   if (!gs.paused && (gs.state === 'fight' || gs.state === 'end')) Replay.record(dt);
-  PerfLog.mark('リプレイ記録');
-  Particles.update(pdt); Tracers.update(pdt); DmgNums.update(pdt); PerfLog.mark('破片・光跡');
+ 
+  Particles.update(pdt); Tracers.update(pdt); DmgNums.update(pdt);
   if (!gs.paused) updateCamera(dt, rdt); else { gs.mdx = gs.mdy = 0; }
-  PerfLog.mark('カメラ・銃');
-  updateHUD(rdt); PerfLog.mark('画面表示');
-  render(!player.dead); PerfLog.mark('描画');
-  PerfLog.end(interval, () => ({
-    t: stats.time, awake: PHYS.awake(), dist: player.pos.distanceTo(bot.pos),
-    bot: `${bot.seen > 0 ? '見えてる' : '見失い'}${bot.job ? '・道探し中' : ''}${bot.coverPt ? '・隠れ場所へ' : ''}`,
-  }), renderer);
+ 
+  updateHUD(rdt);
+  render(!player.dead);
 }
 // FPS計測と、重いときに自動で解像度を下げる仕組み（画質設定の倍率の 0.55 倍まで）
 export const perf = { t: 0, n: 0, low: 0, high: 0 };
@@ -144,7 +135,7 @@ export function perfTick(rdt) {
   let next = gs.resScale;
   if (perf.low >= 3 && gs.resScale > 0.55) { next = Math.max(0.55, gs.resScale - 0.1); perf.low = 0; }
   else if (perf.high >= 20 && gs.resScale < 1) { next = Math.min(1, gs.resScale + 0.05); perf.high = 0; }
-  if (next !== gs.resScale) { PerfLog.event(next < gs.resScale ? '解像度↓' : '解像度↑'); gs.resScale = next; renderer.setPixelRatio(Q.pr * gs.resScale); renderer.setSize(innerWidth, innerHeight); }
+  if (next !== gs.resScale) { gs.resScale = next; renderer.setPixelRatio(Q.pr * gs.resScale); renderer.setSize(innerWidth, innerHeight); }
 }
 let frameNo = 0;
 export function render(withGun?) {

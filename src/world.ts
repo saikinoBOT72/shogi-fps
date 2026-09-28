@@ -144,26 +144,6 @@ export const WATER_Y = GROUND + 0.4;
   const G0 = GROUND;
   // 下端の高さ y0 に置く箱（mats: 1つ、または [右,左,上,下,前,後]）
   const boxMesh = (w, h, d, mats) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
-  const lying = (ch, w, l, t) => { const p = makePiece(ch, w, l, t); p.rotation.x = -Math.PI / 2; const g = new THREE.Group(); p.position.y = t / 2; g.add(p); return g; };
-  const standing = (ch, w, h, t) => { const p = makePiece(ch, w, h, t); p.position.y = h / 2; const g = new THREE.Group(); g.add(p); return g; };
-  const komabako = () => {
-    const g = new THREE.Group(), m = toon({ map: darkWoodTex, roughness: 0.75 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.7, 2.6), m); body.position.y = 0.85;
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.35, 2.8), m); lid.position.set(0.15, 1.87, 0.05); lid.rotation.y = 0.04;
-    g.add(body, lid); return g;
-  };
-  const yunomi = (r, h) => {
-    const g = new THREE.Group();
-    const cup = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.82, h, 10), mat(P.seiji[1], { roughness: 0.4 }));
-    cup.position.y = h / 2;
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.01, r * 1.01, h * 0.12, 10), mat(P.seiji[0], { roughness: 0.4 }));
-    band.position.y = h * 0.75;
-    const tea = new THREE.Mesh(new THREE.CircleGeometry(r * 0.88, 10), mat(P.moegi[1], { roughness: 0.2 }));
-    tea.rotation.x = -Math.PI / 2; tea.position.y = h - 0.15;
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 0.94, r * 0.06, 4, 10), mat(P.seiji[1], { roughness: 0.4 }));
-    rim.rotation.x = Math.PI / 2; rim.position.y = h;
-    g.add(cup, band, tea, rim); return g;
-  };
   // 白壁の塀（瓦の笠つき）。長さ len は x 方向
   const wall = (len, h) => {
     const g = new THREE.Group();
@@ -188,15 +168,6 @@ export const WATER_Y = GROUND + 0.4;
   };
   // 段（上が芝、横が土）
   const terrace = (w, d, h) => { const g = new THREE.Group(); const m = boxMesh(w, h, d, [earthM, earthM, turfM, earthM, earthM, earthM]); m.position.y = h / 2; g.add(m); return g; };
-  // 見張り台（大きな駒箱。壁登りで上がる）
-  const tower = s => {
-    const g = new THREE.Group();
-    const m = boxMesh(s, s, s, toon({ map: darkWoodTex, roughness: 0.75 })); m.position.y = s / 2;
-    const lid = boxMesh(s + 0.3, 0.35, s + 0.3, toon({ map: darkWoodTex, roughness: 0.75 })); lid.position.y = s + 0.17;
-    const label = new THREE.Mesh(planeGeo, kanjiMat('駒')); label.scale.set(s * 0.7, s * 0.7, 1); label.position.set(0, s * 0.55, s / 2 + 0.01);
-    g.add(m, lid, label); return g;
-  };
-
   // (x, z) と (-x, -z) の2か所に置く。y0 は下端の高さ
   const place = (make, x, z, ry = 0, y0 = G0, cyl?, walk?) => {
     [[1, 0], [-1, Math.PI]].forEach(([s, add]) => {
