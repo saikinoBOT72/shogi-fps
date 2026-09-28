@@ -155,11 +155,17 @@ export const vmCam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0
 vmScene.add(new THREE.HemisphereLight(C(P.ao[2]), C(P.kiji[0]), 0.8 * LIGHT));
 export const vmSun = new THREE.DirectionalLight(C(P.shiro[2]), 1.6 * LIGHT); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
 export const vmFlashLight = new THREE.PointLight(C(P.kin[2]), 0, 2, 1); vmScene.add(vmFlashLight);
+// 一人称の銃の構えの目安（fitViewModel で使う）
+export const VM_FIT = { grip: [0.72, -0.82], muzzle: [0.24, -0.24], gripDepth: 0.26, reach: 0.28, adsDrop: [-0.15, -0.3] };
 export const VM: any = (() => {
   const root = new THREE.Group();
   const models: any = {};
   for (const k of Object.keys(GUN_BUILDERS)) models[k] = buildGun(k);
-  for (const [k, m] of Object.entries(models) as [string, any][]) { m.g.scale.setScalar(m.vmScale || (k === 'bow' ? 0.34 : 0.85)); m.g.rotation.y = m.vmYaw || 0; m.g.visible = false; root.add(m.g); }
+  for (const [k, m] of Object.entries(models) as [string, any][]) {
+    m.g.visible = false; root.add(m.g);
+    if (k === 'bow') m.g.scale.setScalar(0.34); else fitViewModel(m);
+  }
+  addEventListener('resize', () => { for (const [k, m] of Object.entries(models) as [string, any][]) if (k !== 'bow') fitViewModel(m); });
   vmScene.add(root);
   const pist = models.pistol;
   const flash = new THREE.Group();
@@ -215,6 +221,26 @@ export const VM: any = (() => {
   flatten(root);
   return vm;
 })();
+// 一人称の銃の構え：画面の右下 1/4 をしっかり使い、照準のまわりには被らないように自動で合わせる
+//   グリップ（銃の原点）を画面の右下へ、銃口を照準の少し右下で止まるように、向き・大きさ・位置を決める
+//   短い銃（ハンドガン）は銃口の位置を手前にして、大きくなりすぎないようにする
+export function fitViewModel(m) {
+  if (m.anim) m.anim.rebase();
+  const th = Math.tan(THREE.MathUtils.degToRad(58 / 2)), a = innerWidth / innerHeight;
+  const at = (nx, ny, t) => new V3(nx * th * a * t, ny * th * t, -t);
+  m.g.rotation.set(0, 0, 0); m.g.scale.setScalar(1); m.g.updateMatrixWorld(true);
+  const d = m.muzzle.position.clone();
+  const len = new THREE.Box3().setFromObject(m.g).getSize(new V3()).z;
+  const f = clamp(len / 0.85, 0.4, 1), F = VM_FIT;
+  const G = at(F.grip[0], F.grip[1], F.gripDepth);
+  const T = at(lerp(F.grip[0], F.muzzle[0], f), lerp(F.grip[1], F.muzzle[1], f), F.gripDepth + F.reach * f);
+  const w = T.clone().sub(G);
+  m.g.rotation.order = 'YXZ';
+  m.g.rotation.set(Math.atan2(w.y, Math.hypot(w.x, w.z)) - Math.atan2(d.y, -d.z), Math.atan2(-w.x, -w.z), 0);
+  m.g.scale.setScalar(w.length() / d.length());
+  m.hip = G;
+  m.ads = at(F.grip[0] + F.adsDrop[0], F.grip[1] + F.adsDrop[1], F.gripDepth);
+}
 // 撃ったときの銃の跳ね上がり
 export const kickOf = w => w.kind === 'bow' ? 0.6 : w.kind === 'grenade' ? 1.6 : clamp(w.recoil / 0.022, 1, 2.2);
 // 構えの位置（低めに構え、照準で狙う）。覗き込みも画面の下へ下げてズームするだけ

@@ -46,6 +46,8 @@ export class GunAnimator {
   stop(name: string) { this.active = this.active.filter(a => a.name !== name); }
   has(name: string) { return this.active.some(a => a.name === name); }
   clear() { this.active = []; }
+  // 元の位置を覚え直す（構えの向き・大きさを変える前に呼ぶ）
+  rebase() { for (const [o, b] of this.base) { o.position.copy(b.p); o.rotation.copy(b.r); o.visible = b.v; } this.base.clear(); }
 
   update(dt: number) {
     // 元の位置を覚える（組み立てたあと最初に動かすとき）

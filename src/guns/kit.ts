@@ -55,6 +55,14 @@ export function makeSpace(ou: number, ov: number) {
       const circle = (r: number): Pt[] => Array.from({ length: seg }, (_, i) => [u + Math.cos(i / seg * Math.PI * 2 + Math.PI / seg) * r, v + Math.sin(i / seg * Math.PI * 2 + Math.PI / seg) * r] as Pt);
       return S.extrude(circle(r0), w, { ...o, holes: [circle(r1).reverse()] });
     },
+    // 上半分だけの丸い棒（AK の上の蓋など、上が丸い部品）。底の平らな面は下の部品に載せる
+    half(u0: number, u1: number, v: number, r: number, seg = 10, x = 0) {
+      const g = new THREE.CylinderGeometry(r / 1000, r / 1000, (u1 - u0) / 1000, seg, 1, false, Math.PI / 2, Math.PI);
+      g.rotateX(Math.PI / 2);
+      const c = S.at((u0 + u1) / 2, v, x);
+      g.translate(c.x, c.y, c.z);
+      return flat(g);
+    },
     // 前後に向いた円柱（銃口の穴など）。seg を少なくしてローポリに
     rod(u0: number, u1: number, v: number, r: number, seg = 8, x = 0) {
       const g = new THREE.CylinderGeometry(r / 1000, r / 1000, (u1 - u0) / 1000, seg);
