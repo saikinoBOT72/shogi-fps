@@ -79,7 +79,7 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
   const edge: Pt[] = [[-73, -60], [-78, -84], [-79, -113], [-76, -143], [-72, -164], [-65, -176]];
   B.add('slide', bladeGeo(spine, edge), knife);
 
-  if (opt.hand) { const h = handMesh(opt.hand, 0.55, 0.62, 0.9); h.position.set(0.004, -0.004, 0); rhand.add(h); }
+  if (opt.hand) { const h = handMesh(opt.hand, 0.7, 0.8, 0.95); h.position.set(0, -0.004, 0.002); rhand.add(h); }   // 握りを包む拳
   const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(-78, -160));   // 刃先
   const eject = new THREE.Object3D(); B.root.add(eject);
 
@@ -97,16 +97,16 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
         ['root', 'pz', [[0, 0], [0.2, -0.07], [0.42, 0]]],
       ],
     },
-    // 眺める：輪に指を掛けて2回転 → 逆に1回転して握り直す → 刃の裏表を見せる
+    // 眺める：押した瞬間に輪へ指を掛けて時計回りに回し始める（一定の速さ）。連打すると最初だけ繰り返されて回り続ける
     inspect: {
-      dur: 3.4,
+      dur: 1.8,
       tracks: [
-        ['root', 'rz', [[0, 0], [0.25, -0.3], [2.1, -0.3], [2.4, 0.5], [2.8, -0.4], [3.1, -0.4], [3.4, 0]]],
-        ['root', 'ry', [[0, 0], [0.25, 0.45], [2.1, 0.45], [2.4, -0.7], [2.8, 0.9], [3.1, 0.9], [3.4, 0]]],
-        ['root', 'py', [[0, 0], [0.25, 0.05], [3.1, 0.05], [3.4, 0]]],
-        ['rhand', 'py', [[0, 0], [0.25, toRing.y], [1.95, toRing.y], [2.15, 0]]],
-        ['rhand', 'pz', [[0, 0], [0.25, toRing.z], [1.95, toRing.z], [2.15, 0]]],
-        ['knife', 'rx', [[0, 0], [0.3, 0], [0.75, -TURN], [1.2, -TURN * 2], [1.35, -TURN * 2], [1.9, -TURN], [2.0, -TURN]]],
+        ['rhand', 'py', [[0, 0], [0.06, toRing.y], [0.65, toRing.y], [0.8, 0]]],
+        ['rhand', 'pz', [[0, 0], [0.06, toRing.z], [0.65, toRing.z], [0.8, 0]]],
+        ['knife', 'rx', [[0, 0], [0.3, TURN], [0.6, TURN * 2]], 'lin'],
+        ['root', 'rz', [[0, 0], [0.9, 0], [1.15, 0.5], [1.5, 0.5], [1.8, 0]]],
+        ['root', 'ry', [[0, 0], [0.9, 0], [1.15, -0.7], [1.5, -0.7], [1.8, 0]]],
+        ['root', 'py', [[0, 0], [0.9, 0], [1.15, 0.04], [1.5, 0.04], [1.8, 0]]],
       ],
     },
     equip: {
@@ -114,7 +114,7 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
       tracks: [
         ['rhand', 'py', [[0, toRing.y], [0.5, toRing.y], [0.62, 0]]],
         ['rhand', 'pz', [[0, toRing.z], [0.5, toRing.z], [0.62, 0]]],
-        ['knife', 'rx', [[0, TURN * 0.25], [0.5, -TURN]], 'out'],
+        ['knife', 'rx', [[0, -TURN * 0.25], [0.5, TURN]], 'out'],
         ['root', 'rz', [[0, 0.3], [0.5, 0.1], [0.75, 0]]],
       ],
     },
@@ -125,6 +125,7 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
   });
   // 一人称の持ち方：横から刃の形が見える向きで、刃先を画面のまん中の方へ向ける（rot は Z→Y→X の順）
-  model.vmFixed = { scale: 1.6, rot: [0, -Math.PI / 2 + 0.35, -2.2], hip: new THREE.Vector3(0.2, -0.2, -0.42), ads: new THREE.Vector3(0.2, -0.2, -0.42) };
+  // 写真の持ち方：拳の上に輪（人差し指）、握りは拳の中を縦に通り、刃は拳の左から出て先が上へ反る
+  model.vmFixed = { scale: 1.45, rot: [0, Math.PI / 2 - 0.35, -Math.PI / 2], hip: new THREE.Vector3(0.3, -0.1, -0.42), ads: new THREE.Vector3(0.3, -0.1, -0.42) };
   return model;
 }
