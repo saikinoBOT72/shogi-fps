@@ -240,6 +240,19 @@ export function startReload(e) {
 }
 export function weaponTick(e, dt) {
   e.cd -= dt;
+  // 連射の続き：狙っている向きへ、同じ引きの強さで次の矢を放つ
+  if (e.volleyLeft > 0 && !e.dead) {
+    e.volleyT -= dt;
+    if (e.volleyT <= 0) {
+      e.volleyLeft--; e.volleyT = e.volleyGap;
+      const eye = eyeOf(e);
+      const dir = e.isBot ? e.aimPt.clone().sub(eye).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
+      const keepCd = e.cd; e.draw = e.volleyDraw;
+      shootArrow(e, dir, eye.addScaledVector(dir, 0.6));
+      e.cd = Math.max(keepCd, e.w.rate);
+      if (!e.isBot) { VM.kick = 0.6; stats.shots++; }
+    }
+  }
   e.bloom = Math.max(0, e.bloom - e.w.bloomRecover * dt);
   if (e.reloading > 0) {
     e.reloading -= dt;
@@ -374,7 +387,7 @@ export function useSkill(e, i, dir) {
     SFX.play('dash', e.pos);
     Particles.dust(e.pos, 5, 0.9);
     if (!e.isBot) { view.shake = Math.max(view.shake, 0.15); view.stepRoll = s.dir.dot(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw))) > 0 ? -1 : 1; }
-  } else if (t === 'homing' || t === 'bigshot') {
+  } else if (t === 'homing' || t === 'bigshot' || t === 'volley') {
     SFX.play('homing', e.isBot ? e.pos : null);
   } else if (t === 'leap') {
     e.vy = sk.up; e.vel.copy(s.dir).multiplyScalar(sk.fwd);
@@ -567,6 +580,9 @@ export function shootArrow(e, dir, origin) {
   const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
   const hs = act(e, 'homing'), homing = !!hs;
   if (hs) hs.t = 0;
+  // 連射：この1本に続けて残りを放つ
+  const vs = act(e, 'volley');
+  if (vs) { vs.t = 0; e.volleyLeft = vs.sk.count - 1; e.volleyGap = vs.sk.gap; e.volleyT = vs.sk.gap; e.volleyDraw = e.draw; }
   onAttack(e);
   Arrows.fire({
     owner: e, target: e === player ? bot : player, pos: origin,

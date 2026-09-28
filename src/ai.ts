@@ -311,6 +311,10 @@ export const SKILL_AI = {
     if (Gadgets.ctrlOf(b) || s.charges <= 0 || b.coverPt) return;
     if ((!c.los && b.lostT > 0.5 && b.lostT < 4 && c.dist > 8) || (c.los && c.dist > 15 && Math.random() < c.dt * 0.3)) useSkill(b, i, c.toP);
   },
+  // 連射：見えている相手に次の矢をまとめて放つ
+  volley(b, c, i, s) {
+    if (ready(s) && c.los && c.dist > 6 && c.dist < 30 && Math.random() < c.dt * 0.4 * b.persona.eager) useSkill(b, i, c.toP);
+  },
   // 木箱：撃たれているとき、相手との間に遮蔽を作る
   boxes(b, c, i, s) {
     if (ready(s) && c.los && b.hurtT > 0 && c.dist > 8) useSkill(b, i, c.toP);

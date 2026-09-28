@@ -21,7 +21,7 @@ export const PIECES = {
   // skills: [スキル1, スキル2]（キーは設定で変えられる。初期は E と Q）
   P: { name: '歩', value: 1, hp: 90,  size: 0.8,  speed: 7.2, jump: 7.5, weapon: 'pistol',   skills: ['step', 'cloak'] },
   L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'sniper',   skills: ['xray', 'boxes'], strafe: 0.7 },
-  N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing'] },
+  N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing', 'volley'] },
   S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['c4', 'missile'] },
   G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.2, jump: 7,   weapon: 'shotgun',  skills: ['charge', 'guard'] },
   B: { name: '角', value: 8, hp: 125, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skills: ['smoke', 'bigshot'] },
@@ -122,6 +122,8 @@ export const SKILLS = {
   // もう一度押すと自分に戻り、ミサイルはまっすぐ落ちる。height: 出てくる高さ / speed: 速さ
   missile: { name: 'ミサイル', type: 'missile', cooldown: 48, duration: 0, dmg: 75, radius: 4, knock: 10, lift: 6, self: 0.4, speed: 24, height: 60, life: 8, damageTaken: 1,
     help: '空から降るミサイルを操作して当てる（自分は無防備）・もう一度押すと戻る' },
+  // 連射：次に放つと、同じ引きの強さで続けて合計 count 本（gap 秒おき）
+  volley: { name: '連射', type: 'volley', cooldown: 36, duration: 10, count: 5, gap: 0.09, damageTaken: 1, help: '次に放つと、続けて合計5本の矢が飛ぶ' },
   // 木箱：目の前に物理で動く木箱を3つ置く（撃つと崩れる遮蔽。dist: 置く距離）
   boxes: { name: '木箱', type: 'boxes', cooldown: 36, duration: 0, count: 3, dist: 2.4, damageTaken: 1, help: '目の前に木箱を3つ置く（撃つと崩れる遮蔽）' },
   // 鉤縄：狙った壁や高台に縄を掛けて一気に引き寄せられる（range: 届く距離 / speed: 引かれる速さ）
