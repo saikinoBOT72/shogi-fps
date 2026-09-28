@@ -43,9 +43,11 @@ export function buildB93R(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('detail', S.extrude([[-1, 96], [5, 96], [3, 106], [-3, 114], [-9, 114], [-7, 106]], 7, { bevel: 0.6 }), hammer);
   B.add('detail', S.extrude([[81, 80], [87, 80], [88, 72], [91, 64], [88, 62], [85, 66], [82, 74]], 6, { bevel: 0.6 }), trigger);
   // 20連の長い弾倉（グリップの下に飛び出る）
-  B.add('mag', S.extrude([[-6 - 6 * RAKE, 0], [50 - 6 * RAKE, 0], [50 + 60 * RAKE, 76], [-6 + 60 * RAKE, 76]], 22, { bevel: 0.8 }), mag);
-  B.add('mag', S.extrude([[-12, -4], [44, -4], [40, -52], [-16, -52]], 24, { bevel: 1.2 }), mag);
-  B.add('frame', S.box(-18, 42, -58, -52, 28), mag);
+  // グリップの前の線より少し内側に収める
+  const gf = (v: number) => 58 - (82 - v) * RAKE - 5;
+  B.add('mag', S.extrude([[gf(0) - 40, 0], [gf(0), 0], [gf(76), 76], [gf(76) - 40, 76]], 22, { bevel: 0.8 }), mag);
+  B.add('mag', S.extrude([[-22, -4], [40, -4], [35, -28], [-27, -28]], 24, { bevel: 1.2 }), mag);
+  B.add('frame', S.box(-29, 37, -34, -28, 28), mag);
 
   if (opt.hand) {
     const rh = handMesh(opt.hand, 0.72, 0.95, 0.8); rh.position.copy(S.at(28, 36, 3)); B.root.add(rh);
@@ -57,7 +59,7 @@ export function buildB93R(opt: { skin?: string; hand?: THREE.Material } = {}) {
 
   // 弾倉はグリップの傾きに沿って抜き差し
   const along = (keys: Key[]): Track[] => [['mag', 'py', keys.map(([t, d]) => [t, -0.98 * d] as Key)], ['mag', 'pz', keys.map(([t, d]) => [t, 0.2 * d] as Key)]];
-  const toMag = { y: -0.1, z: 0.135 };
+  const toMag = { y: -0.085, z: 0.135 };
   const clips: Record<string, Clip> = {
     fire: {
       dur: 0.07, events: [[0.015, 'eject']],

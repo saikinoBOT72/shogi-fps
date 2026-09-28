@@ -268,7 +268,7 @@ export function buildActor(ch, size, model = 'pistol'): any {
   body.add(piece); root.add(body);
   ghost.position.set(0, h / 2, t / 2); body.add(ghost);
   const gun = buildGun(model);
-  gun.g.scale.setScalar(({ shotgun: 1.6, smg: 1.9, bow: 1.5, revolver: 2.0, sniper: 1.3, ar: 1.6, launcher: 1.5, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3 }[model] || 2.2) * size); gun.g.rotation.y = Math.PI;
+  gun.g.scale.setScalar(({ shotgun: 1.6, smg: 1.9, bow: 0.9, revolver: 2.0, sniper: 1.3, ar: 1.6, launcher: 1.5, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3 }[model] || 2.2) * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(w * 0.52, h * 0.5, t + 0.12);
   body.add(gun.g);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));

@@ -44,6 +44,12 @@ export const SKINS: Record<string, Skin> = {
     slide: { c: P.sumi[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },
     grip: { c: P.kiji[1], tex: 'wood' }, detail: { c: P.sumi[0] }, mag: { c: P.sumi[1], metal: true },
   },
+  // 青い刃（カランビット）
+  ruri: {
+    name: '瑠璃',
+    slide: { c: P.mizu[1], metal: true }, barrel: { c: P.mizu[1], metal: true }, frame: { c: P.mizu[1], metal: true },
+    grip: { c: P.sumi[0], tex: 'stipple' }, detail: { c: P.sumi[1] },
+  },
   fuji: {
     name: '藤',
     slide: { c: P.fuji[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },
