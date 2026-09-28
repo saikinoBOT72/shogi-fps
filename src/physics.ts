@@ -148,6 +148,7 @@ export const PHYS = (() => {
   }
   function sync() { for (const it of items) { it.obj.position.copy(it.body.position); it.obj.quaternion.copy(it.body.quaternion); } }
   return {
+    awake: () => items.reduce((n, it) => n + (it.body.sleepState !== CANNON.Body.SLEEPING ? 1 : 0), 0),   // 起きている（動いている）小物の数
     step(dt, ents) {
       for (const [k, e] of ents) {
         const b = kinFor(k, e);

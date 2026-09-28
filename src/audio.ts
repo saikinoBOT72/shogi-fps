@@ -1,4 +1,5 @@
 // 効果音（すべて Web Audio で合成）
+import { PerfLog } from './perflog';
 import { V3, rand, settings } from './core';
 
 // ================= サウンド（すべて合成） =================
@@ -184,7 +185,7 @@ export const SFX = (() => {
   }
   return {
     init, listener,
-    play(name, ...a) { if (!ctx) return; try { sounds[name](...a); } catch (e) {} },
+    play(name, ...a) { PerfLog.event(name); if (!ctx) return; try { sounds[name](...a); } catch (e) {} },
     setVol(v) { if (master) master.gain.value = v; },
   };
 })();

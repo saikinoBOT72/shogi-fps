@@ -261,3 +261,6 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 /* 次に撃てるまでのゲージ（照準の下） */
 #cdBar { position: absolute; left: 50%; top: calc(50% + 20px); width: 40px; height: 3px; margin-left: -20px; border-radius: 2px; opacity: 0; transition: opacity .12s; background: color-mix(in srgb, var(--nezumi-1) 30%, transparent) }
 #cdBar i { display: block; height: 100%; transform-origin: left; background: color-mix(in srgb, var(--shiro-1) 60%, transparent); border-radius: 2px }
+
+/* 重さログ */
+.perf-text { width: 100%; height: 50vh; box-sizing: border-box; font: 12px/1.5 monospace; color: var(--text); background: color-mix(in srgb, var(--sumi-0) 85%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; white-space: pre }
