@@ -67,13 +67,13 @@ export const SFX = (() => {
     // ときどきの音（min〜max 秒ごと）
     const every = (min, max, fn) => { const go = () => { if (!a.alive) return; fn(); setTimeout(go, rand(min, max) * 1000); }; setTimeout(go, rand(min * 0.3, max * 0.6) * 1000); };
     if (id === 'temple') {
-      loop('bandpass', 1800, 0.4, 0.015);                  // 竹のざわめき
-      loop('bandpass', 450, 1, 0.035, [0.13, 140]);         // 夜風（ゆっくり強弱）
+      loop('bandpass', 1800, 0.4, 0.005);        // 竹のざわめき
+      loop('bandpass', 450, 1, 0.006, [0.13, 140]);         // 夜風（ゆっくり強弱）
       every(12, 25, () => { const d = out(null, 0.7, 1600, bus); const n = 1 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) { const at = i * 0.6; N(d, { at, dur: 0.35, type: 'bandpass', f0: 850, f1: 700, q: 5, g: 0.03, atk: 0.03 }); T(d, { at, type: 'sawtooth', f0: 500, f1: 420, dur: 0.33, g: 0.01, atk: 0.03 }); } });   // カラス
       every(30, 60, () => gong(out(null, 0.9, 900, bus), 0, 98, 0.04));   // 遠くの鐘
       every(3.5, 3.6, () => { const d = out(null, 0.3, 5000, bus); for (let i = 0; i < 27; i++) P(d, i * 0.13 + rand(0, 0.03), 3600, 0.05, 0.003, 'triangle'); });   // 虫の声
     } else {
-      loop('lowpass', 700, 0.8, 0.04);                      // 川のせせらぎ
+      loop('lowpass', 700, 0.8, 0.013);                    // 川のせせらぎ
       every(8, 18, () => { const d = out(null, 0.5, 5000, bus), f = rand(2800, 3800); for (let j = 0; j < 3; j++) T(d, { at: j * 0.1, f0: f, f1: f * 1.25, dur: 0.06, g: 0.012 }); });   // 小鳥
     }
   }

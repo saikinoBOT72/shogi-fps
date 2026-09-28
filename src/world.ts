@@ -147,7 +147,7 @@ export const LV: any = {};
 export const SPAWN = { x: -34, z: 9 };
 export let WATER_Y = GROUND + 0.4;
 export let mapId = '';
-export const MAP_LIST = [['valley', '谷と二つの丘'], ['temple', '山寺の石段（日暮れ）']];
+export const MAP_LIST = [['valley', '谷と二つの丘'], ['temple', '山寺の石段']];
 export const onMapChange: ((id: string) => void)[] = [];   // 切り替えたときに呼ぶ（経路探索・物理）
 const MAPS: Record<string, any> = {};
 export const mapLV = (id: string) => MAPS[id].lv;
@@ -545,7 +545,7 @@ function finishMap() {
 export function applyAtmos() {
   const m = MAPS[mapId];
   if (!m) return;
-  const a = m.atmos((gs.netDark || settings.dark) !== 'soft');
+  const a = m.atmos(true);   // 暗さは「こわい」で固定
   const u = (sky.material as any).uniforms;
   u.top.value.copy(a.top); u.hor.value.copy(a.hor); u.bot.value.copy(a.bot);
   SUN_DIR.copy(a.sunDir).normalize();

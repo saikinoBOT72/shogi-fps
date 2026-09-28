@@ -61,16 +61,19 @@ addEventListener('mousemove', e => {
   if (!locked && !lockFailed) return;
   // 視点が飛ぶ対策：固定直後の数イベントと、明らかに異常な移動量は捨てる
   if (lockGrace > 0) { lockGrace--; return; }
-  if (Math.abs(e.movementX) > 350 || Math.abs(e.movementY) > 350) return;
+  // （生の入力のときは飛びが起きないので捨てない。速く振ったときの動きを削らないように）
+  if (!rawInput && (Math.abs(e.movementX) > 350 || Math.abs(e.movementY) > 350)) return;
   gs.mdx += e.movementX; gs.mdy += e.movementY;
 });
+let rawInput = false;   // OS のマウス加速を通さない生の入力（VALORANT と同じ）が使えているか
 export function requestLock() {
   const el = renderer.domElement;
   lockGrace = 2;
   const fallback = () => { lockFailed = true; onLocked(); };
   try {
+    rawInput = false;
     const p = el.requestPointerLock({ unadjustedMovement: true });
-    if (p && p.catch) p.catch(() => {
+    if (p && p.then) p.then(() => { rawInput = true; }, () => {
       try {
         const p2 = el.requestPointerLock();
         if (p2 && p2.catch) p2.catch(fallback);

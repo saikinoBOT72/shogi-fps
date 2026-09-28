@@ -25,7 +25,7 @@ export function settingsHTML() {
   const seg = (id, items, cur) => `<div class="seg" id="${id}">${items.map(([k, name]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}">${name}</button>`).join('')}</div>`;
   return `<div class="panel form">
     <div class="row"><span>CPUの強さ</span>${seg('diffSeg', Object.entries(DIFFS).map(([k, d]: any) => [k, d.name]), settings.diff)}</div>
-    <div class="row"><span>マウス感度 <b id="sensV">${settings.sens.toFixed(2)}</b></span><input id="sens" type="range" min="0.2" max="3" step="0.05" value="${settings.sens}"></div>
+    <div class="row"><span>マウス感度<small>VALORANT と同じ数値</small> <input id="sensV" type="number" min="0.01" max="10" step="0.001" value="${settings.sens}" style="width:5.5em"></span><input id="sens" type="range" min="0.05" max="2" step="0.005" value="${settings.sens}"></div>
     <div class="row"><span>画質<small>重いときは「低」</small></span>${seg('qSeg', Object.entries(QUALITIES).map(([k, q]: any) => [k, q.name]), settings.quality)}</div>
     <div class="row"><span>FPS表示</span>${seg('fpsSeg', [['1', 'ON'], ['0', 'OFF']], settings.showFps ? '1' : '0')}</div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
@@ -39,9 +39,11 @@ export function bindSettings() {
   segBind('diffSeg', v => { settings.diff = v; });
   segBind('qSeg', v => { settings.quality = v; if (gs.state === 'title') location.reload(); });   // 画質は作り直しが必要なので再読み込み
   segBind('fpsSeg', v => { settings.showFps = v === '1'; if (!settings.showFps) $('fps').textContent = ''; });
-  $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').textContent = settings.sens.toFixed(2); saveSettings(); };
+  $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').value = String(settings.sens); saveSettings(); };
+  $('sensV').oninput = e => { const v = +e.target.value; if (!(v > 0)) return; settings.sens = v; $('sens').value = String(v); saveSettings(); };
+  $('sensV').onkeydown = e => e.stopPropagation();   // 数字を打つときにゲームの操作に取られないように
   $('vol').oninput = e => { settings.vol = +e.target.value; SFX.setVol(settings.vol); saveSettings(); };
-  ['sens', 'vol'].forEach(id => $(id).onclick = e => e.stopPropagation());
+  ['sens', 'sensV', 'vol'].forEach(id => $(id).onclick = e => e.stopPropagation());
 }
 function showSettings(back: () => void) {
   overlay(`<div class="screen">
@@ -129,11 +131,10 @@ export function showTitle() {
   on('openControls', () => showControls(showTitle));
 }
 
-// マップと暗さ（v: { map, dark }。dis: 選べない＝部屋を作った人が決める）
+// マップ（v: { map }。dis: 選べない＝部屋を作った人が決める）。山寺の暗さは「こわい」で固定
 export function mapPickHTML(v, dis = false) {
   const seg = (id, items, cur) => `<div class="seg" id="${id}">${items.map(([k, n]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}"${dis ? ' disabled' : ''}>${n}</button>`).join('')}</div>`;
-  return `<div class="panel form"><div class="row"><span>マップ</span>${seg('mapSeg', MAP_LIST, v.map)}</div>
-    ${v.map === 'temple' ? `<div class="row"><span>暗さ</span>${seg('darkSeg', [['scary', 'こわい'], ['soft', '見やすい']], v.dark)}</div>` : ''}</div>`;
+  return `<div class="panel form"><div class="row"><span>マップ</span>${seg('mapSeg', MAP_LIST, v.map)}</div></div>`;
 }
 export function bindMapPick(onPick: (key: 'map' | 'dark', v: string) => void) {
   for (const [id, key] of [['mapSeg', 'map'], ['darkSeg', 'dark']] as const)

@@ -10,7 +10,7 @@ import { DmgNums, Particles, Tracers, VM, vmFlashLight } from './effects';
 import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
 import { bot, botActor, player, playerActor, view } from './game';
-import { animateActor, poseViewModel } from './camera';
+import { animateActor, hipFov, poseViewModel } from './camera';
 
 export const Replay = (() => {
   const KEEP = 9, BEFORE = 6, AFTER = 1.4;   // 覚えておく秒数・決着の何秒前から・何秒後まで
@@ -177,7 +177,7 @@ export const Replay = (() => {
       cam.position.set(b.pos.x, b.pos.y + bot.eyeH + bobY, b.pos.z);
       P.look.lerp(f.b.aim, 1 - Math.exp(-14 * dt));
       cam.lookAt(P.look);
-      cam.fov = 80 * P.fovK;
+      cam.fov = hipFov() * P.fovK;
     }
     cam.updateProjectionMatrix();
     sky.position.copy(cam.position);

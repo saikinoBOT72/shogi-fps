@@ -8,15 +8,21 @@ import { HIP, Particles, VM, vmCam, vmFlashLight } from './effects';
 import { act, bot, botActor, eyeOf, player, playerActor, surfOf, view } from './game';
 
 // ================= カメラ・銃の動き =================
+const VAL_RAD = 0.07 * Math.PI / 180;   // VALORANT の感度 1 で 1カウントあたりに回る角度
+const D2R = Math.PI / 180;
+// 視野：VALORANT と同じ「横 103°」。three.js の fov は縦なので、画面の横長さから縦を出す
+export const hipFov = () => 2 * Math.atan(Math.tan(103 / 2 * D2R) / cam.aspect) / D2R;
 export function updateCamera(dt, rdt) {
   const p = player;
-  // マウス（感度は ADS 中に下げる）
-  const sens = 0.0021 * settings.sens * (view.fov / 80);   // 拡大しているほど感度を下げる
+  // ADS の倍率（武器の zoom は縦 80° を基準に作ってあるので、その比で倍率を出す。1 = 等倍、小さいほど拡大）
+  const zoomK = Math.tan(lerp(80, p.w.zoom || 56, p.adsT || 0) / 2 * D2R) / Math.tan(40 * D2R);
+  // マウス：VALORANT と同じ「感度 1 = 1カウント 0.07°」。ADS は倍率の分だけ下げる（VALORANT のスコープ感度倍率 1 と同じ）
+  const sens = VAL_RAD * settings.sens * zoomK;
   // ミサイル操作中：マウスでミサイルを曲げ、カメラはミサイルの後ろ
   const M = Gadgets.ctrlOf(p);
   playerActor.root.visible = !!M;
   if (M) {
-    const ms = 0.0021 * settings.sens;
+    const ms = VAL_RAD * settings.sens;
     M.yaw -= gs.mdx * ms; M.pitch = clamp(M.pitch - gs.mdy * ms, -1.5, -0.35);   // いつも下向き
     gs.mdx = 0; gs.mdy = 0;
     const d = new V3(-Math.sin(M.yaw) * Math.cos(M.pitch), Math.sin(M.pitch), -Math.cos(M.yaw) * Math.cos(M.pitch));
@@ -61,7 +67,7 @@ export function updateCamera(dt, rdt) {
     cam.rotation.set(view.pitch + sy, view.yaw + sx, sr);
   }
   const dashing = !!act(p, 'dash'), guarding = !!act(p, 'guard');
-  const targetFov = lerp(80, p.w.zoom || 56, p.adsT || 0) + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
+  const targetFov = 2 * Math.atan(Math.tan(hipFov() / 2 * D2R) * zoomK) / D2R + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
   // すり足：ステップした方向へ少し傾く
   view.stepRoll = damp(view.stepRoll || 0, 0, 6, rdt);
   if (act(p, 'step')) cam.rotation.z += (view.stepRoll || 0) * 0.06;

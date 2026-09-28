@@ -25,7 +25,7 @@ gs.timeScale = 1;
 gs.slowmoT = 0;
 export let player, bot, playerActor, botActor, stats;
 gs.matchCtx = null;   // 将棋モードの撃ち合い中：{ myType, foeType, playerIsAttacker }
-export const view: any = { yaw: 0, pitch: 0, shake: 0, fov: 80, bobPhase: 0, dip: 0, dipV: 0, roll: 0 };
+export const view: any = { yaw: 0, pitch: 0, shake: 0, fov: 70.5, bobPhase: 0, dip: 0, dipV: 0, roll: 0 };
 export const isPlaying = () => (gs.state === 'countdown' || gs.state === 'fight') && !gs.paused;
 
 export function makeEntity(type, isBot) {
