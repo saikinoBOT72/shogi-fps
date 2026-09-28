@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { P, css, rgba } from '../palette';
 import { toon } from '../materials';
 
-export type SlotStyle = { c: number; metal?: boolean; tex?: 'stipple' | 'wood' | 'checker' };
+export type SlotStyle = { c: number; metal?: boolean; tex?: 'stipple' | 'wood' | 'checker' | 'web' };
 export type Skin = { name: string; slide: SlotStyle; barrel: SlotStyle; frame: SlotStyle; grip: SlotStyle; detail: SlotStyle; mag?: SlotStyle };
 
 export const SKINS: Record<string, Skin> = {
@@ -47,8 +47,8 @@ export const SKINS: Record<string, Skin> = {
   // 青い刃（カランビット）
   ruri: {
     name: '瑠璃',
-    slide: { c: P.mizu[1], metal: true }, barrel: { c: P.mizu[1], metal: true }, frame: { c: P.mizu[1], metal: true },
-    grip: { c: P.sumi[0], tex: 'stipple' }, detail: { c: P.sumi[1] },
+    slide: { c: P.mizu[1], metal: true, tex: 'web' }, barrel: { c: P.mizu[1], metal: true }, frame: { c: P.mizu[1], metal: true },
+    grip: { c: P.sumi[1], tex: 'checker' }, detail: { c: P.nezumi[2], metal: true },
   },
   fuji: {
     name: '藤',
@@ -102,6 +102,20 @@ function metalMatcap(c: number) {
 // グリップの表面（滑り止めの点々・木目・格子）
 function surface(style: SlotStyle) {
   const c = style.c;
+  if (style.tex === 'web') return canvas(256, 256, g => {
+    // 蜘蛛の巣の模様：中心から放射状の線と、それをつなぐ弧（ところどころ途切れる）
+    g.fillStyle = css(c); g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = rgba(P.shiro[2], 0.9); g.lineWidth = 2.2; g.lineCap = 'round';
+    const cx = 128, cy = 128, spokes = 9;
+    const ang = Array.from({ length: spokes }, (_, i) => i / spokes * Math.PI * 2 + Math.random() * 0.3);
+    for (const a of ang) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * 190, cy + Math.sin(a) * 190); g.stroke(); }
+    for (let r = 22; r < 190; r += 20 + Math.random() * 10) for (let i = 0; i < spokes; i++) {
+      if (Math.random() < 0.18) continue;
+      const a0 = ang[i], a1 = ang[(i + 1) % spokes] + (i === spokes - 1 ? Math.PI * 2 : 0), rr = r + Math.random() * 6;
+      g.beginPath(); g.moveTo(cx + Math.cos(a0) * rr, cy + Math.sin(a0) * rr);
+      g.quadraticCurveTo(cx + Math.cos((a0 + a1) / 2) * rr * 0.86, cy + Math.sin((a0 + a1) / 2) * rr * 0.86, cx + Math.cos(a1) * rr, cy + Math.sin(a1) * rr); g.stroke();
+    }
+  });
   return canvas(64, 64, g => {
     g.fillStyle = css(c); g.fillRect(0, 0, 64, 64);
     if (style.tex === 'stipple') {
@@ -116,7 +130,12 @@ function surface(style: SlotStyle) {
 }
 
 export function slotMaterial(style: SlotStyle): THREE.Material {
-  if (style.metal) return new THREE.MeshMatcapMaterial({ matcap: metalMatcap(style.c), flatShading: true });
+  if (style.metal) {
+    if (!style.tex) return new THREE.MeshMatcapMaterial({ matcap: metalMatcap(style.c), flatShading: true });
+    // 模様のある金属：白い金属のつやに、色と模様の絵を重ねる
+    const t = surface(style); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 70, 1 / 70); t.offset.set(0.35, 0.5);
+    return new THREE.MeshMatcapMaterial({ matcap: metalMatcap(P.shiro[2]), map: t, flatShading: true });
+  }
   const o: any = { color: new THREE.Color(style.c) };
   if (style.tex) {
     const t = surface(style); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 24, 1 / 24);   // 図面の mm で 24mm ごとに繰り返す
