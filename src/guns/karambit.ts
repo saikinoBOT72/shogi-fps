@@ -60,9 +60,9 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
   B.add('frame', S.extrude([[-8, 12], [-17, 13], [-17, -12], [-8, -12]], 10, { bevel: 1 }), knife);
 
   // 握り：上の線はまっすぐ斜め、下は指の溝が3つ。刃の根元に小さなつば
-  const top: Pt[] = [[-12, 12], [-24, 11.5], [-38, 7], [-53, 0], [-67, -9], [-83, -20], [-98, -31], [-108, -40]];
-  const end: Pt[] = [[-112, -47], [-108, -54], [-84, -57], [-73, -58], [-68, -47]];
-  const P1 = new THREE.Vector2(-70, -42), P0 = new THREE.Vector2(-13, -8);
+  const top: Pt[] = [[-12, 13], [-34, 11], [-53, 2], [-72, -13], [-90, -25], [-100, -38], [-107, -52]];
+  const end: Pt[] = [[-108, -58], [-88, -62], [-68, -64], [-64, -52]];
+  const P1 = new THREE.Vector2(-68, -45), P0 = new THREE.Vector2(-13, -8);
   const dir = P0.clone().sub(P1).normalize(), out = new THREE.Vector2(dir.y, -dir.x);   // 下右向き（外側）
   const fingers: Pt[] = [];
   for (let i = 1; i < 12; i++) {
@@ -74,12 +74,13 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
 
   // 刃
   // 背は外へふくらみ、刃はくぼんで（爪の内側）、先は内側へ少し向く
-  const spine: Pt[] = [[-104, -48], [-112, -64], [-115, -84], [-113, -104], [-107, -124], [-98, -141], [-90, -150]];
-  const edge: Pt[] = [[-72, -52], [-78, -66], [-85, -84], [-90, -104], [-92, -124], [-91, -140], [-90, -150]];
+  // 背は下へ伸びながら右（握りの下側）へ大きく回り込み、先は右下。刃はほぼまっすぐ下りて先へ
+  const spine: Pt[] = [[-106, -54], [-111, -84], [-107, -113], [-96, -143], [-78, -168], [-65, -176]];
+  const edge: Pt[] = [[-73, -60], [-78, -84], [-79, -113], [-76, -143], [-72, -164], [-65, -176]];
   B.add('slide', bladeGeo(spine, edge), knife);
 
   if (opt.hand) { const h = handMesh(opt.hand, 0.55, 0.62, 0.9); h.position.set(0.004, -0.004, 0); rhand.add(h); }
-  const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(-95, -140));   // 刃先
+  const muzzle = new THREE.Object3D(); muzzle.position.copy(S.at(-78, -160));   // 刃先
   const eject = new THREE.Object3D(); B.root.add(eject);
 
   // 手を輪へ移すずれ（握りの真ん中 → 輪の真ん中）
