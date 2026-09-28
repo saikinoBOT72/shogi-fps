@@ -172,7 +172,7 @@ export function updateBot(dt) {
     const busy = b.slots.some(s => s.t > 0 && ['dash', 'leap', 'heal', 'guard'].includes(s.sk.type));
     if (b.w.kind === 'bow') {
       // 弓：引き絞ってから、相手の動きと矢の落ちを見越して放つ。追尾中は見えていなくても撃つ
-      const armed = !!(act(b, 'homing') || act(b, 'poison'));
+      const armed = !!act(b, 'homing');
       const canShoot = !b.coverPt && ((los && b.seen > D.react) || (armed && b.lostT < 3));
       if (canShoot && b.cd <= 0) {
         b.draw = Math.min(1, b.draw + dt / b.w.drawTime);
@@ -266,10 +266,6 @@ export const SKILL_AI = {
   homing(b, c, i, s) {
     if (ready(s) && ((!c.los && b.lostT > 0.4 && b.lostT < 2.5) || (c.los && c.dist > 10 && Math.random() < c.dt * 0.25 * b.persona.eager))) useSkill(b, i, c.toP);
   },
-  // ポイズンドーム：相手の足元や隠れ場所に毒を置く
-  poison(b, c, i, s) {
-    if (ready(s) && ((c.los && c.dist > 6 && c.dist < 30 && Math.random() < c.dt * 0.3 * b.persona.eager) || (!c.los && b.lostT > 0.5 && b.lostT < 3))) useSkill(b, i, c.toP);
-  },
   // 桂跳び：中距離から飛びかかる
   leap(b, c, i, s) {
     if (!ready(s) || !b.onGround) return;
@@ -295,15 +291,15 @@ export const SKILL_AI = {
   c4(b, c, i, s) {
     const k = Gadgets.c4Of(b);
     if (k) {
-      if (k.ent === player || (k.stuck && k.pos.distanceTo(chestOf(player)) < s.sk.radius * 0.6) || k.t > 12) useSkill(b, i, c.toP);
+      if (k.ent === player || (k.stuck && k.pos.distanceTo(chestOf(player)) < s.sk.radius * 0.5) || k.t > 15) useSkill(b, i, c.toP);
       return;
     }
-    if (s.charges > 0 && c.los && c.dist < 11 && Math.random() < c.dt * 0.8 * b.persona.eager) useSkill(b, i, c.toP);
+    if (s.charges > 0 && c.los && c.dist < 5 && Math.random() < c.dt * 1.5 * b.persona.eager) useSkill(b, i, c.toP);
   },
   // ミサイル：隠れた相手や遠い相手へ飛ばす（その間は無防備なので、見えていない時が基本）
   missile(b, c, i, s) {
     if (Gadgets.ctrlOf(b) || s.charges <= 0 || b.coverPt) return;
-    if ((!c.los && b.lostT > 0.5 && b.lostT < 4 && c.dist > 10) || (c.los && c.dist > 18 && Math.random() < c.dt * 0.3)) useSkill(b, i, c.toP);
+    if ((!c.los && b.lostT > 0.5 && b.lostT < 4 && c.dist > 8) || (c.los && c.dist > 15 && Math.random() < c.dt * 0.3)) useSkill(b, i, c.toP);
   },
   // 王の意地：HPが減ったら回復
   heal(b, c, i, s) {

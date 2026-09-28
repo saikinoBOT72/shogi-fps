@@ -17,12 +17,11 @@ export const Arrows = (() => {
   const shaftM = mat(P.kiji[0]), tipM = mat(P.sumi[2], { metalness: 0.4, roughness: 0.4 });
   const featherM = toon({ color: C(P.shu[1]), side: THREE.DoubleSide, roughness: 0.9 });
   const glowM = toon({ color: C(P.kiji[0]), emissive: C(P.mizu[1]), emissiveIntensity: 1.2 });
-  const poisonM = toon({ color: C(P.fuji[1]), emissive: C(P.fuji[1]), emissiveIntensity: 1.0 });
   const TIP = 0.56;   // 矢の中心から先端まで
 
-  function makeArrow(homing, poison?) {
+  function makeArrow(homing) {
     const g = new THREE.Group();
-    g.add(new THREE.Mesh(shaftGeo, poison ? poisonM : homing ? glowM : shaftM), new THREE.Mesh(tipGeo, tipM));
+    g.add(new THREE.Mesh(shaftGeo, homing ? glowM : shaftM), new THREE.Mesh(tipGeo, tipM));
     for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(featherGeo, featherM); f.rotation.z = i * Math.PI * 2 / 3; g.add(f); }
     g.traverse((o: any) => { if (o.isMesh) o.castShadow = true; });
     return g;
@@ -35,7 +34,7 @@ export const Arrows = (() => {
   // o: { owner, target, pos, vel, dmg, head, gravity, homing, turn }
   function fire(o) {
     const a = Object.assign({}, o, { pos: o.pos.clone(), vel: o.vel.clone(), life: 6, whiz: false });
-    a.mesh = makeArrow(a.homing, a.poison);
+    a.mesh = makeArrow(a.homing);
     scene.add(a.mesh); orient(a);
     live.push(a);
   }
@@ -52,7 +51,6 @@ export const Arrows = (() => {
     const mul = skillDamageMul(t, a.owner.pos);
     const dmg = a.dmg * (head ? a.head : 1) * mul;
     if (mul < 1 && act(t, 'guard')) SFX.play('guard', point);
-    if (a.poison) Gadgets.spawnDome(point, a.owner, a.poison);
     SFX.play('arrowHit', point);
     if (t.isBot) {
       damageBot({ dmg, head, point });
@@ -68,7 +66,6 @@ export const Arrows = (() => {
   // 壁や小物に刺さる
   function stick(a, wall, dir) {
     a.mesh.position.copy(wall.point).addScaledVector(dir, 0.22 - TIP);
-    if (a.poison) Gadgets.spawnDome(wall.point.clone().addScaledVector(dir, -0.3), a.owner, a.poison);
     const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : dir.clone().negate();
     Particles.impact(wall.point, n);
     SFX.play('arrowHit', wall.point);

@@ -1,4 +1,4 @@
-// スキルで出す道具：ポイズンドーム（桂）・C4 と ホーミングミサイル（銀）
+// スキルで出す道具：C4 と ミサイル（銀）
 // リプレイ用に、出した物の形はここに登録して（track）、対局中は消さずに隠すだけにする
 import * as THREE from 'three';
 import { P } from './palette';
@@ -33,34 +33,6 @@ function hitWorld(a: any, b: any) {
   ray.far = Infinity;
   return h || null;
 }
-function hurt(t, dmg, point, from) {
-  if (t.dead) return;
-  if (t.isBot) damageBot({ dmg, head: false, point });
-  else damagePlayer(dmg, from);
-}
-
-// ---------- ポイズンドーム ----------
-const domeGeo = flatGeo(new THREE.IcosahedronGeometry(1, 2));
-const domes = [];
-function spawnDome(pos: any, owner, sk) {
-  const m = track(new THREE.Mesh(domeGeo, toon({ color: C(P.fuji[1]), emissive: C(P.fuji[0]), emissiveIntensity: 0.6, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false })));
-  m.position.copy(pos); m.scale.setScalar(0.01);
-  domes.push({ m, pos: pos.clone(), owner, sk, t: 0, tick: 0 });
-  SFX.play('smoke', pos);
-}
-function updateDomes(dt) {
-  for (let i = domes.length - 1; i >= 0; i--) {
-    const d = domes[i]; d.t += dt;
-    const grow = Math.min(1, d.t / 0.4), fade = clamp((d.sk.life - d.t) / 0.8, 0, 1), r = d.sk.radius * grow;
-    d.m.scale.setScalar(Math.max(0.01, r)); d.m.material.opacity = 0.42 * fade;
-    if (Math.random() < dt * 20) Particles.glow(d.pos.clone().add(new V3(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).multiplyScalar(r * 0.8)), P.fuji[2]);
-    // 中にいる相手に 0.5 秒ごとにダメージ
-    d.tick -= dt;
-    const t = foeOf(d.owner);
-    if (d.tick <= 0 && !t.dead && chest(t).distanceTo(d.pos) < r + t.radius * 0.5) { d.tick = 0.5; hurt(t, d.sk.dps * 0.5, chest(t), d.pos); }
-    if (d.t >= d.sk.life) { d.m.visible = false; domes.splice(i, 1); }
-  }
-}
 
 // ---------- C4 ----------
 const c4Geo = new THREE.BoxGeometry(0.22, 0.1, 0.14);
@@ -79,14 +51,14 @@ function throwC4(e, aim: any, sk) {
   const m = track(makeC4());
   const pos = eyeOf(e).addScaledVector(aim, 0.5);
   m.position.copy(pos);
-  c4s.push({ owner: e, sk, m, pos, vel: aim.clone().multiplyScalar(12).add(new V3(0, 3, 0)), stuck: false, ent: null, off: null, t: 0 });
+  c4s.push({ owner: e, sk, m, pos, vel: aim.clone().setY(Math.min(aim.y, 0.1)).multiplyScalar(sk.throw).add(new V3(0, 2, 0)), stuck: false, ent: null, off: null, t: 0 });
   SFX.play('clunk', e.isBot ? pos : null);
 }
 function detonate(e) {
   const i = c4s.findIndex(c => c.owner === e);
   if (i < 0) return;
   const c = c4s[i]; c4s.splice(i, 1); c.m.visible = false;
-  explodeAt(c.pos, e, c.sk.dmg, c.sk.radius, 1.2);
+  explodeAt(c.pos, e, c.sk.dmg, c.sk.radius, c.sk);
 }
 function updateC4(dt) {
   for (const c of c4s) {
@@ -110,6 +82,8 @@ function updateC4(dt) {
       if (!c.stuck) c.m.rotation.x += dt * 8;
     }
     c.m.position.copy(c.pos);
+    // 置いてしばらくすると、相手からは見えない（自分のは見える）
+    c.m.visible = !(c.owner.isBot && c.t > c.sk.hideAfter);
     // 点滅（貼りついたら速く）
     const light = c.m.getObjectByName('light');
     if (light) light.visible = Math.sin(c.t * (c.stuck ? 14 : 6)) > 0;
@@ -134,8 +108,10 @@ function makeMissile() {
 const dirOf = (yaw: number, pitch: number) => new V3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
 function launch(e, aim: any, sk) {
   const m = track(makeMissile());
-  const pos = eyeOf(e).add(new V3(0, 0.5, 0));
-  const yaw = Math.atan2(-aim.x, -aim.z), pitch = 1.0;   // まず斜め上へ打ち上げる
+  // 空の高い所（自分の少し後ろ）から、向いている方向へ斜めに降ってくる
+  const yaw = Math.atan2(-aim.x, -aim.z), pitch = -1.15;
+  const back = new V3(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(-sk.height * 0.35);
+  const pos = new V3(e.pos.x, e.pos.y + sk.height, e.pos.z).add(back);
   const M = { owner: e, sk, m, pos, yaw, pitch, dir: dirOf(yaw, pitch), t: 0, ctrl: true };
   missiles.push(M);
   m.position.copy(pos);
@@ -145,7 +121,7 @@ function boom(M) {
   const i = missiles.indexOf(M);
   if (i >= 0) missiles.splice(i, 1);
   M.m.visible = false; M.ctrl = false;
-  explodeAt(M.pos, M.owner, M.sk.dmg, M.sk.radius, 1);
+  explodeAt(M.pos, M.owner, M.sk.dmg, M.sk.radius, M.sk);
 }
 function updateMissiles(dt) {
   for (const M of [...missiles]) {
@@ -155,9 +131,10 @@ function updateMissiles(dt) {
       const want = chest(player).sub(M.pos).normalize();
       const ang = M.dir.angleTo(want), maxA = 2.2 * dt;
       M.dir.lerp(want, ang > maxA ? maxA / ang : 1).normalize();
+      if (M.dir.y > -0.3) { M.dir.y = -0.3; M.dir.normalize(); }   // 上へは戻れない
     } else if (M.ctrl && !M.owner.isBot) M.dir.copy(dirOf(M.yaw, M.pitch));
     const next = M.pos.clone().addScaledVector(M.dir, M.sk.speed * dt);
-    const body = hitBody(foeOf(M.owner), M.pos, next, 0.15) || (M.t > 0.6 ? hitBody(M.owner, M.pos, next, 0.05) : null);
+    const body = hitBody(foeOf(M.owner), M.pos, next, 0.15) || hitBody(M.owner, M.pos, next, 0.05);
     const wall = hitWorld(M.pos, next);
     if (body || wall || M.t > M.sk.life) { if (body) M.pos.copy(body); else if (wall) M.pos.copy(wall.point); boom(M); continue; }
     M.pos.copy(next);
@@ -167,13 +144,13 @@ function updateMissiles(dt) {
 }
 
 export const Gadgets = {
-  spawnDome, throwC4, detonate, launch,
+  throwC4, detonate, launch,
   c4Of: e => c4s.find(c => c.owner === e),
   ctrlOf: e => missiles.find(m => m.owner === e && m.ctrl),
   // 操作をやめる（ミサイルはそのまままっすぐ飛ぶ）
   release(e) { const M = missiles.find(m => m.owner === e && m.ctrl); if (M) M.ctrl = false; },
-  update(dt) { if (dt <= 0) return; updateDomes(dt); updateC4(dt); updateMissiles(dt); },
-  clear() { reg.forEach(o => scene.remove(o)); reg.length = 0; domes.length = 0; c4s.length = 0; missiles.length = 0; },
+  update(dt) { if (dt <= 0) return; updateC4(dt); updateMissiles(dt); },
+  clear() { reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; },
   // リプレイ用：出ている物の位置・大きさ・濃さ
   snapshot: () => reg.map((o, i) => (o.visible ? [i, o.position.x, o.position.y, o.position.z, o.rotation.x, o.rotation.y, o.rotation.z, o.scale.x, opOf(o)] : null)).filter(Boolean),
   restore(s) {
@@ -184,5 +161,5 @@ export const Gadgets = {
       if (o.material && o.material.opacity !== undefined) o.material.opacity = op;
     }
   },
-  samples: () => [new THREE.Mesh(domeGeo, toon({ color: C(P.fuji[1]), transparent: true, side: THREE.DoubleSide })), makeC4(), makeMissile()],
+  samples: () => [makeC4(), makeMissile()],
 };

@@ -21,7 +21,7 @@ export const PIECES = {
   // skills: [スキル1, スキル2]（キーは設定で変えられる。初期は E と Q）
   P: { name: '歩', value: 1, hp: 90,  size: 0.8,  speed: 7.2, jump: 7.5, weapon: 'pistol',   skills: ['step', 'cloak'] },
   L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'sniper',   skills: ['xray'], strafe: 0.7 },
-  N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing', 'poison'] },
+  N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing'] },
   S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['c4', 'missile'] },
   G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.2, jump: 7,   weapon: 'shotgun',  skills: ['charge', 'guard'] },
   B: { name: '角', value: 8, hp: 125, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skills: ['smoke', 'bigshot'] },
@@ -75,7 +75,8 @@ export const WEAPONS = {
   },
   // 放物線で飛び、跳ねて爆発。radius: 爆風の範囲 / fuse: 爆発までの秒 / speed: 撃ち出す速さ
   launcher: {
-    name: 'グレネード', model: 'launcher', kind: 'grenade', dmg: 65, radius: 3.5, speed: 38, gravity: 9, fuse: 3, rate: 0.9, spread: 0.01,
+    // knock: 横に吹き飛ばす強さ / lift: 上に飛ばす強さ / self: 自分へのダメージ倍率
+    name: 'グレネード', model: 'launcher', kind: 'grenade', dmg: 35, knock: 20, lift: 14, self: 0.1, radius: 3.5, speed: 38, gravity: 9, fuse: 3, rate: 0.9, spread: 0.01,
     bloomShot: 0, bloomMax: 0, bloomRecover: 0.1, move: 0.01, air: 0.02, ads: 0.6, mag: 4, reload: 2.6, auto: false, recoil: 0.05, falloff: [999, 1000, 1], pref: 13,
   },
   // 近いほど強い。8粒 × 8 ダメージ
@@ -106,16 +107,16 @@ export const SKILLS = {
   cloak: { name: '透明化', type: 'cloak', cooldown: 14, duration: 5, damageTaken: 1, help: '5秒間 透明になる（攻撃すると解除）' },
   // 透視：しばらく壁越しに相手が見える
   xray: { name: '透視', type: 'xray', cooldown: 14, duration: 6, damageTaken: 1, help: '6秒間 壁越しに相手が見える' },
-  // ポイズンドーム：次の矢が刺さった所に毒の球。中にいる相手に持続ダメージ（dps: 1秒あたり）
-  poison: { name: 'ポイズンドーム', type: 'poison', cooldown: 14, duration: 8, radius: 3.5, life: 7, dps: 14, damageTaken: 1,
-    help: '次の矢が刺さった所に毒の球（中にいると持続ダメージ）' },
-  // C4：投げると物や駒に貼りつく。もう一度押すと爆発
-  c4: { name: 'C4', type: 'c4', cooldown: 12, duration: 0, dmg: 85, radius: 4.5, damageTaken: 1, help: '投げて貼りつける・もう一度押すと爆発' },
-  // ホーミングミサイル：ミサイル視点で操作して当てる（その間 自分は無防備）。もう一度押すと自分に戻り、ミサイルはまっすぐ飛ぶ
-  missile: { name: 'ミサイル', type: 'missile', cooldown: 16, duration: 0, dmg: 75, radius: 3.5, speed: 20, life: 8, damageTaken: 1,
-    help: 'ミサイルを操作して当てる（自分は無防備）・もう一度押すと戻る' },
+  // C4：足元近くにポイと置く（物や駒に貼りつく）。もう一度押すと爆発。近いと即死級。置いて3秒で相手から見えなくなる
+  // throw: 投げる速さ / hideAfter: 相手から見えなくなるまでの秒
+  c4: { name: 'C4', type: 'c4', cooldown: 12, duration: 0, dmg: 180, radius: 4.5, knock: 12, lift: 7, self: 0.4, throw: 5, hideAfter: 3, damageTaken: 1,
+    help: '近くにポイと置く・もう一度押すと爆発（近いと即死級）' },
+  // ミサイル（CoD のプレデターミサイル風）：空の上から降ってくるミサイルを操作して当てる（その間 自分は無防備）
+  // もう一度押すと自分に戻り、ミサイルはまっすぐ落ちる。height: 出てくる高さ / speed: 速さ
+  missile: { name: 'ミサイル', type: 'missile', cooldown: 16, duration: 0, dmg: 75, radius: 4, knock: 10, lift: 6, self: 0.4, speed: 24, height: 60, life: 8, damageTaken: 1,
+    help: '空から降るミサイルを操作して当てる（自分は無防備）・もう一度押すと戻る' },
   // 大玉：次のグレネードが大きくなり、敵も自分も大きく吹き飛ばす（knock: 吹き飛ばす強さ）
-  bigshot: { name: '大玉', type: 'bigshot', cooldown: 12, duration: 10, radius: 5.5, knock: 22, damageTaken: 1,
+  bigshot: { name: '大玉', type: 'bigshot', cooldown: 12, duration: 10, radius: 5.5, knock: 38, lift: 22, damageTaken: 1,
     help: '次のグレネードが巨大に・敵も自分も吹き飛ばす' },
   // 王の意地：短時間でHPを回復し、その間は被ダメージ軽減
   rally: { name: '王の意地', type: 'heal', key: 'KeyE', cooldown: 14, duration: 2, amount: 60, damageTaken: 0.7,

@@ -136,7 +136,7 @@ export function updateHUD(dt) {
     const again = (sk.type === 'c4' && Gadgets.c4Of(p)) || (sk.type === 'missile' && Gadgets.ctrlOf(p));
     const ready = s.charges > 0 || !!again;
     if (changed('skr' + i, ready)) el.classList.toggle('ready', ready);
-    const armed = s.t > 0 && ['homing', 'poison', 'bigshot', 'xray', 'cloak'].includes(sk.type);
+    const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak'].includes(sk.type);
     const name = sk.type === 'c4' && Gadgets.c4Of(p) ? 'C4 起爆' : sk.type === 'missile' && Gadgets.ctrlOf(p) ? '戻る'
       : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
     const nm = el.querySelector('.nm'), txt = name + (max > 1 ? ` ×${s.charges}` : '');

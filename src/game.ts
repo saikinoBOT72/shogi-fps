@@ -154,9 +154,11 @@ export function moveEntity(e, wish, dt) {
     lp.t -= dt;   // 跳んでいる間は勢いのまま（空中で向きを変えられない）
   } else {
     const gd = act(e, 'guard'), slow = gd ? gd.sk.slow : 1;
+    e.knockT = Math.max(0, (e.knockT || 0) - dt);
+    const flung = e.knockT > 0 && !e.onGround;   // 爆風で飛ばされている間
     const target = wish.clone().multiplyScalar(e.def.speed * RULES.speed * (e.isBot || e.running ? 1 : RULES.walk) * (e.speedMul || 1) * slow);
     const dv = target.sub(e.vel); dv.y = 0;
-    const acc = (e.onGround ? 75 : 22) * dt;
+    const acc = (e.onGround ? 75 : flung ? 1.5 : 22) * dt;
     if (dv.length() > acc) dv.setLength(acc);
     e.vel.add(dv);
   }
@@ -355,7 +357,7 @@ export function useSkill(e, i, dir) {
     SFX.play('dash', e.pos);
     Particles.dust(e.pos, 5, 0.9);
     if (!e.isBot) { view.shake = Math.max(view.shake, 0.15); view.stepRoll = s.dir.dot(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw))) > 0 ? -1 : 1; }
-  } else if (t === 'homing' || t === 'poison' || t === 'bigshot') {
+  } else if (t === 'homing' || t === 'bigshot') {
     SFX.play('homing', e.isBot ? e.pos : null);
   } else if (t === 'leap') {
     e.vy = sk.up; e.vel.copy(s.dir).multiplyScalar(sk.fwd);
@@ -494,7 +496,7 @@ export function fireGrenade(e, dir, origin) {
   const big = act(e, 'bigshot');
   if (big) big.t = 0;
   Grenades.fire({ owner: e, target: e === player ? bot : player, pos: origin, vel: d.multiplyScalar(w.speed), dmg: w.dmg, radius: big ? big.sk.radius : w.radius, gravity: w.gravity, fuse: w.fuse,
-    big: !!big, knock: big ? big.sk.knock / 9 : 1 });
+    big: !!big, knock: big ? big.sk.knock : w.knock, lift: big ? big.sk.lift : w.lift, self: w.self });
   SFX.play('launcher', e.isBot ? origin : null);
 }
 // 矢を放つ（プレイヤー・CPU共通）
@@ -502,15 +504,13 @@ export function shootArrow(e, dir, origin) {
   const w = e.w, k = (e.draw * e.draw + 2 * e.draw) / 3;   // マイクラと同じ引きの効き方
   const sp = currentSpread(e);
   const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
-  const hs = act(e, 'homing'), ps = act(e, 'poison'), homing = !!hs;
+  const hs = act(e, 'homing'), homing = !!hs;
   if (hs) hs.t = 0;
-  if (ps) ps.t = 0;
   onAttack(e);
   Arrows.fire({
     owner: e, target: e === player ? bot : player, pos: origin,
     vel: d.multiplyScalar(homing ? Math.min(hs.sk.speed, lerp(w.speedMin, w.speedMax, k)) : lerp(w.speedMin, w.speedMax, k)),
     dmg: lerp(w.dmgMin, w.dmg, k), head: w.head, gravity: w.gravity, drag: w.drag || 0, homing, turn: hs ? hs.sk.turn : 0, full: e.draw >= 1,
-    poison: ps ? ps.sk : null,
   });
   e.cd = w.rate; e.draw = 0;
   SFX.play('bow', e.isBot ? origin : null);

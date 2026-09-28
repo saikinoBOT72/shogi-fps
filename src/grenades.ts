@@ -11,8 +11,10 @@ import { bot, damageBot, eyeOf, hasLOS, player, ray, skillDamageMul, view } from
 import { damagePlayer } from './ai';
 import { killBot } from './hud';
 
-// 爆発：範囲内の駒にダメージと吹き飛ばし。knock: 吹き飛ばしの倍率 / big: 大玉（見た目も大きく）
-export function explodeAt(p, owner, dmgBase, radius, knock = 1, big = false) {
+// 爆発：範囲内の駒にダメージと吹き飛ばし
+// o.knock: 横に飛ばす強さ / o.lift: 上に飛ばす強さ / o.self: 自分へのダメージ倍率 / o.big: 大玉（見た目も大きく）
+export function explodeAt(p, owner, dmgBase, radius, o: any = {}) {
+  const knock = o.knock ?? 9, lift = o.lift ?? 5, big = !!o.big;
   const chestOf = e => new V3(e.pos.x, e.pos.y + e.height * 0.55, e.pos.z);
   for (const e of [player, bot]) {
     if (!e || e.dead) continue;
@@ -21,16 +23,17 @@ export function explodeAt(p, owner, dmgBase, radius, knock = 1, big = false) {
     let k = 1 - d / radius;
     if (!hasLOS(p, c)) k *= 0.35;               // 物陰なら弱まる
     let dmg = dmgBase * (0.25 + 0.75 * k) * skillDamageMul(e, p);
-    if (e === owner) dmg *= 0.4;                 // 自分も少し巻き込まれる
-    const kk = big ? Math.max(k, 0.5) : k;       // 大玉は範囲のどこでも大きく飛ぶ
-    const push = c.clone().sub(p).setY(0).normalize().multiplyScalar(9 * kk * knock);
-    e.vel.add(push); e.vy = Math.max(e.vy, 5 * kk * Math.min(knock, 2)); e.onGround = false;
+    if (e === owner) dmg *= o.self ?? 0.4;        // 自分も少し巻き込まれる
+    const kk = Math.max(k, big ? 0.6 : 0.35);      // 範囲の端でもそれなりに飛ぶ
+    const push = c.clone().sub(p).setY(0).normalize().multiplyScalar(knock * kk);
+    e.vel.add(push); e.vy = Math.max(e.vy, lift * (0.6 + 0.4 * k)); e.onGround = false; e.airT = 1; e.jumped = true;
+    e.knockT = 0.4 + 0.6 * kk;   // 飛んでいる間は自分で動けない（勢いのまま飛ぶ）
     if (e.isBot) {
       if (owner === player) damageBot({ dmg, head: false, point: c });
       else { bot.hp -= dmg; bot.sinceHit = 0; if (bot.hp <= 0) killBot(); }
     } else damagePlayer(dmg, p);
   }
-  PHYS.blast(p, radius * 1.6, 10 * knock);
+  PHYS.blast(p, radius * 1.6, knock * 0.8);
   Particles.explosion(p);
   if (big) { Particles.explosion(p.clone().add(new V3(0.8, 0.3, 0))); Particles.explosion(p.clone().add(new V3(-0.8, 0.5, 0.4))); }
   SFX.play('boom', p);
@@ -57,7 +60,7 @@ export const Grenades = (() => {
 
   function explode(g) {
     scene.remove(g.mesh);
-    explodeAt(g.pos, g.owner, g.dmg, g.radius, g.knock || 1, g.big);
+    explodeAt(g.pos, g.owner, g.dmg, g.radius, { knock: g.knock, lift: g.lift, self: g.self, big: g.big });
   }
 
   function update(dt) {

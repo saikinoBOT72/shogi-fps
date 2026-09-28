@@ -17,12 +17,12 @@ export function updateCamera(dt, rdt) {
   playerActor.root.visible = !!M;
   if (M) {
     const ms = 0.0021 * settings.sens;
-    M.yaw -= gs.mdx * ms; M.pitch = clamp(M.pitch - gs.mdy * ms, -1.45, 1.45);
+    M.yaw -= gs.mdx * ms; M.pitch = clamp(M.pitch - gs.mdy * ms, -1.5, -0.35);   // いつも下向き
     gs.mdx = 0; gs.mdy = 0;
     const d = new V3(-Math.sin(M.yaw) * Math.cos(M.pitch), Math.sin(M.pitch), -Math.cos(M.yaw) * Math.cos(M.pitch));
-    cam.position.copy(M.pos).addScaledVector(d, -0.9).add(new V3(0, 0.15, 0));
+    cam.position.copy(M.pos).addScaledVector(d, 0.3);   // ミサイルの先から見下ろす
     cam.rotation.set(M.pitch, M.yaw, 0);
-    cam.fov = 75; cam.updateProjectionMatrix();
+    cam.fov = 70; cam.updateProjectionMatrix();
     sky.position.copy(cam.position); SFX.listener(cam);
     VM.root.visible = false; VM.shield.visible = false;
     animateActor(playerActor, p, dt, p.pos.clone().add(new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw))));
@@ -102,7 +102,7 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   if (VM.pist.isBow) {
     VM.pist.setDraw(p.draw || 0);
     VM.pist.arrow.visible = p.cd <= 0;
-    VM.pist.arrowM.emissiveIntensity = act(p, 'homing') || act(p, 'poison') ? 1 + Math.sin(performance.now() / 90) * 0.4 : 0;
+    VM.pist.arrowM.emissiveIntensity = act(p, 'homing') ? 1 + Math.sin(performance.now() / 90) * 0.4 : 0;
   }
   const r = VM.root;
   r.position.set(
