@@ -156,7 +156,7 @@ vmScene.add(new THREE.HemisphereLight(C(P.ao[2]), C(P.kiji[0]), 0.8 * LIGHT));
 export const vmSun = new THREE.DirectionalLight(C(P.shiro[2]), 1.6 * LIGHT); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
 export const vmFlashLight = new THREE.PointLight(C(P.kin[2]), 0, 2, 1); vmScene.add(vmFlashLight);
 // 一人称の銃の構えの目安（fitViewModel で使う）
-export const VM_FIT = { grip: [0.72, -0.82], muzzle: [0.24, -0.24], gripDepth: 0.26, reach: 0.28, adsDrop: [-0.15, -0.3] };
+export const VM_FIT = { grip: [0.55, -0.78], muzzle: [0.15, -0.14], gripDepth: 0.2, reach: 0.45, adsDrop: [-0.1, -0.25] };
 export const VM: any = (() => {
   const root = new THREE.Group();
   const models: any = {};
