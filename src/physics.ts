@@ -163,6 +163,14 @@ export const PHYS = (() => {
     for (const x of [-35, -31, -27]) addBody('log', new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, x * s, HB + 0.3, 32.2 * s, lying, 0.7);
   });
 
+  // スキル「木箱」で置く木箱（両者 6 個ずつ、足りなければ古いものから使い回す）
+  const pool = [];
+  for (let i = 0; i < 12; i++) {
+    const it = addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, 0, -100, 0, 0, 0.65);
+    it.pool = true; world.removeBody(it.body);
+    pool.push(it);
+  }
+  let poolI = 0;
   const insts = [];
   for (const k of Object.values(kinds)) {
     if (!k.items.length) continue;
@@ -256,7 +264,16 @@ export const PHYS = (() => {
       });
       sync();
     },
+    // 木箱を置く（pos: 置く所の下端の中心、ry: 向き）
+    spawnBox(x, y, z, ry) {
+      const it = pool[poolI = (poolI + 1) % pool.length], b = it.body;
+      if (!world.bodies.includes(b)) world.addBody(b);
+      b.position.set(x, y + cs / 2 + 0.05, z); b.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), ry);
+      b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0); b.wakeUp();
+      sync();
+    },
     reset() {
+      for (const it of pool) if (world.bodies.includes(it.body)) world.removeBody(it.body);
       for (const it of items) {
         const b = it.body;
         b.position.copy(it.home.p); b.quaternion.copy(it.home.q);

@@ -386,6 +386,15 @@ export function useSkill(e, i, dir) {
   } else if (t === 'xray' || t === 'cloak') {
     if (!e.isBot) SFX.play('pierce');
     if (t === 'cloak') for (let k = 0; k < 12; k++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.shiro[2]);
+  } else if (t === 'boxes') {
+    // 目の前に横並びで3つ置く
+    const right = new V3(-s.dir.z, 0, s.dir.x);
+    for (let k = 0; k < sk.count; k++) {
+      const p = e.pos.clone().addScaledVector(s.dir, sk.dist).addScaledVector(right, (k - (sk.count - 1) / 2) * 1.3);
+      PHYS.spawnBox(p.x, Math.max(groundAt(p.x, p.z), e.pos.y), p.z, Math.atan2(s.dir.x, s.dir.z));
+      Particles.dust(p, 6, 1);
+    }
+    SFX.play('knock', e.isBot ? e.pos : null, 0.8, 0.7);
   } else if (t === 'grapple') {
     s.target = hook; SFX.play('dash', e.isBot ? e.pos : null);
   } else if (t === 'flash' || t === 'pearl') {

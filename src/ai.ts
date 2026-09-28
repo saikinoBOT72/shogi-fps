@@ -311,6 +311,10 @@ export const SKILL_AI = {
     if (Gadgets.ctrlOf(b) || s.charges <= 0 || b.coverPt) return;
     if ((!c.los && b.lostT > 0.5 && b.lostT < 4 && c.dist > 8) || (c.los && c.dist > 15 && Math.random() < c.dt * 0.3)) useSkill(b, i, c.toP);
   },
+  // 木箱：撃たれているとき、相手との間に遮蔽を作る
+  boxes(b, c, i, s) {
+    if (ready(s) && c.los && b.hurtT > 0 && c.dist > 8) useSkill(b, i, c.toP);
+  },
   // 鉤縄：相手が高い所にいるとき、見えていれば引き寄せられて一気に上がる。行き詰まったときも
   grapple(b, c, i, s) {
     if (!ready(s)) return;

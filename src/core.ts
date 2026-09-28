@@ -20,7 +20,7 @@ export const LIGHT = Math.PI;
 export const PIECES = {
   // skills: [スキル1, スキル2]（キーは設定で変えられる。初期は E と Q）
   P: { name: '歩', value: 1, hp: 90,  size: 0.8,  speed: 7.2, jump: 7.5, weapon: 'pistol',   skills: ['step', 'cloak'] },
-  L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'sniper',   skills: ['xray'], strafe: 0.7 },
+  L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'sniper',   skills: ['xray', 'boxes'], strafe: 0.7 },
   N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing'] },
   S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['c4', 'missile'] },
   G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.2, jump: 7,   weapon: 'shotgun',  skills: ['charge', 'guard'] },
@@ -92,55 +92,58 @@ export const WEAPONS = {
   },
 };
 export const SKILLS = {
+  // cooldown：待ち時間（秒）。全体をもとの 3 倍にした
   // type: dash（前に飛び出す）/ guard（盾を構える）
   // 突撃：前方へ一気に踏み込む。突撃中は被ダメージ半減、ぶつかると体当たりダメージ
-  charge: { name: '突撃', type: 'dash', key: 'KeyE', cooldown: 6, duration: 0.32, speed: 26, damageTaken: 0.5, ram: 18,
+  charge: { name: '突撃', type: 'dash', key: 'KeyE', cooldown: 18, duration: 0.32, speed: 26, damageTaken: 0.5, ram: 18,
     help: '前方へダッシュ・被ダメ半減・体当たり' },
   // すり足：左右（A/D の向き）へ素早くステップ。2回まで続けて使える
-  step: { name: 'すり足', type: 'step', key: 'KeyE', cooldown: 3, charges: 2, duration: 0.16, speed: 22, damageTaken: 1,
+  step: { name: 'すり足', type: 'step', key: 'KeyE', cooldown: 9, charges: 2, duration: 0.16, speed: 22, damageTaken: 1,
     help: 'A/Dの方向へ素早くステップ（2回まで）' },
   // 追尾：次に放つ1本が相手を追いかける（物陰の裏にも回り込む）
   // speed: 追尾の矢の速さ（速いと曲がり切れないので抑える）
-  homing: { name: '追尾', type: 'homing', key: 'KeyE', cooldown: 10, duration: 6, turn: 7, speed: 30, damageTaken: 1,
+  homing: { name: '追尾', type: 'homing', key: 'KeyE', cooldown: 30, duration: 6, turn: 7, speed: 30, damageTaken: 1,
     help: '次の1本が相手を追いかける' },
   // 桂跳び：斜め前へ大ジャンプ。着地の衝撃で周りを吹き飛ばす（up: 上へ / fwd: 前へ / radius, dmg: 衝撃）
-  leap: { name: '桂跳び', type: 'leap', key: 'KeyE', cooldown: 8, duration: 2.5, up: 12, fwd: 11, radius: 3.5, dmg: 25, damageTaken: 1,
+  leap: { name: '桂跳び', type: 'leap', key: 'KeyE', cooldown: 24, duration: 2.5, up: 12, fwd: 11, radius: 3.5, dmg: 25, damageTaken: 1,
     help: '斜め前へ大ジャンプ・着地で周りを吹き飛ばす' },
   // 煙幕：その場に煙を張って視界を遮る
-  smoke: { name: '煙幕', type: 'smoke', cooldown: 12, duration: 0, radius: 5, life: 8, damageTaken: 1,
+  smoke: { name: '煙幕', type: 'smoke', cooldown: 36, duration: 0, radius: 5, life: 8, damageTaken: 1,
     help: 'その場に球の煙幕を張って視界を遮る' },
   // 透明化：しばらく姿が消える（足音は聞こえる）。自分が攻撃すると解除
-  cloak: { name: '透明化', type: 'cloak', cooldown: 14, duration: 5, damageTaken: 1, help: '5秒間 透明になる（攻撃すると解除）' },
+  cloak: { name: '透明化', type: 'cloak', cooldown: 42, duration: 5, damageTaken: 1, help: '5秒間 透明になる（攻撃すると解除）' },
   // 透視：しばらく壁越しに相手が見える
-  xray: { name: '透視', type: 'xray', cooldown: 14, duration: 6, damageTaken: 1, help: '6秒間 壁越しに相手が見える' },
+  xray: { name: '透視', type: 'xray', cooldown: 42, duration: 6, damageTaken: 1, help: '6秒間 壁越しに相手が見える' },
   // C4：足元近くにポイと置く（物や駒に貼りつく）。もう一度押すと爆発。近いと即死級。置いて3秒で相手から見えなくなる
   // throw: 投げる速さ / hideAfter: 相手から見えなくなるまでの秒
-  c4: { name: 'C4', type: 'c4', cooldown: 12, duration: 0, dmg: 180, radius: 4.5, knock: 12, lift: 7, self: 0.4, throw: 5, hideAfter: 3, damageTaken: 1,
+  c4: { name: 'C4', type: 'c4', cooldown: 36, duration: 0, dmg: 180, radius: 4.5, knock: 12, lift: 7, self: 0.4, throw: 5, hideAfter: 3, damageTaken: 1,
     help: '近くにポイと置く・もう一度押すと爆発（近いと即死級）' },
   // ミサイル（CoD のプレデターミサイル風）：空の上から降ってくるミサイルを操作して当てる（その間 自分は無防備）
   // もう一度押すと自分に戻り、ミサイルはまっすぐ落ちる。height: 出てくる高さ / speed: 速さ
-  missile: { name: 'ミサイル', type: 'missile', cooldown: 16, duration: 0, dmg: 75, radius: 4, knock: 10, lift: 6, self: 0.4, speed: 24, height: 60, life: 8, damageTaken: 1,
+  missile: { name: 'ミサイル', type: 'missile', cooldown: 48, duration: 0, dmg: 75, radius: 4, knock: 10, lift: 6, self: 0.4, speed: 24, height: 60, life: 8, damageTaken: 1,
     help: '空から降るミサイルを操作して当てる（自分は無防備）・もう一度押すと戻る' },
+  // 木箱：目の前に物理で動く木箱を3つ置く（撃つと崩れる遮蔽。dist: 置く距離）
+  boxes: { name: '木箱', type: 'boxes', cooldown: 36, duration: 0, count: 3, dist: 2.4, damageTaken: 1, help: '目の前に木箱を3つ置く（撃つと崩れる遮蔽）' },
   // 鉤縄：狙った壁や高台に縄を掛けて一気に引き寄せられる（range: 届く距離 / speed: 引かれる速さ）
-  grapple: { name: '鉤縄', type: 'grapple', cooldown: 8, duration: 1.4, range: 35, speed: 26, damageTaken: 1,
+  grapple: { name: '鉤縄', type: 'grapple', cooldown: 24, duration: 1.4, range: 35, speed: 26, damageTaken: 1,
     help: '狙った壁や高台へ縄を掛けて一気に引き寄せられる' },
   // 閃光弾：投げて少しして炸裂。見ていた相手（自分も）の目がくらむ（blind: くらむ最大秒数 / radius: 届く距離）
-  flash: { name: '閃光弾', type: 'flash', cooldown: 12, duration: 0, fuse: 1.1, speed: 20, radius: 26, blind: 3, damageTaken: 1,
+  flash: { name: '閃光弾', type: 'flash', cooldown: 36, duration: 0, fuse: 1.1, speed: 20, radius: 26, blind: 3, damageTaken: 1,
     help: '投げて約1秒後に炸裂。見ていた相手の目がくらむ（自分も注意）' },
   // エンダーパール：投げて落ちた所へ瞬間移動（selfDmg: 自分へのダメージ）
-  pearl: { name: 'エンダーパール', type: 'pearl', cooldown: 8, duration: 0, speed: 24, selfDmg: 5, damageTaken: 1,
+  pearl: { name: 'エンダーパール', type: 'pearl', cooldown: 24, duration: 0, speed: 24, selfDmg: 5, damageTaken: 1,
     help: '投げて落ちた所へ瞬間移動（自分に少しダメージ）' },
   // 衝撃波：自分のまわりに衝撃波。近いほど大ダメージで大きく吹き飛ぶ（knock: 横 / lift: 上）
-  shock: { name: '衝撃波', type: 'shock', cooldown: 12, duration: 0, radius: 10, dmg: 45, knock: 32, lift: 15, damageTaken: 1,
+  shock: { name: '衝撃波', type: 'shock', cooldown: 36, duration: 0, radius: 10, dmg: 45, knock: 32, lift: 15, damageTaken: 1,
     help: 'まわり10mに衝撃波。近いほど大ダメージで大きく吹き飛ぶ' },
   // 大玉：次のグレネードが大きくなり、敵も自分も大きく吹き飛ばす（knock: 吹き飛ばす強さ）
-  bigshot: { name: '大玉', type: 'bigshot', cooldown: 12, duration: 10, radius: 5.5, knock: 38, lift: 22, damageTaken: 1,
+  bigshot: { name: '大玉', type: 'bigshot', cooldown: 36, duration: 10, radius: 5.5, knock: 38, lift: 22, damageTaken: 1,
     help: '次のグレネードが巨大に・敵も自分も吹き飛ばす' },
   // 王の意地：短時間でHPを回復し、その間は被ダメージ軽減
-  rally: { name: '王の意地', type: 'heal', key: 'KeyE', cooldown: 14, duration: 2, amount: 60, damageTaken: 0.7,
+  rally: { name: '王の意地', type: 'heal', key: 'KeyE', cooldown: 42, duration: 2, amount: 60, damageTaken: 0.7,
     help: '2秒でHPを60回復・その間の被ダメ0.7倍' },
   // 守りの構え：将棋盤を盾にして、前からのダメージを減らす。構え中は遅く、撃つと解除
-  guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 9, duration: 2.5, damageTaken: 0.1, slow: 0.55,
+  guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 27, duration: 2.5, damageTaken: 0.1, slow: 0.55,
     help: '盾を構えて前からの被ダメ1/10・撃つと解除' },
 };
 export const skillType = e => SKILLS[e.def.skill].type;

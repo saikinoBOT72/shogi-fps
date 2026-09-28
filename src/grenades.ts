@@ -131,9 +131,10 @@ export const Smoke = (() => {
     for (let i = clouds.length - 1; i >= 0; i--) {
       const c = clouds[i];
       c.t += dt;
-      const grow = Math.min(1, c.t / 0.6), g = 1 - (1 - grow) * (1 - grow), fade = clamp((c.life - c.t) / 1, 0, 1);
-      c.m.scale.setScalar(Math.max(0.01, c.r * g)); c.m.material.opacity = 0.96 * fade;
-      c.eff = c.r * 0.95 * g * (fade > 0.3 ? 1 : fade / 0.3);
+      const grow = Math.min(1, c.t / 0.6), g = 1 - (1 - grow) * (1 - grow), fade = clamp((c.life - c.t) / 0.5, 0, 1);
+      c.m.scale.setScalar(Math.max(0.01, c.r * g)); c.m.material.opacity = fade;
+      c.m.material.transparent = fade < 1; c.m.material.depthWrite = true;
+      c.eff = c.r * g * (fade > 0.5 ? 1 : fade / 0.5);
       if (c.t >= c.life) { c.m.visible = false; clouds.splice(i, 1); }
     }
   }
