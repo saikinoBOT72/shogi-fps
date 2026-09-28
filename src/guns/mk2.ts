@@ -111,7 +111,7 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   };
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'mokume',
-    info: { name: 'マークスマン Mk2', real: '全長 約960mm・銃身 510mm（レバーアクション）' },
+    info: { name: 'マークスマン Mk2', real: '全長 約960mm・銃身 510mm（レバーアクション）', reload: 2.4 },
     vm: { scale: 0.95, yaw: -0.3, hip: new THREE.Vector3(0.17, -0.18, -0.28), ads: new THREE.Vector3(0.11, -0.22, -0.26) },
   });
 }

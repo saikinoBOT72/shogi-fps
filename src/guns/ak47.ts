@@ -113,7 +113,7 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
   };
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'mokume',
-    info: { name: 'AK-47', real: '全長 880mm・銃身 415mm' },
+    info: { name: 'AK-47', real: '全長 880mm・銃身 415mm', reload: 2.0 },
     vm: { scale: 1.0, yaw: -0.3, hip: new THREE.Vector3(0.17, -0.17, -0.28), ads: new THREE.Vector3(0.11, -0.21, -0.26) },
   });
 }

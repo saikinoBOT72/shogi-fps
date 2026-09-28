@@ -9,7 +9,7 @@ export type GunDef = {
   clips: Record<string, Clip>;
   muzzle: THREE.Object3D; eject: THREE.Object3D;
   skin: string;
-  info: { name: string; real: string };
+  info: { name: string; real: string; reload?: number };
   vm: { scale: number; yaw?: number; hip: THREE.Vector3; ads: THREE.Vector3 };
   events?: Record<string, (anim: GunAnimator) => void>;   // 動きの中の出来事（銃の中で処理するもの）
 };

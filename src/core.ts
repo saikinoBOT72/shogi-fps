@@ -47,7 +47,7 @@ export const WEAPONS = {
   },
   // 連射で押し切る。近〜中距離
   smg: {
-    name: 'SMG', model: 'smg', dmg: 10, head: 1.4, rate: 0.075, spread: 0.012, bloomShot: 0.004, bloomMax: 0.045, bloomRecover: 0.15,
+    name: 'MP5', model: 'mp5', dmg: 10, head: 1.4, rate: 0.075, spread: 0.012, bloomShot: 0.004, bloomMax: 0.045, bloomRecover: 0.15,
     move: 0.012, air: 0.035, ads: 0.5, mag: 30, reload: 1.7, auto: true, recoil: 0.008, falloff: [10, 28, 0.55], pref: 9,
   },
   // 弓：長押しで引き絞り、離して撃つ。引くほど速く・強く・まっすぐ。矢は重力で落ちる
@@ -81,7 +81,7 @@ export const WEAPONS = {
   },
   // 近いほど強い。8粒 × 8 ダメージ
   shotgun: {
-    name: 'ショットガン', model: 'shotgun', dmg: 8, pellets: 8, head: 1.3, rate: 0.85, spread: 0.055, bloomShot: 0.01, bloomMax: 0.02, bloomRecover: 0.1,
+    name: 'M870', model: 'm870', dmg: 8, pellets: 8, head: 1.3, rate: 0.85, spread: 0.055, bloomShot: 0.01, bloomMax: 0.02, bloomRecover: 0.1,
     move: 0.01, air: 0.025, ads: 0.7, mag: 6, reload: 2.2, auto: false, recoil: 0.06, falloff: [7, 20, 0.25], pref: 6,
   },
 };

@@ -8,7 +8,9 @@ import { SKINS } from './guns/skins';
 import { buildDeagle } from './guns/deagle';
 import { buildAK47 } from './guns/ak47';
 import { buildMk2 } from './guns/mk2';
-const GUNS = { deagle: ['デザートイーグル', buildDeagle], ak: ['AK-47', buildAK47], mk2: ['Mk2', buildMk2] } as const;
+import { buildM870 } from './guns/m870';
+import { buildMP5 } from './guns/mp5';
+const GUNS = { deagle: ['デザートイーグル', buildDeagle], ak: ['AK-47', buildAK47], mk2: ['Mk2', buildMk2], m870: ['M870', buildM870], mp5: ['MP5', buildMP5] } as const;
 
 applyCssPalette();
 const style = document.createElement('style');
@@ -80,7 +82,7 @@ let ammo = 7;
 buttons('gv-anims', [['fire', '撃つ'], ['last', '最後の1発'], ['reload', 'リロード'], ['inspect', '眺める'], ['equip', '構える']], k => {
   if (k === 'fire') gun.fire(false);
   if (k === 'last') gun.fire(true);
-  if (k === 'reload') gun.reload(gun.info.name === 'AK-47' ? 2.0 : gun.info.name.includes('Mk2') ? 2.4 : 1.3);
+  if (k === 'reload') gun.reload(gun.info.reload || 1.3);
   if (k === 'inspect') gun.inspect();
   if (k === 'equip') gun.equip();
 });
