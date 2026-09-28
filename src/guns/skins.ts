@@ -38,6 +38,12 @@ export const SKINS: Record<string, Skin> = {
     slide: { c: P.seiji[2] }, barrel: { c: P.nezumi[2], metal: true }, frame: { c: P.seiji[1] },
     grip: { c: P.nezumi[2], tex: 'stipple' }, detail: { c: P.shiro[1] },
   },
+  // 木の銃床の銃（AK・Mk2）の基本
+  mokume: {
+    name: '木目',
+    slide: { c: P.sumi[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },
+    grip: { c: P.kiji[1], tex: 'wood' }, detail: { c: P.sumi[0] }, mag: { c: P.sumi[1], metal: true },
+  },
   fuji: {
     name: '藤',
     slide: { c: P.fuji[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },

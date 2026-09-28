@@ -6,6 +6,9 @@ import { LIGHT } from './core';
 import { toon } from './materials';
 import { SKINS } from './guns/skins';
 import { buildDeagle } from './guns/deagle';
+import { buildAK47 } from './guns/ak47';
+import { buildMk2 } from './guns/mk2';
+const GUNS = { deagle: ['デザートイーグル', buildDeagle], ak: ['AK-47', buildAK47], mk2: ['Mk2', buildMk2] } as const;
 
 applyCssPalette();
 const style = document.createElement('style');
@@ -39,17 +42,23 @@ const sun = new THREE.DirectionalLight(new THREE.Color(P.shiro[2]), 1.6 * LIGHT)
 const grid = new THREE.GridHelper(0.6, 6, P.nezumi[0], P.sumi[2]); grid.position.y = -0.12; scene.add(grid);
 
 const hand = toon({ color: new THREE.Color(P.kiji[2]) });
-let gun = buildDeagle({ hand });
-scene.add(gun.g);
-const box = new THREE.Box3().setFromObject(gun.g), size = box.getSize(new THREE.Vector3());
-document.getElementById('gv-name').textContent = gun.info.name;
-document.getElementById('gv-size').textContent = `実銃 ${gun.info.real} ／ この模型 ${Math.round(size.z * 1000)}×${Math.round(size.y * 1000)}×${Math.round(size.x * 1000)}mm（手を含む）`;
+let gun: any = null;
+function useGun(k: string) {
+  if (gun) scene.remove(gun.g);
+  gun = (GUNS[k][1] as any)({ hand });
+  scene.add(gun.g);
+  const size = new THREE.Box3().setFromObject(gun.g).getSize(new THREE.Vector3());
+  document.getElementById('gv-name').textContent = gun.info.name;
+  document.getElementById('gv-size').textContent = `実銃 ${gun.info.real} ／ この模型 ${Math.round(size.z * 1000)}×${Math.round(size.y * 1000)}×${Math.round(size.x * 1000)}mm（手を含む）`;
+  gun.onEvent = onEvent;
+  if ((window as any).gv) (window as any).gv.gun = gun;
+}
 
 // 薬莢が飛ぶ
 const casings: any[] = [];
 const caseGeo = new THREE.CylinderGeometry(0.0068, 0.0068, 0.033, 6).rotateX(Math.PI / 2);
 const caseMat = toon({ color: new THREE.Color(P.kin[2]) });
-gun.onEvent = ev => {
+const onEvent = ev => {
   if (ev !== 'eject') return;
   const m = new THREE.Mesh(caseGeo, caseMat);
   gun.eject.getWorldPosition(m.position); scene.add(m);
@@ -64,12 +73,14 @@ const buttons = (id: string, items: [string, string][], fn: (k: string) => void,
     if (sel !== undefined) el.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   });
 };
+useGun('deagle');
+buttons('gv-guns', Object.entries(GUNS).map(([k, g]) => [k, g[0]]), k => { useGun(k); }, 'deagle');
 buttons('gv-skins', Object.entries(SKINS).map(([k, s]) => [k, s.name]), k => gun.setSkin(k), gun.skin);
 let ammo = 7;
 buttons('gv-anims', [['fire', '撃つ'], ['last', '最後の1発'], ['reload', 'リロード'], ['inspect', '眺める'], ['equip', '構える']], k => {
   if (k === 'fire') gun.fire(false);
   if (k === 'last') gun.fire(true);
-  if (k === 'reload') gun.reload(1.3);
+  if (k === 'reload') gun.reload(gun.info.name === 'AK-47' ? 2.0 : gun.info.name.includes('Mk2') ? 2.4 : 1.3);
   if (k === 'inspect') gun.inspect();
   if (k === 'equip') gun.equip();
 });
@@ -77,7 +88,7 @@ let spin = false, slow = 1;
 let showHand = true;
 buttons('gv-view', [['side', '真横'], ['fps', '一人称'], ['spin', '回す'], ['slow', 'スロー'], ['hand', '手']], k => {
   if (k === 'hand') { showHand = !showHand; gun.g.traverse((o: any) => { if (o.material === hand) o.visible = showHand; }); }
-  if (k === 'side') { cam.position.set(0.8, 0.01, -0.05); ctl.target.set(0, 0.01, -0.05); }
+  if (k === 'side') { cam.position.set(1.6, 0.01, -0.05); ctl.target.set(0, 0.01, -0.05); }
   if (k === 'fps') { cam.position.set(-0.2, 0.2, 0.48); ctl.target.set(0, 0, -0.1); }
   if (k === 'spin') spin = !spin;
   if (k === 'slow') slow = slow === 1 ? 0.2 : 1;

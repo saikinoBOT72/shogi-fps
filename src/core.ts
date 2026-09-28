@@ -65,12 +65,12 @@ export const WEAPONS = {
   },
   // 覗き込むとスコープ（zoom: 覗いたときの視野）。覗かないとほぼ当たらない
   sniper: {
-    name: 'スナイパー', model: 'sniper', dmg: 68, head: 1.8, rate: 1.5, adsSpeed: 5, spread: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1.5, adsSpeed: 5, spread: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.03, air: 0.08, ads: 0.02, zoom: 22, mag: 5, reload: 2.4, auto: false, recoil: 0.07, falloff: [999, 1000, 1], pref: 26,
   },
   // 万能の連射銃（王向け）
   ar: {
-    name: 'アサルトライフル', model: 'ar', dmg: 15, head: 1.5, rate: 0.1, spread: 0.008, bloomShot: 0.005, bloomMax: 0.035, bloomRecover: 0.14,
+    name: 'AK-47', model: 'ak', dmg: 15, head: 1.5, rate: 0.1, spread: 0.008, bloomShot: 0.005, bloomMax: 0.035, bloomRecover: 0.14,
     move: 0.012, air: 0.035, ads: 0.45, mag: 30, reload: 2.0, auto: true, recoil: 0.012, falloff: [20, 40, 0.7], pref: 14,
   },
   // 放物線で飛び、跳ねて爆発。radius: 爆風の範囲 / fuse: 爆発までの秒 / speed: 撃ち出す速さ
