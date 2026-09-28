@@ -7,7 +7,7 @@ import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, ra
 import { SFX } from './audio';
 import { cam, scene } from './render';
 import { LV, SPAWN, WATER_Y, colliders } from './world';
-import { PHYS, blockers } from './physics';
+import { PHYS, blockers, physOf } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
@@ -310,7 +310,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
     if (wall) {
       const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : d.clone().negate();
       Particles.impact(wall.point, n);
-      const ph = wall.object.userData.phys;
+      const ph = physOf(wall);
       if (ph) { PHYS.hit(ph, wall.point, d, w.dmg * 0.15); Particles.wood(wall.point, n, 4, 0.5); }
       else Decals.add(wall.point, n);
       if (sound) SFX.play(Math.random() < 0.3 ? 'ricochet' : 'thud', wall.point);

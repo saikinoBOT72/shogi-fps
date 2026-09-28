@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { C, V3 } from './core';
 import { SFX } from './audio';
 import { mat, scene, toon } from './render';
-import { PHYS, blockers } from './physics';
+import { PHYS, blockers, physOf } from './physics';
 import { Particles } from './effects';
 import { act, botActor, damageBot, eyeOf, player, ray, skillDamageMul } from './game';
 import { damagePlayer } from './ai';
@@ -69,7 +69,7 @@ export const Arrows = (() => {
     const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : dir.clone().negate();
     Particles.impact(wall.point, n);
     SFX.play('arrowHit', wall.point);
-    const ph = wall.object.userData.phys;
+    const ph = physOf(wall);
     if (ph) { PHYS.hit(ph, wall.point, dir, a.dmg * 0.12); ph.obj.updateMatrixWorld(true); ph.obj.attach(a.mesh); }
     keepStuck(a.mesh);
   }

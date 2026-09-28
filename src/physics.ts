@@ -2,6 +2,7 @@
 import { P, css } from './palette';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { gs } from './state';
 import { BH, G, GROUND, clamp, rand } from './core';
 import { SFX } from './audio';
@@ -9,7 +10,9 @@ import { PIECE_DEPTH, canvasTex, mat, pieceGeo, pieceWoodMat, scene, toon, woodG
 import { LV, colliders, insideCollider, propMeshes } from './world';
 
 // ================= 物理演算（cannon.js）：撃つ・押す・体当たりで動く小物 =================
-export const physMeshes = [];       // 弾と視線を遮る（CPUの経路探索には使わない＝押しのけて進める）
+export const physMeshes = [];
+// レイの当たりから、動く小物（PHYS の item）を取り出す
+export const physOf = hit => hit && hit.object && (hit.object.userData.phys || (hit.object.userData.physList && hit.object.userData.physList[hit.instanceId]));       // 弾と視線を遮る（CPUの経路探索には使わない＝押しのけて進める）
 export let blockers = propMeshes;   // 弾・視線を遮るもの全部
 gs.sndBudget = 4;           // 1フレームに鳴らす衝突音の上限（小物が一斉に崩れても音割れしない）
 // 文字入りの木目を表面に焼き込んだ駒（1メッシュで描けるので軽い）
@@ -42,6 +45,7 @@ export const PHYS = (() => {
   const items = [];
   const addStatic = (shape, x, y, z, q?) => {
     const b = new CANNON.Body({ mass: 0 }); b.addShape(shape); b.position.set(x, y, z);
+    b.collisionFilterGroup = 1; b.collisionFilterMask = 2;
     if (q) b.quaternion.copy(q);
     world.addBody(b); return b;
   };
@@ -59,24 +63,27 @@ export const PHYS = (() => {
   // ドミノ同士は滑りやすく（もたれ合って止まらないように）
   const dominoMat = new CANNON.Material("domino");
   world.addContactMaterial(new CANNON.ContactMaterial(dominoMat, dominoMat, { friction: 0.02, restitution: 0.05 }));
-  function addDynamic(obj, half, mass, x, y, z, ry = 0, pitch = 1, material?) {
+  function addDynamic(kind, half, mass, x, y, z, ry = 0, pitch = 1, material?) {
     const q = new CANNON.Quaternion(); q.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), ry);
-    return addBody(obj, new CANNON.Box(new CANNON.Vec3(...half)), mass, x, y, z, q, pitch, material);
+    return addBody(kind, new CANNON.Box(new CANNON.Vec3(...half)), mass, x, y, z, q, pitch, material);
   }
   // 形（shape）を指定して動く物を足す。q: 置く向き
-  function addBody(obj, shape, mass, x, y, z, q, pitch = 1, material?) {
+  // 種類ごとの見た目（kinds[名前] = { geo, mat, items }）。最後に InstancedMesh を1つずつ作る
+  const kinds: Record<string, any> = {};
+  function addBody(kind, shape, mass, x, y, z, q, pitch = 1, material?) {
+    const obj = new THREE.Object3D();
     // 眠る条件を厳しめに（ゆっくり傾き始めたものが途中で止まらないように）
     const body = new CANNON.Body({ mass, sleepSpeedLimit: 0.08, sleepTimeLimit: 1.2, linearDamping: 0.03, angularDamping: 0.05 });
     body.addShape(shape);
+    body.collisionFilterGroup = 2; body.collisionFilterMask = 1 | 2 | 4;
     if (material) body.material = material;
     const domino = material === dominoMat;
     body.position.set(x, y, z);
     if (q) body.quaternion.copy(q);
     world.addBody(body);
     scene.add(obj);
-    const it = { body, obj, pitch, domino, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
-    obj.traverse((o: any) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.userData.phys = it; } });
-    physMeshes.push(obj);
+    const it: any = { body, obj, pitch, domino, lastSnd: 0, home: { p: new CANNON.Vec3().copy(body.position), q: new CANNON.Quaternion().copy(body.quaternion) } };
+    kinds[kind].items.push(it);
     body.addEventListener('collide', e => {
       const v = Math.abs(e.contact.getImpactVelocityAlongNormal()), now = performance.now();
       if (v > 1.8 && now - it.lastSnd > 90 && gs.sndBudget > 0) { it.lastSnd = now; gs.sndBudget--; SFX.play('knock', body.position, clamp(v / 9, 0.15, 1), pitch); }
@@ -85,7 +92,7 @@ export const PHYS = (() => {
     return it;
   }
   // 見た目（原点が中心）
-  const crateObj = s => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat)); return g; };
+
   const barrelM = mat(P.shu[0]), hoopM = mat(P.sumi[1]), strawM = mat(P.kiji[2]), ropeM = mat(P.kiji[0]), cartM = toon({ map: crateTex, roughness: 0.8 }), barkM = mat(P.kiji[0]), cutM = mat(P.kiji[2]);
   const barrelObj = () => {
     const g = new THREE.Group();
@@ -114,25 +121,58 @@ export const PHYS = (() => {
     return g;
   };
 
+  // 部品（色の違うメッシュ）を、頂点の色つきの1つの形にまとめる
+  const bake = (g: THREE.Object3D) => {
+    g.updateMatrixWorld(true);
+    const geos = [];
+    g.traverse((o: any) => {
+      if (!o.isMesh) return;
+      const geo = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
+      for (const k of Object.keys(geo.attributes)) if (k !== 'position' && k !== 'normal') geo.deleteAttribute(k);
+      const c = o.material.color, n = geo.attributes.position.count, col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      geos.push(geo);
+    });
+    const m = mergeGeometries(geos); m.computeVertexNormals();
+    return m;
+  };
+  const vcM = toon({ vertexColors: true });
+  kinds.crate = { geo: new THREE.BoxGeometry(1.2, 1.2, 1.2), mat: crateMat, items: [] };
+  kinds.barrel = { geo: bake(barrelObj()), mat: vcM, items: [] };
+  kinds.bale = { geo: bake(baleObj()), mat: vcM, items: [] };
+  kinds.cart = { geo: bake(cartObj()), mat: vcM, items: [] };
+  kinds.log = { geo: bake(logObj()), mat: vcM, items: [] };
+
   // 配置（点対称）。高さは world.ts の LV
   const { V, T2, HB, HT, PL } = LV, cs = 1.2;
   const lying = new CANNON.Quaternion(); lying.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), Math.PI / 2);   // 丸太は横に寝かせる
   [1, -1].forEach(s => {
     // 木箱：関所の横のピラミッドと、あちこちの遮蔽
-    [[-0.62, 0], [0.62, 0], [0, 1]].forEach(([dx, row]) => addDynamic(crateObj(cs), [cs / 2, cs / 2, cs / 2], 4, (-40 + dx) * s, V + cs / 2 + row * cs, 15 * s, 0, 0.65));
+    [[-0.62, 0], [0.62, 0], [0, 1]].forEach(([dx, row]) => addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, (-40 + dx) * s, V + cs / 2 + row * cs, 15 * s, 0, 0.65));
     for (const [x, z, y0] of [[-26, 6, V], [-24.7, 6.3, V], [-3, 18.4, V], [-1.7, 18.4, V], [-22, 46, HT], [-45, 24, T2], [30, 58, PL]])
-      addDynamic(crateObj(cs), [cs / 2, cs / 2, cs / 2], 4, x * s, y0 + cs / 2, z * s, rand(-0.2, 0.2), 0.65);
+      addDynamic('crate', [cs / 2, cs / 2, cs / 2], 4, x * s, y0 + cs / 2, z * s, rand(-0.2, 0.2), 0.65);
     // 酒樽：段々の縁に並べる（爆風で谷へ転がり落ちる）
     for (const [x, z, y0] of [[10, 20.8, T2], [11.1, 20.8, T2], [12.2, 20.8, T2], [-1, 14, V], [-12, 31.8, HB]])
-      addBody(barrelObj(), new CANNON.Cylinder(0.45, 0.45, 1.1, 10), 3, x * s, y0 + 0.55, z * s, null, 0.8);
+      addBody('barrel', new CANNON.Cylinder(0.45, 0.45, 1.1, 10), 3, x * s, y0 + 0.55, z * s, null, 0.8);
     // 米俵：重くてほとんど動かない土のう
-    for (const [x, z] of [[-39.6, 4], [-38.4, 4], [-9, 5.2], [-7.8, 5.2]]) addDynamic(baleObj(), [0.55, 0.3, 0.35], 25, x * s, V + 0.3, z * s, 0, 0.5);
+    for (const [x, z] of [[-39.6, 4], [-38.4, 4], [-9, 5.2], [-7.8, 5.2]]) addDynamic('bale', [0.55, 0.3, 0.35], 25, x * s, V + 0.3, z * s, 0, 0.5);
     // 荷車：橋の上（押せる大きな遮蔽）
-    addDynamic(cartObj(), [0.8, 0.5, 1.2], 30, -34 * s, V + 0.2 + 0.7, 0.5 * s, 0, 0.5);
+    addDynamic('cart', [0.8, 0.5, 1.2], 30, -34 * s, V + 0.2 + 0.7, 0.5 * s, 0, 0.5);
     // 丸太：丘の縁（当てると転がり落ちる）
-    for (const x of [-35, -31, -27]) addBody(logObj(), new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, x * s, HB + 0.3, 32.2 * s, lying, 0.7);
+    for (const x of [-35, -31, -27]) addBody('log', new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, x * s, HB + 0.3, 32.2 * s, lying, 0.7);
   });
 
+  const insts = [];
+  for (const k of Object.values(kinds)) {
+    if (!k.items.length) continue;
+    const im = new THREE.InstancedMesh(k.geo, k.mat, k.items.length);
+    im.castShadow = im.receiveShadow = true;
+    im.frustumCulled = false;   // 1つ1つの位置がばらばらなので、まとめての見えない判定はしない
+    im.userData.physList = k.items;
+    k.items.forEach((it, i) => { it.inst = im; it.idx = i; });
+    scene.add(im); physMeshes.push(im); insts.push(im);
+  }
   // プレイヤーとCPUは「押す側」の見えない体（キネマティック）として参加
   const kin: any = {};
   function kinFor(key, e) {
@@ -141,12 +181,21 @@ export const PHYS = (() => {
       const b: any = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
       b.allowSleep = false;
       [e.radius, e.height / 2, e.height - e.radius].forEach(y => b.addShape(new CANNON.Sphere(e.radius), new CANNON.Vec3(0, y, 0)));
+      b.collisionFilterGroup = 4; b.collisionFilterMask = 2;   // 4: 体 / 2: 動く小物 / 1: 動かない物
       b.r = e.radius; b.h = e.height;
       world.addBody(b); kin[key] = b;
     }
     return kin[key];
   }
-  function sync() { for (const it of items) { it.obj.position.copy(it.body.position); it.obj.quaternion.copy(it.body.quaternion); } }
+  const M4 = new THREE.Matrix4(), ONE = new THREE.Vector3(1, 1, 1);
+  function sync() {
+    for (const it of items) {
+      it.obj.position.copy(it.body.position); it.obj.quaternion.copy(it.body.quaternion); it.obj.updateMatrixWorld();
+      it.inst.setMatrixAt(it.idx, M4.compose(it.obj.position, it.obj.quaternion, ONE));
+    }
+    for (const im of insts) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
+  }
+  sync();
   return {
     awake: () => items.reduce((n, it) => n + (it.body.sleepState !== CANNON.Body.SLEEPING ? 1 : 0), 0),   // 起きている（動いている）小物の数
     step(dt, ents) {

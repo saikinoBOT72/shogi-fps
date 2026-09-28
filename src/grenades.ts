@@ -5,7 +5,7 @@ import { C, V3, clamp, rand } from './core';
 import { SFX } from './audio';
 import { flatGeo, mat, scene, toon } from './render';
 import { track } from './gadgets';
-import { PHYS, blockers } from './physics';
+import { PHYS, blockers, physOf } from './physics';
 import { Particles } from './effects';
 import { bot, damageBot, eyeOf, hasLOS, player, ray, skillDamageMul, view } from './game';
 import { damagePlayer } from './ai';
@@ -87,7 +87,7 @@ export const Grenades = (() => {
           // 何かに当たったらその場で爆発
           const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : dir.clone().negate();
           g.pos.copy(hit.point).addScaledVector(n, 0.15);
-          const ph = hit.object.userData.phys;
+          const ph = physOf(hit);
           if (ph) PHYS.hit(ph, hit.point, dir, 3);
           g.fuse = 0;
         } else g.pos.add(step);
