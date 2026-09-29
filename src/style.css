@@ -139,7 +139,7 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 /* 上：時間・相手のHP */
 #top { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px }
 #timer { font: 900 italic 28px var(--font-ui); letter-spacing: 1px }
-#foeWrap { display: flex; align-items: center; gap: 10px }
+#foeWrap { display: none }   /* 相手の HP は画面に出さない */
 #foeTag { width: 34px; height: 40px; font: 900 22px var(--font-koma); color: var(--sumi-0); background: var(--kiji-2); clip-path: var(--koma-shape);
   display: flex; align-items: center; justify-content: center }
 .bar { position: relative; height: 12px; background: color-mix(in srgb, var(--sumi-0) 50%, transparent); border: 2px solid color-mix(in srgb, var(--shiro-2) 85%, transparent); transform: skewX(-18deg); overflow: hidden }
@@ -391,7 +391,6 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 /* ================= バフ・デバフ ================= */
 /* 金色＝バフ、青＝EMP、朱＝その他のデバフ。名前・残り秒・減っていくゲージ */
 #status { position: absolute; left: 26px; bottom: 132px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
-#foeStatus { display: flex; gap: 6px; justify-content: center; margin-top: 2px }
 .st { --sc: var(--kin-2); display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: baseline; min-width: 132px; box-sizing: border-box;
   padding: 5px 10px 6px; border-radius: 6px; border-left: 3px solid var(--sc); background: color-mix(in srgb, var(--sumi-0) 58%, transparent) }
 .st.emp { --sc: var(--mizu-2) } .st.debuff { --sc: var(--shu-2) }
@@ -402,7 +401,6 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .st u { display: block; height: 100%; background: var(--sc); transform-origin: left }
 .st.emp { animation: stEmp .5s ease-in-out infinite alternate }
 @keyframes stEmp { to { box-shadow: 0 0 12px color-mix(in srgb, var(--mizu-2) 55%, transparent) } }
-#foeStatus .st { min-width: 0; padding: 3px 8px 4px } #foeStatus .st b { font-size: 12px } #foeStatus .st span { font-size: 11px } #foeStatus .st small { display: none }
 /* EMP を受けている：画面の縁が青く、細い走査線がちらつく */
 #empfx { position: absolute; inset: 0; opacity: 0; transition: opacity .15s; pointer-events: none;
   box-shadow: inset 0 0 160px 36px color-mix(in srgb, var(--mizu-1) 55%, transparent);

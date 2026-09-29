@@ -63,9 +63,8 @@ const cloakFx = document.createElement('div'); cloakFx.id = 'cloakfx'; $('hud').
 const flashFx = document.createElement('div'); flashFx.id = 'flashfx'; $('hud').appendChild(flashFx);
 const guideTxt = document.createElement('div'); guideTxt.id = 'guideTxt'; guideTxt.className = 'shadow'; $('hud').appendChild(guideTxt);
 const skillKey = i => keyName((settings as any).keys[i === 0 ? 'skill' : 'skill2']);
-// バフ・デバフ：自分のは HP の上、相手のは相手の HP の下に、名前と残り時間のゲージで並べる
+// バフ・デバフ：自分のは HP の上に、名前と残り時間のゲージで並べる（相手の HP・スキルは画面に出さない）
 const statusEl = document.createElement('div'); statusEl.id = 'status'; $('hud').appendChild(statusEl);
-const foeStatusEl = document.createElement('div'); foeStatusEl.id = 'foeStatus'; $('top').appendChild(foeStatusEl);
 const empFx = document.createElement('div'); empFx.id = 'empfx'; $('hud').prepend(empFx);     // EMP を受けている：画面が青くちらつく（HP などの字より下に敷く）
 const buffFx = document.createElement('div'); buffFx.id = 'bufffx'; $('hud').prepend(buffFx);  // 身体強化中：画面の縁が金色に（字より下に敷く）
 const BUFFS = ['buff', 'guard', 'cloak', 'xray', 'heal', 'homing', 'bigshot', 'volley'];
@@ -147,9 +146,6 @@ export function updateHUD(dt) {
   setHTML('meHpNum', `${Math.max(0, Math.ceil(p.hp))}<small>/${p.def.hp}</small>`);
   setStyle($('meBar').children[1], 'transform', `scaleX(${hpk.toFixed(3)})`);
   setStyle($('meBar').children[0], 'transform', `scaleX(${hpk.toFixed(3)})`);
-  const bk = Math.max(0, bot.hp / bot.def.hp);
-  setStyle($('foeBar').children[1], 'transform', `scaleX(${bk.toFixed(3)})`);
-  setStyle($('foeBar').children[0], 'transform', `scaleX(${bk.toFixed(3)})`);
   setStyle($('lowhp'), 'opacity', hpk < 0.35 && !p.dead ? (0.55 + Math.sin(performance.now() / 180) * 0.35).toFixed(2) : '0');
   hud.hurt = Math.max(0, hud.hurt - dt * 2.2); setStyle($('hurt'), 'opacity', hud.hurt.toFixed(2));
   hud.dash = act(p, 'dash') ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
@@ -191,7 +187,6 @@ export function updateHUD(dt) {
   // 透明化中は画面の縁が青白く、ミサイル操作中は案内
   setStyle(cloakFx, 'opacity', act(p, 'cloak') ? '1' : '0');
   drawStatus(statusEl, p.dead ? [] : statusesOf(p, true), 'stMe');
-  drawStatus(foeStatusEl, bot.dead ? [] : statusesOf(bot, false), 'stFoe');
   setStyle(empFx, 'opacity', p.empT > 0 && !p.dead ? Math.min(1, p.empT * 2).toFixed(2) : '0');
   setStyle(buffFx, 'opacity', act(p, 'buff') && !p.dead ? '1' : '0');
   // 閃光弾で目がくらむ（最後の1秒でゆっくり戻る）
