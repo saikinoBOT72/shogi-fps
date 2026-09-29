@@ -309,6 +309,14 @@ export const SFX = (() => {
       N(d, { at: 0.2, dur: 0.6, type: 'bandpass', f0: 900, f1: 1600, q: 3, g: 0.15, atk: 0.1 });
       for (let i = 0; i < 10; i++) N(d, { at: 0.22 + i * 0.05, dur: 0.02, type: 'bandpass', f0: 1800, q: 4, g: 0.05 });
     },
+    // ----- ガチャの演出 -----
+    gBoom(big = 1) { const d = out(null, 0.15); T(d, { f0: 75, f1: 32, dur: 0.35 + big * 0.15, g: 0.3 * big }); N(d, { dur: 0.3 + big * 0.1, f0: 1400, f1: 120, g: 0.12 * big }); },   // 爆発（控えめ）
+    gCrack() { const d = out(null, 0.3); N(d, { dur: 0.05, type: 'highpass', f0: 1800, g: 0.5 }); wood(d, 0, 160, 0.7, 0.2); N(d, { at: 0.03, dur: 0.9, f0: 200, f1: 50, g: 0.35, atk: 0.05 }); },   // 盤が割れる：ばきっ・ごごご
+    gShatter() { const d = out(null, 0.1); wood(d, 0, 420, 0.45, 0.08); for (let i = 0; i < 5; i++) wood(d, 0.02 + i * 0.03, rand(600, 1200), 0.15, 0.04); },   // 駒が割れる
+    gThud() { const d = out(null, 0.1); N(d, { dur: 0.12, f0: 260, f1: 90, g: 0.55 }); wood(d, 0, 180, 0.35, 0.1); },   // どん
+    gCoins() { const d = out(null, 0.2); for (let i = 0; i < 18; i++) coin(d, i * 0.06 + rand(0, 0.05), 0.05); },   // 小判がちゃりちゃり
+    fwLaunch() { const d = out(null, 0.2); T(d, { f0: 900, f1: 2400, dur: 0.6, g: 0.03, atk: 0.1 }); N(d, { dur: 0.6, type: 'bandpass', f0: 2000, q: 2, g: 0.04, atk: 0.1 }); },   // 花火のひゅー
+    fwPop() { const d = out(null, 0.6); N(d, { dur: 0.25, f0: 500, f1: 80, g: 0.45 }); for (let i = 0; i < 10; i++) N(d, { at: 0.08 + i * 0.05 + rand(0, 0.04), dur: 0.02, type: 'highpass', f0: 3000, g: 0.05 }); },   // どーん・ぱちぱち
     // 素焼きの壺が割れる：高いぱりんと、砂がさらさら
     jarBreak(pos) { const d = out(pos, 0.1); N(d, { dur: 0.06, type: 'highpass', f0: 2500, g: 0.5 }); for (let i = 0; i < 7; i++) P(d, 0.01 + i * 0.025 + Math.random() * 0.02, rand(1800, 3600), 0.08, 0.06, 'triangle'); N(d, { at: 0.05, dur: 0.5, type: 'bandpass', f0: 3000, f1: 1500, q: 1, g: 0.08, atk: 0.05 }); },
     skFlashPin(pos) { tick(out(pos), 0, 2600, 0.3); },

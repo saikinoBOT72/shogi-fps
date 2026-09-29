@@ -153,7 +153,7 @@ export const SPAWN2 = { x: 0, z: 0, on: false };
 export let WATER_Y = GROUND + 0.4;
 export let mapId = '';
 // 3つ目の値が true のマップは未公開（開発者メニューで「未公開マップ」をオンにした人だけ選べる）
-export const MAP_LIST: [string, string, boolean?][] = [['valley', '谷と二つの丘'], ['temple', '山寺の石段'], ['onsen', '雪の温泉街', true], ['desert', '三つのピラミッド']];
+export const MAP_LIST: [string, string, boolean?][] = [['valley', '谷と二つの丘'], ['temple', '山寺の石段'], ['onsen', '雪の温泉街'], ['desert', '三つのピラミッド']];
 export const devMapsOn = () => !!(settings as any).dev?.hiddenMaps;
 export const selectableMaps = () => MAP_LIST.filter(m => !m[2] || devMapsOn());
 // 自分で選ぶマップ：未公開のマップを選んだままオフにしたときは、最初のマップにする

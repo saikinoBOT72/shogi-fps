@@ -359,8 +359,6 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r) }
 .ga-rates { display: flex; gap: 16px; font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums }
 .ga-rates b { color: var(--rc); font-style: italic; font-weight: 900; margin-right: 4px }
-.ga-pity { margin: 0; font-size: 13px; color: var(--text-dim) }
-.ga-pity b { color: var(--accent) }
 .ga-btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center }
 .ga-pull { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 160px; padding: 10px 24px }
 .ga-pull b { font: 900 22px var(--font-ui); letter-spacing: 2px }

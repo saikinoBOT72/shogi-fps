@@ -11,7 +11,6 @@ const KEY = 'shogifps-skins';
 export const Loadout = {
   items: [] as Owned[],
   equip: {} as Record<string, number>,   // model → 持ち物の id
-  pity: 0,                                // LR が出ないまま引いた回数（天井まで）
   nextId: 1,
   points: 0,                              // ガチャを引くポイント
 };
@@ -88,13 +87,10 @@ export function devUnequipAll() { Loadout.equip = {}; saveLoadout(); }
 
 // ================= ガチャを引く =================
 // 1回ごとに レア度 → 武器（9武器から同じ確率）→ 色の番号（完全にランダム）の順に決める
-// 天井：LR が出ないまま 50 回引いたら、次は LR 確定
 export const RATES: [string, number][] = [['LR', 2], ['SR', 10], ['R', 28], ['N', 60]];
-export const PITY = 50;
 export const MODEL_OF_GUN = Object.fromEntries(Object.entries(GUN_OF_MODEL).map(([m, g]) => [g, m]));
 export const modelOf = (it: Owned) => MODEL_OF_GUN[DESIGNS[it.base]?.gun];
 function rollRarity() {
-  if (Loadout.pity >= PITY) return 'LR';
   let x = Math.random() * 100;
   for (const [r, p] of RATES) { if (x < p) return r; x -= p; }
   return 'N';
@@ -104,7 +100,6 @@ export function pull(n: 1 | 10): Owned[] | null {
   const out: Owned[] = [], now = Date.now(), models = Object.keys(GUN_OF_MODEL);
   for (let i = 0; i < n; i++) {
     const r = rollRarity();
-    Loadout.pity = r === 'LR' ? 0 : Loadout.pity + 1;
     const m = models[Math.floor(Math.random() * models.length)];
     const base = Object.keys(DESIGNS).find(k => DESIGNS[k].gun === GUN_OF_MODEL[m] && DESIGNS[k].rarity === r)
       || Object.keys(DESIGNS).find(k => DESIGNS[k].rarity === r);
