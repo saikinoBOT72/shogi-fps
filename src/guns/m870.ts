@@ -9,7 +9,7 @@ import { P } from '../palette';
 import { toon } from '../materials';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 
 const S = makeSpace(300, 64);   // 原点：機関部の後ろの下
 const PUMP = 0.09;              // ポンプを引く量（m）
@@ -103,8 +103,101 @@ export function buildM870(opt: { skin?: string; hand?: THREE.Material } = {}) {
       ] as any,
     },
   };
+  // ---------- スキンの飾り ----------
+  const addons: Addon[] = [];
+  const petal = (len: number, wid: number) => {
+    const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(wid, len * 0.45, 0, len); sh.quadraticCurveTo(-wid, len * 0.45, 0, 0);
+    return new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 3 }).translate(0, 5, -0.5);
+  };
+  const plate = (pts: [number, number][], depth = 1) => new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))), { depth, bevelEnabled: false }).translate(0, 0, -depth / 2);
+  const gem = (r: number) => new THREE.OctahedronGeometry(r, 0), ball = (r: number, d = 0) => new THREE.IcosahedronGeometry(r, d);
+  const side = (g: THREE.BufferGeometry, u: number, v: number, x: number) => S.put(g, u, v, x, [0, Math.PI / 2, 0]);   // 横の面に貼る
+  const stockTop = (u: number) => (u < 230 ? 97 + (u - 8) * 3 / 222 : 100 - (u - 230) * 2 / 70);
+  // 共通（SR）：shells 機関部の左の予備弾（弾差し） / bands 銃身の飾りの輪 / studs ストックの上の縁の宝石
+  addons.push({ name: 'shells', slot: 'frame', geo: S.box(318, 394, 80, 100, 2, -16) });
+  for (let u = 324; u <= 388; u += 12) {
+    addons.push({ name: 'shells', slot: 'gem', geo: S.put(new THREE.CylinderGeometry(5.2, 5.2, 18, 8), u, 94, -19.5) });
+    addons.push({ name: 'shells', slot: 'accent', geo: S.put(new THREE.CylinderGeometry(5.5, 5.5, 4, 8), u, 83, -19.5) });
+  }
+  for (const u of [818, 850, 930]) addons.push({ name: 'bands', slot: 'accent', geo: S.rod(u, u + 6, 100, 13, 8) });
+  for (const s of [1, -1]) for (let u = 30; u <= 250; u += 22) addons.push({ name: 'studs', slot: 'gem', geo: S.put(gem(2.6), u, stockTop(u) - 8, 19.8 * s) });
+
+  // 紅蓮（燃える紅い蓮）：銃口の蓮・機関部の光る線・先台の蓮の紋・ストックの棘と結晶・機関部の火の玉・黒い鎖
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    addons.push({ name: 'gr_lotus', slot: 'line', geo: S.put(petal(17, 5.5), 962, 100, 0, [-0.95, 0, a]) });
+    addons.push({ name: 'gr_lotus', slot: 'barrel', geo: S.put(petal(11, 4), 964, 100, 0, [-0.7, 0, a + Math.PI / 8]) });
+  }
+  for (const s of [1, -1]) {
+    for (const v of [70, 79]) addons.push({ name: 'gr_lines', slot: 'line', geo: S.box(306, 498, v, v + 1.6, 0.8, 15.4 * s) });
+    for (const a of [-0.6, 0, 0.6]) addons.push({ name: 'gr_lines', slot: 'line', geo: side(petal(12, 4).rotateZ(a), 700, 70, 20.5 * s), part: pump });
+    for (const [du, dv, len, tilt] of [[0, 0, 16, 0.5], [12, -6, 11, 1.0], [-10, 4, 9, -0.2]]) {
+      const g = new THREE.OctahedronGeometry(4, 0); g.scale(1, len / 4, 1);
+      addons.push({ name: 'gr_shards', slot: 'accent', geo: S.put(g, 120 + du, 60 + dv, 21 * s, [0, 0, tilt * s]) });
+    }
+    addons.push({ name: 'gr_core', slot: 'barrel', geo: S.ring(350, 90, 10, 7, 2.4, 10, { x: 15.6 * s }) });
+    addons.push({ name: 'gr_core', slot: 'line', geo: S.put(ball(5.5, 1), 350, 90, 16 * s) });
+  }
+  for (let u = 20; u <= 280; u += 26) addons.push({ name: 'gr_thorns', slot: 'barrel', geo: S.put(new THREE.ConeGeometry(3.2, 13, 5), u, stockTop(u) + 5, 0, [0.45, 0, 0]) });
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12, u = 310 + (190 - 310) * t, v = 68 + (58 - 68) * t - 34 * 4 * t * (1 - t);
+    addons.push({ name: 'gr_chain', slot: 'frame', geo: S.put(new THREE.TorusGeometry(3.4, 1.1, 4, 8), u, v, 16.5 + 4 * t, [0, i % 2 ? Math.PI / 2 : 0, 0.3]) });
+  }
+
+  // 警備（R）：light 弾倉の筒の下の小さなライト（黒い筒・留め具・光るレンズ）
+  addons.push({ name: 'light', slot: 'lightBody', geo: S.rod(852, 904, 58, 7, 10) });
+  addons.push({ name: 'light', slot: 'lightBody', geo: S.box(866, 884, 58, 72, 9) });
+  addons.push({ name: 'light', slot: 'lens', geo: S.rod(904, 905.4, 58, 6, 10) });
+  // 祭（SR）：lanterns 銃身バンドとストックの下から下がる提灯 / fan ストックの両脇の扇（紙と骨と要）
+  const lantern = (u: number, v: number, top: number) => {
+    addons.push({ name: 'lanterns', slot: 'detail', geo: S.box(u - 0.7, u + 0.7, v + 10, top, 1.4) });
+    addons.push({ name: 'lanterns', slot: 'lantern', geo: S.put(new THREE.CylinderGeometry(7.5, 7.5, 16, 10), u, v) });
+    for (const dv of [-9, 9]) addons.push({ name: 'lanterns', slot: 'detail', geo: S.put(new THREE.CylinderGeometry(4.8, 4.8, 2.6, 10), u, v + dv) });
+    for (const dv of [-4, 0, 4]) addons.push({ name: 'lanterns', slot: 'detail', geo: S.put(new THREE.TorusGeometry(7.6, 0.5, 3, 12).rotateX(Math.PI / 2), u, v + dv) });
+  };
+  lantern(889, 44, 68); lantern(58, 2, 26);
+  {
+    const FU = 132, FV = 44, R = 40, r0 = 11, a0 = 0.35, a1 = Math.PI - 0.35;
+    const sh = new THREE.Shape(); sh.moveTo(r0 * Math.cos(a0), r0 * Math.sin(a0)); sh.absarc(0, 0, R, a0, a1, false); sh.lineTo(r0 * Math.cos(a1), r0 * Math.sin(a1)); sh.absarc(0, 0, r0, a1, a0, true);
+    const paper = new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 12 }).translate(0, 0, -0.5);
+    for (const s of [1, -1]) {
+      addons.push({ name: 'fan', slot: 'fanPaper', geo: side(paper, FU, FV, 19.7 * s) });
+      for (let k = 0; k <= 7; k++) {
+        const a = a0 + (a1 - a0) * k / 7, rib = new THREE.BoxGeometry(R - 4, 1.3, 1.2).translate((R - 4) / 2 + 2, 0, 0).rotateZ(a);
+        addons.push({ name: 'fan', slot: 'fanRib', geo: side(rib, FU, FV, 20.4 * s) });
+      }
+      addons.push({ name: 'fan', slot: 'fanRib', geo: S.put(new THREE.CylinderGeometry(3, 3, 2, 8).rotateZ(Math.PI / 2), FU, FV, 20.8 * s) });
+    }
+  }
+
+  // 重装（LR）：hv_armor 機関部・先台・ストックを覆う分厚い装甲板（角を落とした板）と上の装甲 / hv_bolts 板を留める六角ボルト
+  //   hv_vents 装甲の光る排気口 / hv_fins 先台と銃身バンドのあいだの放熱のひれ / hv_brake 銃口の大きなブレーキ（横の逃がし穴と光る輪）
+  const chamfer = (u0: number, u1: number, v0: number, v1: number, c: number): [number, number][] => [[u0 + c, v0], [u1 - c, v0], [u1, v0 + c], [u1, v1 - c], [u1 - c, v1], [u0 + c, v1], [u0, v1 - c], [u0, v0 + c]];
+  const hexBolt = (u: number, v: number, x: number, part?: THREE.Object3D) => addons.push({ name: 'hv_bolts', slot: 'bolt', geo: S.put(new THREE.CylinderGeometry(2.6, 2.6, 2, 6).rotateZ(Math.PI / 2), u, v, x), part });
+  for (const s of [1, -1]) {
+    // 機関部：前後2枚（右は排莢口の下だけ）
+    addons.push({ name: 'hv_armor', slot: 'armor', geo: S.extrude(chamfer(304, 398, 68, 101, 6), 2.6, { bevel: 0.8, x: 16.2 * s }) });
+    addons.push({ name: 'hv_armor', slot: 'armor', geo: S.extrude(chamfer(404, 500, 67, 86, 5), 2.6, { bevel: 0.8, x: 16.2 * s }) });
+    for (const [u, v] of [[311, 75], [391, 75], [311, 94], [391, 94], [411, 76.5], [493, 76.5]]) hexBolt(u, v, 17.9 * s);
+    for (const v of [80, 85, 90]) addons.push({ name: 'hv_vents', slot: 'line', geo: S.box(328, 372, v, v + 2, 1, 17.6 * s) });
+    // 先台（ポンプと一緒に動く）：大きな板と光る細い窓
+    addons.push({ name: 'hv_armor', slot: 'armor', geo: S.extrude(chamfer(606, 794, 60, 90, 7), 2.6, { bevel: 0.8, x: 21.2 * s }), part: pump });
+    for (const [u, v] of [[614, 67], [786, 67], [614, 83], [786, 83]]) hexBolt(u, v, 22.9 * s, pump);
+    for (const u of [640, 680, 720, 760]) addons.push({ name: 'hv_vents', slot: 'line', geo: S.box(u, u + 14, 73, 77, 1, 22.6 * s), part: pump });
+    // ストック：斜めの縁に沿った板
+    addons.push({ name: 'hv_armor', slot: 'armor', geo: S.extrude([[132, 62], [284, 72], [294, 80], [294, 94], [286, 97], [140, 96], [126, 88], [126, 70]], 2.6, { bevel: 0.8, x: 20.2 * s }) });
+    for (const [u, v] of [[140, 72], [140, 88], [282, 80], [282, 91]]) hexBolt(u, v, 21.9 * s);
+  }
+  addons.push({ name: 'hv_armor', slot: 'armor', geo: S.extrude(chamfer(308, 498, 114, 121, 3), 22, { bevel: 1 }) });
+  for (const u of [330, 400, 470]) addons.push({ name: 'hv_vents', slot: 'line', geo: S.box(u, u + 20, 121, 122, 12) });
+  for (let u = 808; u <= 872; u += 8) addons.push({ name: 'hv_fins', slot: 'fin', geo: S.rod(u, u + 3, 100, 16, 10) });
+  addons.push({ name: 'hv_brake', slot: 'armor', geo: S.extrude(chamfer(950, 992, 84, 116, 5), 30, { bevel: 1.2 }) });
+  for (const u of [958, 968, 978]) addons.push({ name: 'hv_brake', slot: 'bore', geo: S.box(u, u + 5, 90, 110, 31) });
+  addons.push({ name: 'hv_brake', slot: 'line', geo: S.put(new THREE.TorusGeometry(9.5, 1.3, 4, 14), 992.4, 100) });
+  addons.push({ name: 'hv_brake', slot: 'bore', geo: S.rod(991, 992.6, 100, 8.5, 10) });
+
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'mokume',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume',
     info: { name: 'M870', real: '全長 約970mm・銃身 470mm（ポンプ式）', reload: 2.2 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
   });

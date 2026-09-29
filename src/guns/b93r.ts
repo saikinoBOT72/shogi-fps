@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { Clip, Key, Track } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 
 const S = makeSpace(40, 80);    // 原点：グリップの付け根
 const RAKE = 0.2;               // グリップの傾き
@@ -108,8 +108,74 @@ export function buildB93R(opt: { skin?: string; hand?: THREE.Material } = {}) {
       ],
     },
   };
+  // ---------- スキンの飾り ----------
+  const addons: Addon[] = [];
+  const side = (g: THREE.BufferGeometry, u: number, v: number, x: number) => S.put(g, u, v, x, [0, Math.PI / 2, 0]);   // 横の面に貼る
+  // 図面の (du, dv, x) の点を並べた曲線を、太さ r の管にする（原点は (0,0,0)。S.put で置く）
+  const tube = (pts: [number, number, number][], r: number, seg = 60) =>
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(([du, dv, x]) => new THREE.Vector3(x, dv, -du))), seg, r, 6, false);
+  const spiral = (r0: number, r1: number, turns: number, dir = 1, a0 = 0): [number, number, number][] =>
+    Array.from({ length: 28 }, (_, i) => { const t = i / 27, a = a0 + dir * t * turns * Math.PI * 2, r = r0 + (r1 - r0) * t; return [Math.cos(a) * r, Math.sin(a) * r, 0] as [number, number, number]; });
+
+  // 銀細工（R）：filigree スライドの両脇の銀の渦巻き（向かい合う2つの渦と葉） / pearlFrame 握りの真珠貝を囲む銀の楕円の枠
+  const orn = (u: number, v: number, x: number, part?: THREE.Object3D) => {
+    for (const d of [1, -1]) addons.push({ name: 'filigree', slot: 'silver', geo: S.put(tube(spiral(1.2, 7.5, 1.4, d, d > 0 ? Math.PI : 0).map(([a, b]) => [a + d * 8, b, 0]), 0.75, 50), u, v, x), part });
+    const leaf = new THREE.Shape(); leaf.moveTo(0, 0); leaf.quadraticCurveTo(3, 5, 0, 11); leaf.quadraticCurveTo(-3, 5, 0, 0);
+    addons.push({ name: 'filigree', slot: 'silver', geo: side(new THREE.ExtrudeGeometry(leaf, { depth: 0.8, bevelEnabled: false }).translate(0, 0, -0.4), u, v + 6, x), part });
+  };
+  for (const s of [1, -1]) {
+    orn(50, 99, 13.6 * s, slide); orn(170, 98, 13.6 * s, slide);
+    const ring = new THREE.TorusGeometry(13, 1.2, 4, 18); ring.scale(1, 1.75, 1); ring.rotateZ(-Math.atan(RAKE)); ring.rotateY(Math.PI / 2);
+    addons.push({ name: 'pearlFrame', slot: 'silver', geo: S.put(ring, 12, 38, 15.6 * s) });
+  }
+
+  // 蝶（SR）：butterflies スライドの上・補正器の上・前の握り・弾倉の底にとまる蝶（羽は上と下の2枚ずつ、白い斑点）
+  const wingShape = (w: number, h: number) => { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.bezierCurveTo(w * 0.3, h, w, h * 1.1, w, h * 0.3); sh.quadraticCurveTo(w * 0.7, -h * 0.1, 0, 0); return new THREE.ExtrudeGeometry(sh, { depth: 0.6, bevelEnabled: false, curveSegments: 6 }).translate(0, 0, -0.3); };
+  const butterfly = (u: number, v: number, x: number, yaw: number, k: number, part?: THREE.Object3D, tilt = 0) => {
+    const put = (g: THREE.BufferGeometry, slot: string) => { g.scale(k, k, k); g.rotateX(tilt); g.rotateY(yaw); addons.push({ name: 'butterflies', slot, geo: S.put(g, u, v, x), part }); };
+    for (const d of [1, -1]) {
+      // 羽：平らに作って、体の軸（前後）のまわりに少し持ち上げる
+      put(wingShape(22, 16).rotateX(-Math.PI / 2).scale(d, 1, 1).rotateZ(d * 0.95).translate(0, 0, -2), 'wing');
+      put(wingShape(15, -12).rotateX(-Math.PI / 2).scale(d, 1, 1).rotateZ(d * 0.8).translate(0, 0, 3), 'wing');
+      put(new THREE.CylinderGeometry(3, 3, 0.8, 10).translate(d * 14, 0.6, -9).rotateZ(d * 0.95), 'spot');
+      put(new THREE.CylinderGeometry(1.8, 1.8, 0.8, 8).translate(d * 9, 0.6, 7).rotateZ(d * 0.8), 'spot');
+      put(new THREE.BoxGeometry(0.6, 0.6, 12).rotateX(-0.6).rotateY(d * 0.35).translate(d * 2.2, 4, -13), 'body');
+    }
+    put(new THREE.CapsuleGeometry(2, 16, 3, 6).rotateX(Math.PI / 2), 'body');
+  };
+  butterfly(112, 111, 0, 0.3, 1.7, slide);
+  butterfly(226, 119, 0, -0.5, 1.4);
+  butterfly(160, 58, 10, Math.PI / 2, 1.3, undefined, -0.3);
+  butterfly(6, -36, -6, 2.4, 1.2, mag, Math.PI);
+
+  // 白蛇（LR）：snake 前の握りに下から巻き付き、フレームの下を通って補正器に巻き付き、銃口の上で鎌首をもたげる
+  //   snakeHead 頭・光る目・二股の舌 / coil 握りの両脇のとぐろの紋（光る目つき）
+  {
+    const pts: [number, number, number][] = [];
+    for (let i = 0; i <= 18; i++) { const t = i / 18, a = t * Math.PI * 3; pts.push([151 + Math.cos(a) * 11 - 151, 30 + 46 * t, Math.sin(a) * 11]); }
+    pts.push([176 - 151, 84, -8]);
+    for (let i = 0; i <= 22; i++) { const t = i / 22, b = -Math.PI / 2 + t * Math.PI * 3; pts.push([200 + 36 * t - 151, 102 + Math.sin(b) * 16.5, Math.cos(b) * 16.5]); }
+    pts.push([240 - 151, 125, 0], [247 - 151, 131, 0]);
+    addons.push({ name: 'snake', slot: 'snake', geo: S.put(tube(pts, 3.8, 220), 151, 0, 0) });
+    addons.push({ name: 'snake', slot: 'snake', geo: S.put(new THREE.ConeGeometry(3.8, 12, 6).rotateX(Math.PI), 162, 24, 0) });
+    // 頭：後ろが張った頭と、前へ細くなる鼻先。両脇に大きな光る目、口の切れ目、鼻先から出る二股の舌
+    const skull = new THREE.IcosahedronGeometry(1, 1); skull.scale(11, 7.5, 12);
+    addons.push({ name: 'snake', slot: 'snake', geo: S.put(skull, 254, 132, 0) });
+    addons.push({ name: 'snake', slot: 'snake', geo: S.put(new THREE.CylinderGeometry(3, 8.5, 18, 8).rotateX(-Math.PI / 2).scale(1, 0.72, 1), 270, 131.5, 0) });
+    for (const x of [-8.2, 8.2]) {
+      addons.push({ name: 'snake', slot: 'eyes', geo: S.put(new THREE.IcosahedronGeometry(2.8, 1).scale(0.6, 1, 1.2), 258, 135, x) });
+      addons.push({ name: 'snake', slot: 'mouth', geo: S.put(new THREE.BoxGeometry(0.8, 1, 20).rotateY(x > 0 ? 0.2 : -0.2), 268, 128.6, x * 0.72) });
+    }
+    addons.push({ name: 'snake', slot: 'eyes', geo: S.put(new THREE.BoxGeometry(1, 0.8, 9), 283, 130, 0) });
+    for (const d of [-1, 1]) addons.push({ name: 'snake', slot: 'eyes', geo: S.put(new THREE.BoxGeometry(0.8, 0.7, 6).rotateY(d * 0.45), 289, 130, d * 1.4) });
+    for (const s of [1, -1]) {
+      addons.push({ name: 'snake', slot: 'snake', geo: S.put(tube(spiral(2.5, 11, 2.2, 1).map(([a, b]) => [a, b, 0]), 1.6, 70), 12, 38, 15.8 * s) });
+      addons.push({ name: 'snake', slot: 'eyes', geo: S.put(new THREE.IcosahedronGeometry(1.2, 0), 12 + 11 * Math.cos(Math.PI * 4.4), 38 + 11 * Math.sin(Math.PI * 4.4), 17.2 * s) });
+    }
+  }
+
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
     info: { name: 'ベレッタ 93R', real: '全長 240mm・銃身 156mm（3点バースト）', reload: 1.6 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.75 },
     events: { release: anim => { if (anim.has('fireLast')) { anim.stop('fireLast'); anim.play('release'); } } },

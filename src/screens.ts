@@ -3,13 +3,16 @@ import { gs } from './state';
 import { $, DEFAULT_KEYS, DEV_PASSWORD, DIFFS, KEY_ACTIONS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, keyName, saveSettings, settings } from './core';
 import { SFX } from './audio';
 import { requestLock } from './input';
-import { bot, botActor, player, playerActor, resetMatch, resolveFoe, stats } from './game';
+import { bot, botActor, paintActors, player, playerActor, resetMatch, resolveFoe, stats } from './game';
 import { VM } from './effects';
 import { initPips } from './hud';
 import { BoardMode } from './boardmode';
 import { Net } from './net';
 import { leave, resetNetMatch, showLobby, showOnline } from './online';
 import { MAP_LIST, applyAtmos, playableMap, selectableMaps } from './world';
+import { devEquipRandom, devUnequipAll, pointsText } from './loadout';
+import { showInventory } from './inventory';
+import { showGacha } from './gacha';
 
 // ================= 共通 =================
 export function overlay(html, dim?) {
@@ -79,10 +82,17 @@ function showDevMenu(back: () => void) {
       <div class="row"><span>未公開マップ<small>オンにすると選べる（${MAP_LIST.filter(m => m[2]).map(m => m[1]).join('・')}）</small></span>${seg('devMaps', D.hiddenMaps ? '1' : '0')}</div>
       <div class="row"><span>オートエイム<small>押している間、相手の頭に照準が吸い付く</small></span>
         <span><button class="kbd-btn" id="devAim">${D.aimKey ? keyName(D.aimKey) : 'なし'}</button> <button class="small" id="devAimClear">なしにする</button></span></div>
+      <div class="row"><span>スキンを試す<small>全部の武器に、ランダムなスキンを持たせて装備する</small></span>
+        <span><button class="small" id="devSkin">ランダム</button> <button class="small" id="devSkinLR">LR だけ</button> <button class="small" id="devSkinOff">外す</button></span></div>
+      <p class="note" id="devSkinMsg"></p>
     </div>
     <div class="menu"><button class="btn sub" id="back">戻る</button></div>
   </div>`, true);
   document.querySelectorAll<HTMLElement>('#devMaps button').forEach(b => b.onclick = e => { e.stopPropagation(); D.hiddenMaps = b.dataset.v === '1'; saveSettings(); showDevMenu(back); });
+  const skinDone = (t: string) => { VM.applyLoadout(); paintActors(); $('devSkinMsg').textContent = t; };
+  on('devSkin', () => { devEquipRandom(); skinDone('ランダムなスキンを装備しました'); });
+  on('devSkinLR', () => { devEquipRandom('LR'); skinDone('LR のスキンを装備しました（眺めるキーで舞う光）'); });
+  on('devSkinOff', () => { devUnequipAll(); skinDone('初期スキンに戻しました'); });
   on('devAimClear', () => { D.aimKey = ''; saveSettings(); showDevMenu(back); });
   // キー設定と同じ：押してから割り当てたいキー（またはホイール・横のボタン）を押す。ESC でやめる
   on('devAim', () => {
@@ -162,6 +172,7 @@ function showControls(back: () => void) {
 export function showTitle() {
   gs.state = 'title'; $('hud').style.display = 'none';
   overlay(`<div class="screen title">
+    <div class="pts title-pts"><small>ポイント</small><b>${pointsText()}</b></div>
     <div class="logo">将棋<span>FPS</span></div>
     <div class="beta">ベータ版</div>
     <div class="tagline">駒を取るときは、撃ち合いで決める。</div>
@@ -169,10 +180,12 @@ export function showTitle() {
       <button class="mode" id="goSolo"><b>一人で遊ぶ</b><small>CPU と将棋モード・撃ち合い</small></button>
       <button class="mode" id="goOnline"><b>友達と遊ぶ</b><small>部屋のコードで友達と対戦</small></button>
     </div>
-    <div class="menu"><button class="btn sub" id="openSettings">設定</button><button class="btn sub" id="openControls">操作方法</button></div>
+    <div class="menu"><button class="btn" id="openGacha">ガチャ</button><button class="btn sub" id="openInv">持ち物</button><button class="btn sub" id="openSettings">設定</button><button class="btn sub" id="openControls">操作方法</button></div>
   </div>`);
   on('goSolo', showSolo);
   on('goOnline', () => showOnline());
+  on('openGacha', () => showGacha(showTitle));
+  on('openInv', () => showInventory(showTitle));
   on('openSettings', () => showSettings(showTitle));
   on('openControls', () => showControls(showTitle));
 }

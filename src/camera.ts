@@ -4,7 +4,7 @@ import { gs } from './state';
 import { LIGHT, SKILLS, V3, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, sky } from './render';
-import { HIP, Particles, VM, vmCam, vmFlashLight } from './effects';
+import { HIP, Particles, VM, updateGunLod, vmCam, vmFlashLight } from './effects';
 import { act, bot, botActor, eyeOf, player, playerActor, surfOf, view } from './game';
 import { keys } from './input';
 
@@ -189,6 +189,7 @@ export function animateActor(A, e, dt, lookAt) {
   // 透明化：体と銃を隠して、うっすらした影だけ
   const cloaked = !!act(e, 'cloak');
   A.piece.visible = !cloaked; A.gun.g.visible = !cloaked; A.ghost.visible = cloaked;
+  updateGunLod(A, cam.position);
   e.flashT -= dt;
   A.flash.visible = e.flashT > 0;
   if (A.flash.visible) A.flash.material.rotation = rand(0, 6);

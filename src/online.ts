@@ -17,6 +17,7 @@ import { killBot } from './hud';
 import { BoardMode } from './boardmode';
 import { bindMapPick, mapPickHTML } from './screens';
 import { applyAtmos, playableMap } from './world';
+import { equippedAll } from './loadout';
 
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
 const V = (a: number[]) => new V3(a[0], a[1], a[2]);
@@ -72,7 +73,7 @@ function join() {
 }
 
 // ================= 駒選び（おたがい準備OKで開始） =================
-const sendPick = () => Net.send({ t: 'pick', k: settings.myPiece, ready: meReady });
+const sendPick = () => Net.send({ t: 'pick', k: settings.myPiece, ready: meReady, sk: equippedAll() });   // sk：装備しているスキン（武器ごとにデザインと色の番号）
 export function showLobby() {
   inLobby = true; gs.state = 'title';
   if (!PIECES[settings.myPiece]) settings.myPiece = 'P';
@@ -113,12 +114,12 @@ export function resetNetMatch() { snap = null; sendT = 0; }
 export function leave() {
   Net.send({ t: 'bye' });
   leaveRoom(); inLobby = false;
-  gs.paused = false; gs.netMap = gs.netDark = null;
+  gs.paused = false; gs.netMap = gs.netDark = gs.foeSkins = null;
   if (BoardMode.online) BoardMode.close();
   resetMatch(); showTitle();
 }
 function lost() {
-  inLobby = false; gs.netMap = gs.netDark = null;
+  inLobby = false; gs.netMap = gs.netDark = null; gs.foeSkins = null;
   if (BoardMode.online) BoardMode.close();
   if (document.pointerLockElement) document.exitPointerLock();
   gs.paused = false;
@@ -130,7 +131,7 @@ addEventListener('beforeunload', () => { if (Net.on) Net.send({ t: 'bye' }); });
 Net.onClose = lost;
 Net.onMsg = (m: any) => {
   switch (m.t) {
-    case 'pick': foe.k = m.k; foe.ready = m.ready; if (inLobby) { showLobby(); maybeStart(); } break;
+    case 'pick': foe.k = m.k; foe.ready = m.ready; gs.foeSkins = m.sk && typeof m.sk === 'object' ? m.sk : null; if (inLobby) { showLobby(); maybeStart(); } break;
     case 'start': if (!Net.host) { mode = m.m || 'duel'; begin(); } break;
     case 'room': room.map = m.map; room.dark = m.dark; meReady = false; sendPick(); applyRoom(); if (inLobby) showLobby(); break;
     case 'mode': mode = m.m; meReady = false; sendPick(); if (inLobby) showLobby(); break;

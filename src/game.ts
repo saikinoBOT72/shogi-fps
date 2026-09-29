@@ -16,6 +16,8 @@ import { PERSONAS, aiHear, damagePlayer } from './ai';
 import { initPips, killBot, showHitmarker } from './hud';
 import { Replay } from './replay';
 import { Net, r2, vec } from './net';
+import { equippedRef, paintGun, skinKey, validRef } from './loadout';
+import { skinMaterials } from './guns/skins';
 
 // ================= ゲーム状態 =================
 gs.state = 'title';   // title / countdown / fight / end
@@ -52,6 +54,22 @@ export function ensureActors(pType, bType) {
   };
   playerActor = make(playerActor, pType, false);
   botActor = make(botActor, bType, true);
+  paintActors();
+}
+// スキン：自分は装備しているもの。相手はオンラインのときだけ、相手が装備しているもの（CPU は初期スキン）
+//   相手の銃は、戦いの間は飾りなしの形に色だけ（軽くするため）。リプレイ・キルカムでは飾りまで見せる（paintFoe）
+export const foeRef = (model: string) => { const fr = Net.on && gs.foeSkins?.[model]; return validRef(model, fr) ? fr : null; };
+export function paintActors() {
+  if (!playerActor || !botActor) return;
+  const pm = WEAPONS[PIECES[playerActor.type].weapon].model;
+  paintGun(playerActor.gun, equippedRef(pm));
+  paintFoe(false);
+}
+export function paintFoe(full: boolean) {
+  if (!botActor) return;
+  const bm = WEAPONS[PIECES[botActor.type].weapon].model, r = foeRef(bm);
+  paintGun(botActor.gun, r, !full);
+  if (r && !full) skinMaterials(skinKey(r));   // リプレイで使う材質も先に作っておく（リプレイの始まりで止まらないように）
 }
 export const pieceKeys = () => Object.keys(PIECES);
 export function resolveFoe() {
@@ -321,7 +339,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
   const walls = ray.intersectObjects(blockers, true);
   const wall = walls[0];
   const wallDist = wall ? wall.distance : 300;
-  const tracerColor = shooter.isBot ? P.shu[2] : P.kin[2];
+  const tracerColor = shooter.isBot ? P.shu[2] : VM.fx.tracer ?? P.kin[2];   // 自分の弾の線は、LR スキンならその色
   let hit = null;
   if (target.isBot) {
     const h = !botActor.dead && ray.intersectObject(botActor.hitMesh, false)[0];

@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { Clip } from './anim';
 import { PartBuilder, Pt, flat, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 
 // 図面の座標：輪の真ん中が (0,0)。u は右が +、v は上が +（写真の向きそのまま）
 const S = makeSpace(-55, -25);   // 原点：握りの真ん中
@@ -120,8 +120,57 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
       ],
     },
   };
+  // ---------- スキンの飾り（すべてナイフと一緒に回る） ----------
+  const addons: Addon[] = [];
+  const side = (g: THREE.BufferGeometry, u: number, v: number, x: number) => S.put(g, u, v, x, [0, Math.PI / 2, 0]);
+  // 図面の (u, v, x) の点を通る管。点は図面そのままなので、原点 (0,0) に置けば図面の位置になる（mm → m も S.put がする）
+  const tube = (pts: [number, number, number][], r: number, seg = 50) =>
+    S.put(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(([u, v, x]) => new THREE.Vector3(x, v, -u))), seg, r, 6, false), 0, 0);
+  const petal = (len: number, wid: number) => {
+    const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(wid, len * 0.5, 0, len); sh.quadraticCurveTo(-wid, len * 0.5, 0, 0);
+    return new THREE.ExtrudeGeometry(sh, { depth: 0.8, bevelEnabled: false, curveSegments: 4 }).translate(0, 0, -0.4);
+  };
+  const add = (name: string, slot: string, geo: THREE.BufferGeometry) => addons.push({ name, slot, geo, part: knife });
+  // 刀装（R）：tsuba 刃の根元の鍔 / habaki 刃を留めるはばき / menuki 握りの両脇の花の目貫 / ringCord 輪から下がる紐と玉と房
+  {
+    const oval = new THREE.Shape(); oval.absellipse(0, 0, 24, 7, 0, Math.PI * 2, false, 0);
+    const hole = new THREE.Path(); hole.absellipse(0, 0, 17, 3, 0, Math.PI * 2, true, 0); oval.holes.push(hole);
+    add('tsuba', 'fitting', S.put(new THREE.ExtrudeGeometry(oval, { depth: 13, bevelEnabled: true, bevelSize: 0.8, bevelThickness: 0.8, bevelSegments: 1 }).translate(0, 0, -6.5).rotateY(Math.PI / 2).rotateX(-0.18), -90, -58));
+    add('habaki', 'fitting', S.extrude([[-108, -62], [-73, -64], [-75, -74], [-110, -71]], 7.6, { bevel: 0.8 }));
+    for (const s of [1, -1]) for (let k = 0; k < 4; k++) add('menuki', 'fitting', side(petal(7, 3.2).rotateZ(k * Math.PI / 2 + Math.PI / 4), -58, -26, 10.8 * s));
+    for (const s of [1, -1]) add('menuki', 'fitting', S.put(new THREE.IcosahedronGeometry(1.8, 0), -58, -26, 11.4 * s));
+    add('ringCord', 'cord', tube([[16, -3, 0], [22, -14, 1.5], [24, -28, 0], [22, -38, -1]], 1.2));
+    add('ringCord', 'bead', S.put(new THREE.IcosahedronGeometry(4.2, 1), 22, -42));
+    add('ringCord', 'cord', S.put(new THREE.ConeGeometry(3, 12, 6), 22, -52));
+  }
+  // 光刃（SR）：edgeGlow 刃先に沿って光る線 / ringGlow 輪の内側の光る縁 / gripSlits 握りの両脇の光る筋3本
+  add('edgeGlow', 'line', tube(([[-73, -60], [-78, -84], [-79, -113], [-76, -143], [-72, -164], [-65, -176]] as [number, number][]).map(([u, v]) => [u + 0.6, v, 0] as [number, number, number]), 1.1, 60));
+  add('ringGlow', 'line', S.put(new THREE.TorusGeometry(11.8, 1, 4, 20).rotateY(Math.PI / 2), 0, 0));
+  {
+    const ang = Math.atan2(-50, -75), len = 16;
+    for (const s of [1, -1]) for (const [u, v] of [[-38, -12], [-58, -25], [-78, -38]]) add('gripSlits', 'line', side(new THREE.BoxGeometry(len, 1.6, 1).rotateZ(ang), u, v, 10.6 * s));
+  }
+  // 花嵐（LR）：branch 握りの両脇を這う桜の枝と小枝 / blossoms 枝と輪と刃に咲く五弁の花（しべは白） / petals 刃に舞う花びら
+  const flower = (u: number, v: number, x: number, k: number, face: 'x' | 'side' = 'side') => {
+    for (let i = 0; i < 5; i++) {
+      const g = petal(7 * k, 4 * k).rotateZ(i / 5 * Math.PI * 2);
+      add('blossoms', 'blossom', face === 'side' ? side(g, u, v, x) : S.put(g, u, v, x));
+    }
+    add('blossoms', 'stamen', S.put(new THREE.IcosahedronGeometry(1.6 * k, 0), u, v, x + Math.sign(x || 1) * 0.8));
+  };
+  for (const s of [1, -1]) {
+    add('branch', 'twig', tube([[-8, 6, 10.6 * s], [-30, -2, 11.4 * s], [-52, -16, 10.8 * s], [-74, -30, 11.4 * s], [-96, -44, 10.8 * s]], 1.6));
+    add('branch', 'twig', tube([[-40, -8, 11.2 * s], [-44, 4, 11.8 * s], [-50, 12, 11.2 * s]], 1));
+    add('branch', 'twig', tube([[-70, -27, 11.2 * s], [-78, -16, 11.8 * s]], 0.9));
+    // 枝の上の花は、枝（いちばん外で 13.4mm）より外に咲かせる（花が枝に貫かれないように）
+    flower(-50, 12, 14.2 * s, 1); flower(-80, -15, 14.2 * s, 0.85); flower(-28, -3, 14.2 * s, 0.7); flower(-96, -44, 14.2 * s, 0.9);
+    flower(-94, -100, 3.6 * s, 1.1); flower(-86, -140, 3.2 * s, 0.8);
+    for (const [u, v, a] of [[-100, -80, 0.6], [-82, -122, 2.1], [-90, -158, 4]]) add('petals', 'blossom', side(petal(6, 3.4).rotateZ(a), u, v, 3.4 * s));
+  }
+  flower(20, 10, 0, 0.9);
+
   const model = makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'hagane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'hagane',
     info: { name: 'カランビット', real: '全長 190mm・刃 100mm' },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
   });

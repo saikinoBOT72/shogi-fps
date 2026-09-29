@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 
 const S = makeSpace(50, 62);    // 原点：グリップの付け根
 const PULL = 0.05;              // レバーを引く量（m）
@@ -101,8 +101,47 @@ export function buildMP5(opt: { skin?: string; hand?: THREE.Material } = {}) {
       ],
     },
   };
+  // ---------- スキンの飾り ----------
+  const addons: Addon[] = [];
+  const side = (g: THREE.BufferGeometry, u: number, v: number, x: number) => S.put(g, u, v, x, [0, Math.PI / 2, 0]);   // 横の面に貼る
+  // テープ（R）：tape 前の握りと握りに巻いたテープ / lanyard 後ろの吊り輪から下がる紐と玉
+  for (const v of [-22, 8, 38]) addons.push({ name: 'tape', slot: 'tape', geo: S.box(250, 290, v, v + 7, 32.5) });
+  for (const v of [2, 30]) addons.push({ name: 'tape', slot: 'tape', geo: S.box(22 + (v + 42) * 0.08, 72 - (62 - v) * 0.1, v, v + 7, 34.5) });
+  addons.push({ name: 'lanyard', slot: 'cord', geo: S.box(7.3, 8.7, 52, 84, 1.4) });
+  addons.push({ name: 'lanyard', slot: 'tape', geo: S.put(new THREE.IcosahedronGeometry(5, 1), 8, 47) });
+  addons.push({ name: 'lanyard', slot: 'cord', geo: S.put(new THREE.ConeGeometry(3, 11, 6), 8, 36) });
+  // 電飾（SR）：led 機関部と下の両脇に光る線 / shroud 銃身の覆いと光る逃がし穴・銃口の光る輪 / glowGrip 前の握りの底の光
+  for (const s of [1, -1]) {
+    addons.push({ name: 'led', slot: 'line', geo: S.box(30, 290, 86, 88.4, 0.8, 14.3 * s) });
+    addons.push({ name: 'led', slot: 'line', geo: S.box(26, 176, 63, 65, 0.8, 15.3 * s) });
+  }
+  addons.push({ name: 'shroud', slot: 'barrel', geo: S.rod(302, 336, 100, 13, 10) });
+  for (let i = 0; i < 4; i++) addons.push({ name: 'shroud', slot: 'line', geo: S.box(306 + i * 7, 310 + i * 7, 96.5, 103.5, 27) });
+  addons.push({ name: 'shroud', slot: 'line', geo: S.put(new THREE.TorusGeometry(10.5, 1.3, 4, 14), 336.6, 100) });
+  addons.push({ name: 'glowGrip', slot: 'line', geo: S.box(255, 285, -34, -30.5, 29) });
+  // からくり（LR）：gears 機関部の両脇の歯車3つ / pipes 右の脇を通る管 / gauge 上の圧力計 / key 後ろのぜんまいの鍵 / rivets 下の縁の鋲
+  const gearGeo = (R: number, n: number) => {
+    const sh = new THREE.Shape();
+    for (let i = 0; i < n * 2; i++) { const a = i / (n * 2) * Math.PI * 2, r = i % 2 ? R - 3 : R, a2 = a + Math.PI / (n * 2); if (!i) sh.moveTo(r * Math.cos(a), r * Math.sin(a)); else sh.lineTo(r * Math.cos(a), r * Math.sin(a)); sh.lineTo(r * Math.cos(a2), r * Math.sin(a2)); }
+    const hole = new THREE.Path(); hole.absarc(0, 0, R * 0.3, 0, Math.PI * 2, true); sh.holes.push(hole);
+    return new THREE.ExtrudeGeometry(sh, { depth: 2.4, bevelEnabled: false, curveSegments: 6 }).translate(0, 0, -1.2);
+  };
+  for (const s of [1, -1]) for (const [u, v, R, n, rot] of [[120, 84, 16, 12, 0], [140.5, 70, 9, 8, 0.2], [214, 88, 11, 9, 0.1]]) {
+    addons.push({ name: 'gears', slot: 'gear', geo: side(gearGeo(R, n).rotateZ(rot), u, v, 15.4 * s) });
+    addons.push({ name: 'gears', slot: 'bolt', geo: S.put(new THREE.CylinderGeometry(R * 0.3, R * 0.3, 3, 8).rotateZ(Math.PI / 2), u, v, 15.6 * s) });
+  }
+  addons.push({ name: 'pipes', slot: 'gear', geo: S.rod(56, 252, 97, 2.4, 6, 16.2) });
+  addons.push({ name: 'pipes', slot: 'gear', geo: S.put(new THREE.CylinderGeometry(2.4, 2.4, 26, 6), 252, 84, 16.2) });
+  for (const [u, v] of [[252, 97], [56, 97]]) addons.push({ name: 'pipes', slot: 'gear', geo: S.put(new THREE.IcosahedronGeometry(3.6, 0), u, v, 16.2) });
+  addons.push({ name: 'gauge', slot: 'gear', geo: S.put(new THREE.CylinderGeometry(9, 9, 4, 14), 96, 120) });
+  addons.push({ name: 'gauge', slot: 'dial', geo: S.put(new THREE.CylinderGeometry(7.4, 7.4, 0.6, 14), 96, 122.2) });
+  addons.push({ name: 'gauge', slot: 'bolt', geo: S.box(96, 102.5, 122.4, 123, 1) });
+  addons.push({ name: 'key', slot: 'gear', geo: S.rod(-16, 0, 92, 2, 6) });
+  for (const dv of [-8, 8]) addons.push({ name: 'key', slot: 'gear', geo: S.put(new THREE.TorusGeometry(6.2, 1.7, 4, 10), -19, 92 + dv) });
+  for (const s of [1, -1]) for (let u = 34; u <= 290; u += 32) addons.push({ name: 'rivets', slot: 'bolt', geo: S.put(new THREE.SphereGeometry(2, 5, 3, 0, Math.PI * 2, 0, Math.PI / 2).rotateZ(-Math.PI / 2 * s), u, 67, 14.2 * s) });
+
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
     info: { name: 'MP5K', real: '全長 325mm・銃身 115mm', reload: 1.7 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
   });

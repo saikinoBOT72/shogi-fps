@@ -8,7 +8,7 @@ import { P } from '../palette';
 import { toon } from '../materials';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 
 const S = makeSpace(262, 70);   // 原点：機関部の後ろの下（握る所の前）
 const COCK = 0.5;               // 撃鉄を起こした角度
@@ -109,8 +109,104 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
       ],
     },
   };
+  // ---------- スキンの飾り ----------
+  const addons: Addon[] = [];
+  const petal = (len: number, wid: number) => {
+    const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(wid, len * 0.45, 0, len); sh.quadraticCurveTo(-wid, len * 0.45, 0, 0);
+    return new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 3 }).translate(0, 5, -0.5);
+  };
+  const gem = (r: number) => new THREE.OctahedronGeometry(r, 0), ball = (r: number, d = 0) => new THREE.IcosahedronGeometry(r, d);
+  const side = (g: THREE.BufferGeometry, u: number, v: number, x: number) => S.put(g, u, v, x, [0, Math.PI / 2, 0]);   // 横の面に貼る
+  const stockTop = (u: number) => (u < 200 ? 99 + (u - 8) / 192 : 100 - (u - 200) * 5 / 62);                         // ストックの上の縁の高さ
+  // 共通（SR）：scopeRings スコープの飾りの輪 / lens 光るスコープのレンズ / bands 銃身の飾りの輪 / studs ストックの上の縁の宝石
+  for (const u of [372, 470]) addons.push({ name: 'scopeRings', slot: 'accent', geo: S.rod(u, u + 6, 142, 13.4, 10) });
+  addons.push({ name: 'lens', slot: 'line', geo: S.rod(573.5, 574.4, 142, 15, 10) });
+  for (const u of [800, 880, 960]) addons.push({ name: 'bands', slot: 'accent', geo: S.rod(u, u + 5, 100, 11, 8) });
+  for (const s of [1, -1]) for (let u = 30; u <= 190; u += 20) addons.push({ name: 'studs', slot: 'gem', geo: S.put(gem(2.6), u, stockTop(u) - 8, 19.8 * s) });
+
+  // 西部（R）：saddleRing 機関部の左の鞍の輪と、結んだ革紐 / tacks ストックに打った真鍮の鋲（ひし形と縁の列） / leverWrap レバーの輪の下半分に巻いた革
+  addons.push({ name: 'saddleRing', slot: 'brass', geo: S.box(372, 388, 76, 84, 3, -14) });
+  addons.push({ name: 'saddleRing', slot: 'brass', geo: S.put(new THREE.TorusGeometry(9, 1.7, 5, 14).rotateY(Math.PI / 2), 380, 66, -15.5) });
+  for (const [u1, v1] of [[372, 26], [386, 30], [379, 22]]) {
+    const du = u1 - 380, dv = v1 - 58, len = Math.hypot(du, dv);
+    addons.push({ name: 'saddleRing', slot: 'leather', geo: S.put(new THREE.BoxGeometry(1.4, 3.2, len), 380 + du / 2, 58 + dv / 2, -15.5, [Math.atan2(-dv, -du), 0, 0]) });
+  }
+  addons.push({ name: 'saddleRing', slot: 'leather', geo: S.put(new THREE.IcosahedronGeometry(3, 0), 380, 57, -15.5) });
+  const tack = (u: number, v: number, x: number) => S.put(new THREE.SphereGeometry(2.4, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2).rotateZ(-Math.PI / 2 * Math.sign(x)), u, v, x);
+  for (const s of [1, -1]) {
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a), k = 1 / (Math.abs(c) / 22 + Math.abs(sn) / 15); addons.push({ name: 'tacks', slot: 'brass', geo: tack(118 + c * k, 64 + sn * k, 19.3 * s) }); }
+    addons.push({ name: 'tacks', slot: 'brass', geo: tack(118, 64, 19.3 * s) });
+    for (let u = 26; u <= 226; u += 20) addons.push({ name: 'tacks', slot: 'brass', geo: tack(u, stockTop(u) - 6, 19.3 * s) });
+    for (let u = 40; u <= 200; u += 20) addons.push({ name: 'tacks', slot: 'brass', geo: tack(u, 18 + (u - 22) * 38 / 190 + 7, 19.3 * s) });
+  }
+  addons.push({ name: 'leverWrap', slot: 'leather', geo: S.put(new THREE.TorusGeometry(17.5, 5.4, 6, 14, Math.PI * 1.05).rotateZ(Math.PI * 0.98).rotateY(Math.PI / 2), 318, 44), part: lever });
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI * (1.05 + i * 0.14);
+    addons.push({ name: 'leverWrap', slot: 'brass', geo: S.put(new THREE.TorusGeometry(5.6, 0.6, 3, 10).rotateX(Math.PI / 2).rotateY(Math.PI / 2 - a), 318 + Math.cos(a) * 17.5, 44 + Math.sin(a) * 17.5), part: lever });
+  }
+
+  // 狩猟（SR）：sling ストックの下から銃身バンドへ垂れる革の負い紐 / cuff ストックに巻いた革の弾差しと、差した予備弾5発
+  {
+    const P0 = [62, 24], P1 = [734, 68], sag = -34, N = 22;
+    const at = (t: number) => [P0[0] + (P1[0] - P0[0]) * t, P0[1] + (P1[1] - P0[1]) * t + sag * 4 * t * (1 - t)];
+    for (let i = 0; i < N; i++) {
+      const [u0, v0] = at(i / N), [u1, v1] = at((i + 1) / N), du = u1 - u0, dv = v1 - v0, len = Math.hypot(du, dv);
+      addons.push({ name: 'sling', slot: 'leather', geo: S.put(new THREE.BoxGeometry(2.2, 18, len + 0.6), (u0 + u1) / 2, (v0 + v1) / 2, -2, [Math.atan2(-dv, -du), 0, 0]) });
+    }
+    for (const [u, v] of [P0, P1]) addons.push({ name: 'sling', slot: 'round', geo: S.put(new THREE.TorusGeometry(5, 1.2, 4, 8).rotateY(Math.PI / 2), u, v + 4, -2) });
+  }
+  addons.push({ name: 'cuff', slot: 'leather', geo: S.box(34, 112, 34, 82, 42) });
+  for (let u = 44; u <= 100; u += 14) {
+    addons.push({ name: 'cuff', slot: 'round', geo: S.put(new THREE.CylinderGeometry(3.6, 3.6, 34, 8), u, 58, 22.6) });
+    addons.push({ name: 'cuff', slot: 'leather', geo: S.box(u - 5, u + 5, 50, 56, 2, 21.6) });
+  }
+
+  // 紅蓮（燃える紅い蓮）：銃口の蓮・先台の光る線と蓮の紋・ストックの棘と結晶・機関部の火の玉・黒い鎖・紅く光るレンズ
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    addons.push({ name: 'gr_lotus', slot: 'line', geo: S.put(petal(15, 5), 1024, 100, 0, [-0.95, 0, a]) });
+    addons.push({ name: 'gr_lotus', slot: 'barrel', geo: S.put(petal(10, 3.5), 1026, 100, 0, [-0.7, 0, a + Math.PI / 8]) });
+  }
+  for (const s of [1, -1]) {
+    for (const v of [80, 92]) for (const [u0, u1] of [[470, 578], [612, 716]]) addons.push({ name: 'gr_lines', slot: 'line', geo: S.box(u0, u1, v, v + 1.6, 0.8, 16.5 * s) });
+    for (const a of [-0.6, 0, 0.6]) addons.push({ name: 'gr_lines', slot: 'barrel', geo: side(petal(11, 3.6).rotateZ(a), 595, 76, 16.9 * s) });
+    for (const [du, dv, len, tilt] of [[0, 0, 16, 0.5], [12, -6, 11, 1.0], [-10, 4, 9, -0.2]]) {
+      const g = new THREE.OctahedronGeometry(4, 0); g.scale(1, len / 4, 1);
+      addons.push({ name: 'gr_shards', slot: 'accent', geo: S.put(g, 110 + du, 58 + dv, 21 * s, [0, 0, tilt * s]) });
+    }
+    addons.push({ name: 'gr_core', slot: 'barrel', geo: S.ring(318, 90, 10, 7, 2.4, 10, { x: 13.6 * s }) });
+    addons.push({ name: 'gr_core', slot: 'line', geo: S.put(ball(5.5, 1), 318, 90, 14 * s) });
+  }
+  for (let u = 20; u <= 240; u += 22) addons.push({ name: 'gr_thorns', slot: 'barrel', geo: S.put(new THREE.ConeGeometry(3.2, 13, 5), u, stockTop(u) + 5, 0, [0.45, 0, 0]) });
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12, u = 272 + (160 - 272) * t, v = 74 + (60 - 74) * t - 34 * 4 * t * (1 - t);
+    addons.push({ name: 'gr_chain', slot: 'frame', geo: S.put(new THREE.TorusGeometry(3.4, 1.1, 4, 8), u, v, 14.5 + 6 * t, [0, i % 2 ? Math.PI / 2 : 0, 0.3]) });
+  }
+
+  // 月下（月夜の狩人）：ストックの三日月・散らばる星・銃身バンドから下がる月の兎・ストックの下の羽根・スコープの月の円盤・光るレンズ
+  const crescent = (r: number) => {
+    const sh = new THREE.Shape(); sh.absarc(0, 0, r, 0, Math.PI * 2, false);
+    const hole = new THREE.Path(); hole.absarc(r * 0.35, r * 0.25, r * 0.82, 0, Math.PI * 2, true); sh.holes.push(hole);
+    return new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 10 }).translate(0, 0, -0.5);
+  };
+  for (const s of [1, -1]) {
+    addons.push({ name: 'tk_moon', slot: 'line', geo: side(crescent(15), 110, 68, 19.8 * s) });
+    for (const [u, v, r] of [[44, 62, 2.4], [70, 84, 1.8], [150, 80, 2.2], [178, 64, 1.6], [214, 78, 2], [500, 92, 2], [560, 78, 1.6], [640, 94, 2.2], [690, 80, 1.8]])
+      addons.push({ name: 'tk_stars', slot: 'gem', geo: S.put(gem(r), u, v, (u > 400 ? 16.9 : 19.9) * s) });
+  }
+  addons.push({ name: 'tk_rabbit', slot: 'accent', geo: S.box(733, 735, 52, 70, 1.2) });
+  addons.push({ name: 'tk_rabbit', slot: 'accent', geo: S.put(ball(5.5, 1).scale(1.25, 1, 1), 734, 44) });
+  addons.push({ name: 'tk_rabbit', slot: 'accent', geo: S.put(ball(3.8, 1), 740, 50) });
+  for (const x of [-1.6, 1.6]) addons.push({ name: 'tk_rabbit', slot: 'accent', geo: S.put(gem(1.4).scale(1, 4, 1), 742, 57, x, [0.3, 0, 0]) });
+  addons.push({ name: 'tk_rabbit', slot: 'gem', geo: S.put(gem(0.9), 744, 51, 3.2) });
+  addons.push({ name: 'tk_feather', slot: 'accent', geo: S.box(59, 61, 4, 26, 1.2) });
+  for (const a of [Math.PI - 0.25, Math.PI + 0.2]) addons.push({ name: 'tk_feather', slot: 'accent', geo: side(petal(24, 4.5).rotateZ(a), 60, 4, 0) });
+  addons.push({ name: 'tk_feather', slot: 'gem', geo: S.put(ball(2.6), 60, 3) });
+  addons.push({ name: 'tk_disc', slot: 'line', geo: S.put(new THREE.CylinderGeometry(9, 9, 1.6, 16), 421, 165.2) });
+  addons.push({ name: 'tk_lens', slot: 'line', geo: S.rod(573.5, 574.4, 142, 15, 10) });
+
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'mokume',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume',
     info: { name: 'マークスマン Mk2', real: '全長 約1030mm・銃身 580mm（レバーアクション）', reload: 2.4 },
     vm: { size: 1.12, scale: 0.95, yaw: -0.3, hip: new THREE.Vector3(0.17, -0.18, -0.28), ads: new THREE.Vector3(0.11, -0.22, -0.26) },
   });

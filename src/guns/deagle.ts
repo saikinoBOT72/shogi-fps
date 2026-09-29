@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { GunAnimator, Clip, Track, Key } from './anim';
 import { PartBuilder, Pt, makeSpace } from './kit';
+import { Addon, makeAddons } from './model';
 import { DEFAULT_SKIN, skinMaterials } from './skins';
 
 // 図面の原点：グリップの付け根（u=後ろから80mm、v=グリップの底から100mm）
@@ -61,7 +62,8 @@ export function buildDeagle(opt: GunOpt = {}) {
   for (const x of [-1, 1]) B.add('slideDark', S.box(150, 250, 107, 110, 0.6, x * (BARREL_W / 2 + 0.2)));
 
   // ---------- スライド ----------
-  B.add('slide', S.extrude([[0, 102], [0, 131], [4, 136], [113, 136], [119, 102]], SLIDE_W, { bevel: 1.5 }), slide);
+  // 上の面は銃身の上の面（136）とわずかにずらす（同じ高さで重なると、境目がちらつくので）
+  B.add('slide', S.extrude([[0, 102], [0, 131.5], [4, 136.6], [113, 136.6], [119, 102]], SLIDE_W, { bevel: 1.5 }), slide);
   // 後ろの斜めの滑り止め（左右）
   for (const x of [-1, 1]) for (let u = 14; u <= 42; u += 4) {
     B.add('slideDark', S.extrude([[u, 106], [u + 1.8, 106], [u + 8.8, 132], [u + 7, 132]], 1, { bevel: 0, x: x * (SLIDE_W / 2 + 0.3) }), slide);
@@ -95,12 +97,96 @@ export function buildDeagle(opt: GunOpt = {}) {
   }
   B.finish();
 
+  // ---------- スキンの飾り（LR はスキンごとに専用） ----------
+  const addons: Addon[] = [];
+  const petal = (len: number, wid: number) => {
+    const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(wid, len * 0.45, 0, len); sh.quadraticCurveTo(-wid, len * 0.45, 0, 0);
+    return new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false, curveSegments: 3 }).translate(0, 5, -0.5);
+  };
+  const gem = (r: number) => new THREE.OctahedronGeometry(r, 0), ball = (r: number, d = 0) => new THREE.IcosahedronGeometry(r, d);
+  const GRIP_U = 31, GRIP_V = 43, GRIP_X = (FRAME_W + 7) / 2 + 0.6;   // グリップの板の真ん中と、その表面
+
+  // 紅蓮（燃える紅い蓮）：銃口の蓮・銃身の光る線・スライドの蓮の紋と棘・グリップの火の玉・用心鉄の結晶・グリップから垂れる黒い鎖
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    addons.push({ name: 'gr_lotus', slot: 'line', geo: S.put(petal(15, 5), 262, 123, 0, [-0.95, 0, a]) });
+    addons.push({ name: 'gr_lotus', slot: 'barrel', geo: S.put(petal(10, 3.5), 264, 123, 0, [-0.7, 0, a + Math.PI / 8]) });
+  }
+  for (const s of [1, -1]) {
+    for (const v of [104.2, 111.4]) addons.push({ name: 'gr_lines', slot: 'line', geo: S.box(120, 262, v, v + 1.3, 0.8, (BARREL_W / 2 + 0.4) * s) });
+    for (const a of [-0.6, 0, 0.6]) addons.push({ name: 'gr_crest', slot: 'line', geo: S.put(petal(8, 3).rotateZ(a), 62, 110, (SLIDE_W / 2 + 0.5) * s, [0, Math.PI / 2, 0]), part: slide });
+    addons.push({ name: 'gr_core', slot: 'barrel', geo: S.ring(GRIP_U, GRIP_V, 9, 6, 2.4, 10, { x: GRIP_X * s }) });
+    addons.push({ name: 'gr_core', slot: 'line', geo: S.put(ball(5.5, 1), GRIP_U, GRIP_V, (GRIP_X + 0.4) * s) });
+  }
+  for (const u of [24, 40, 56, 72, 88, 104]) addons.push({ name: 'gr_thorns', slot: 'barrel', geo: S.put(new THREE.ConeGeometry(2.6, 10, 5), u, 139, 0, [0.45, 0, 0]), part: slide });
+  for (const [u, v, len, tilt] of [[153, 56, 14, -1.9], [148, 50, 10, -2.3], [157, 63, 9, -1.5]]) {
+    const g = new THREE.OctahedronGeometry(3.4, 0); g.scale(1, len / 3.4, 1);
+    addons.push({ name: 'gr_shards', slot: 'accent', geo: S.put(g, u, v, 0, [tilt, 0, 0]) });
+  }
+  for (let i = 0; i <= 7; i++) addons.push({ name: 'gr_chain', slot: 'chain', geo: S.put(new THREE.TorusGeometry(3, 1, 4, 8), 12 + i * 0.8, -10 - i * 6.2, 0, [0, i % 2 ? Math.PI / 2 : 0, 0]) });
+  addons.push({ name: 'gr_chain', slot: 'line', geo: S.put(ball(5, 1), 18.5, -60) });
+
+  // 黄金（王者の金）：スライドの王冠・グリップの宝石・スライドのダイヤの列・銃身の金の縁取り・フレームの月桂樹・銃口の宝石の輪・金の房
+  {
+    const crown = (a: number) => [30 + 5 * Math.cos(a), 5 * Math.sin(a)];
+    addons.push({ name: 'og_crown', slot: 'accent', geo: S.put(new THREE.CylinderGeometry(6, 6.5, 4, 10), 30, 138), part: slide });
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * Math.PI * 2, [u, x] = crown(a);
+      addons.push({ name: 'og_crown', slot: 'accent', geo: S.put(new THREE.ConeGeometry(1.7, 7, 4), u, 143.5, x), part: slide });
+      addons.push({ name: 'og_crown', slot: 'gem', geo: S.put(gem(1.4), u, 147.5, x), part: slide });
+    }
+  }
+  for (const s of [1, -1]) {
+    addons.push({ name: 'og_jewels', slot: 'line', geo: S.put(gem(7), GRIP_U, GRIP_V, (GRIP_X + 1) * s, [0, 0, Math.PI / 4]) });
+    for (const [du, dv] of [[-11, 0], [11, 0], [0, 14], [0, -14]]) addons.push({ name: 'og_jewels', slot: 'gem', geo: S.put(gem(3), GRIP_U + du, GRIP_V + dv, (GRIP_X + 0.6) * s) });
+    for (let u = 54; u <= 110; u += 8) addons.push({ name: 'og_studs', slot: 'gem', geo: S.put(gem(2.3), u, 106, (SLIDE_W / 2 + 0.6) * s), part: slide });
+    for (const v of [102.8, 115.2]) addons.push({ name: 'og_trim', slot: 'accent', geo: S.box(114, 266, v, v + 1.6, 1, (BARREL_W / 2 + 0.3) * s) });
+    for (let i = 0; i < 7; i++) {
+      const u = 166 + i * 12;
+      for (const a of [-0.7, 0.7]) addons.push({ name: 'og_laurel', slot: 'accent', geo: S.put(petal(7, 2.6).rotateZ(a - 1.57), u, 93, (FRAME_W / 2 + 0.6) * s, [0, Math.PI / 2, 0]) });
+    }
+  }
+  addons.push({ name: 'og_muzzle', slot: 'accent', geo: S.put(new THREE.TorusGeometry(10, 1.6, 4, 14), 270.5, 123) });
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; addons.push({ name: 'og_muzzle', slot: 'gem', geo: S.put(gem(2), 271.5, 123 + 10 * Math.sin(a), 10 * Math.cos(a)) }); }
+  addons.push({ name: 'og_tassel', slot: 'accent', geo: S.box(21, 23, -34, -6, 1.2) });
+  addons.push({ name: 'og_tassel', slot: 'accent', geo: S.put(ball(4.5), 22, -37) });
+  addons.push({ name: 'og_tassel', slot: 'accent', geo: S.put(new THREE.ConeGeometry(6, 24, 8), 22, -52) });
+  // 照準（SR）：レールの上の小さなドットサイト（黒い箱と光るレンズ）と、銃口の補正器（上に逃がし穴2つ）
+  // ドットサイトは薄く、レールの溝にめり込ませる（台はレールの中、本体は低く細く）
+  addons.push({ name: 'dot', slot: 'dotBody', geo: S.box(152, 188, 135.8, 139.6, 11) });
+  addons.push({ name: 'dot', slot: 'dotBody', geo: S.extrude([[157, 139], [186, 139], [186, 147.5], [183, 150], [160, 150], [157, 147.5]], 10, { bevel: 0.8 }) });
+  addons.push({ name: 'dot', slot: 'line', geo: S.box(186, 187.2, 141, 148.5, 7.5) });
+  addons.push({ name: 'comp', slot: 'comp', geo: S.extrude([[268, 104], [292, 104], [292, 132], [288, 136], [268, 136]], BARREL_W - 2, { bevel: 1.5 }) });
+  for (const u of [274, 283]) addons.push({ name: 'comp', slot: 'bore', geo: S.box(u, u + 5, 134, 136.6, 10) });
+  addons.push({ name: 'comp', slot: 'bore', geo: S.rod(291.5, 292.6, 123, 6.4, 8) });
+  // 照準（SR）の追加：laser フレームの下のレーザー照準器（箱と光る窓） / extMag 弾倉の底の大きな継ぎ足し
+  addons.push({ name: 'laser', slot: 'dotBody', geo: S.extrude([[186, 84], [252, 84], [252, 70], [244, 64], [192, 64], [186, 70]], 20, { bevel: 1.2 }) });
+  addons.push({ name: 'laser', slot: 'line', geo: S.box(252, 253.4, 68, 80, 12) });
+  addons.push({ name: 'laser', slot: 'comp', geo: S.box(200, 238, 82, 84.5, 22) });
+  addons.push({ name: 'extMag', slot: 'comp', geo: S.extrude([[gripBack(0) - 3, -26], [gripFront(0) + 3, -26], [gripFront(0) + 2, -6], [gripBack(0) - 1, -6]], FRAME_W + 6, { bevel: 1.5 }), part: mag });
+  addons.push({ name: 'extMag', slot: 'line', geo: S.box(gripBack(0) + 6, gripFront(0) - 6, -18, -15, FRAME_W + 6.6), part: mag });
+
+  // 漆と木（R）：medal グリップの両脇の銀のメダル（縁つき） / lanyard 底の吊り輪から下がる紐と玉 / sightDots 照準の白い点
+  for (const s of [1, -1]) {
+    addons.push({ name: 'medal', slot: 'medal', geo: S.put(new THREE.CylinderGeometry(8, 8, 1.4, 14).rotateZ(Math.PI / 2), GRIP_U, GRIP_V, (GRIP_X + 0.5) * s) });
+    addons.push({ name: 'medal', slot: 'medal', geo: S.put(new THREE.TorusGeometry(8, 1.1, 4, 14).rotateY(Math.PI / 2), GRIP_U, GRIP_V, (GRIP_X + 1.1) * s) });
+    addons.push({ name: 'medal', slot: 'dots', geo: S.put(new THREE.CylinderGeometry(2.4, 2.4, 1.4, 8).rotateZ(Math.PI / 2), GRIP_U, GRIP_V, (GRIP_X + 1) * s) });
+    addons.push({ name: 'sightDots', slot: 'dots', geo: S.box(14.8, 15.8, 138, 140.4, 1.8, 8 * s), part: slide });
+  }
+  addons.push({ name: 'sightDots', slot: 'dots', geo: S.box(260.8, 261.8, 142, 144.4, 1.8) });
+  addons.push({ name: 'lanyard', slot: 'medal', geo: S.put(new THREE.TorusGeometry(5, 1.3, 4, 10).rotateY(Math.PI / 2), 8, -11) });
+  addons.push({ name: 'lanyard', slot: 'cord', geo: S.box(7, 9, -40, -15, 1.4) });
+  addons.push({ name: 'lanyard', slot: 'bead', geo: S.put(new THREE.IcosahedronGeometry(5.5, 1), 8, -45) });
+  addons.push({ name: 'lanyard', slot: 'cord', geo: S.put(new THREE.ConeGeometry(3.2, 12, 6), 8, -56) });
+  const deco = makeAddons(B, addons);
+
   // ---------- 塗装 ----------
   let skin = opt.skin || DEFAULT_SKIN;
   function setSkin(id: string) {
     skin = id;
     const m = skinMaterials(id);
     for (const [slot, meshes] of Object.entries(B.slots)) meshes.forEach(x => { x.material = m[slot] || m.frame; });
+    deco.apply(id, m);
   }
   setSkin(skin);
 

@@ -5,3 +5,5 @@ guns.html
 src/gunview.ts
 docs/
 .claude/
+vite.guns.config.ts
+tools/build-skin-viewer.mjs

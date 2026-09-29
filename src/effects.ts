@@ -2,8 +2,11 @@
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { C, LIGHT, V3, clamp, lerp, rand } from './core';
-import { GUN_BUILDERS, buildGun, cam, flatten, makeEyes, makePiece, makeShield, outlineMat, pieceGeo, pieceWoodMat, scene, starTex, toon } from './render';
+import { GUN_BUILDERS, buildGun, cam, flatten, handMat, makeEyes, makePiece, makeShield, outlineMat, pieceGeo, pieceWoodMat, scene, starTex, toon } from './render';
 import { groundAt } from './world';
+import { SKINS } from './guns/skins';
+import { equippedRef, paintGun } from './loadout';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ================= エフェクト =================
 // 破片・火花（インスタンス描画）
@@ -192,13 +195,27 @@ export const VM: any = (() => {
     c.v.set(rand(1.1, 1.6), rand(1.3, 1.9), rand(0.1, 0.5)); c.s.set(rand(8, 16), rand(3, 8), rand(10, 20));
   };
   for (const m of Object.values(models) as any[]) if (m.anim) m.onEvent = ev => { if (ev === 'eject' && m === vm.pist) eject(); };
+  // スキンの演出（LR）：銃口の光の色・弾の線の色・眺めたときに舞う光。自分の画面にだけ出す
+  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,255,255,0.6)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+  const motes = Array.from({ length: 60 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })); sp.visible = false; root.add(sp); return { sp, t: 0, life: 0, rise: 0 }; });
+  const tmp = new V3();
+  // 銃の表面の点をランダムに1つ（root から見た位置）
+  const pointOnGun = (g, out) => {
+    const meshes = []; g.traverse(o => { if (o.isMesh && o.visible && o.geometry.attributes.position) meshes.push(o); });
+    const m = meshes[Math.floor(Math.random() * meshes.length)], pa = m.geometry.attributes.position;
+    out.fromBufferAttribute(pa, Math.floor(Math.random() * pa.count)).applyMatrix4(m.matrixWorld);
+    return root.worldToLocal(out);
+  };
   const vm = {
-    root, models, pist, flash, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
+    root, models, pist, flash, fx: {} as any, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
     // 持っている銃の見た目を切り替える
     setWeapon(model) {
       for (const [k, m] of Object.entries(models) as [string, any][]) m.g.visible = k === model;
       vm.pist = models[model]; vm.pist.muzzle.add(flash);
       if (vm.pist.anim) vm.pist.anim.clear();
+      vm.fx = SKINS[vm.pist.skin]?.fx || {};
+      fm.color.setHex(vm.fx.flash ?? 0xffffff);
+      for (const m of motes) m.sp.visible = false, m.life = 0;
     },
     // 撃った（反動・光・部品の動き）。empty：最後の1発
     fire(w, empty = false) {
@@ -207,7 +224,20 @@ export const VM: any = (() => {
       if (vm.pist.fire) vm.pist.fire(empty);
     },
     reload(dur) { if (vm.pist.reload) vm.pist.reload(dur); },
-    inspect() { if (vm.pist.inspect) vm.pist.inspect(); },
+    inspect() {
+      if (vm.pist.inspect) vm.pist.inspect();
+      if (vm.fx.aura === undefined) return;
+      root.updateMatrixWorld(true);
+      for (const m of motes) {
+        pointOnGun(vm.pist.g, m.sp.position); m.sp.material.color.setHex(vm.fx.aura); m.sp.scale.setScalar(rand(0.006, 0.014));
+        m.t = -rand(0, 2); m.life = 0.9; m.rise = rand(0.03, 0.06); m.sp.visible = false;
+      }
+    },
+    // 装備しているスキンで全部の銃を塗り直す
+    applyLoadout() {
+      for (const [k, m] of Object.entries(models) as [string, any][]) paintGun(m, equippedRef(k));
+      vm.setWeapon(Object.keys(models).find(k => models[k] === vm.pist) || 'pistol');
+    },
     ready() { vm.equip = 1; if (vm.pist.equip) vm.pist.equip(); },   // 構える（対局の始め）
     // 部品の動きと薬莢を進める
     animate(dt) {
@@ -218,10 +248,18 @@ export const VM: any = (() => {
         c.m.rotation.x += c.s.x * dt; c.m.rotation.y += c.s.y * dt; c.m.rotation.z += c.s.z * dt;
         if (c.t > 0.7) c.m.visible = false;
       }
+      for (const m of motes) {
+        if (m.life <= 0) continue;
+        m.t += dt; m.sp.visible = m.t >= 0;
+        if (m.t < 0) continue;
+        m.sp.position.y += m.rise * dt; m.sp.material.opacity = 1 - m.t / m.life;
+        if (m.t >= m.life) { m.sp.visible = false; m.life = 0; }
+      }
     },
     // 塗装を変える（ハンドガン）
     setSkin(id) { if (models.pistol.setSkin) models.pistol.setSkin(id); },
   };
+  vm.applyLoadout();
   vm.setWeapon('pistol');
   flatten(root);
   return vm;
@@ -288,8 +326,10 @@ export function buildActor(ch, size, model = 'pistol'): any {
   body.add(piece); root.add(body);
   ghost.position.set(0, h / 2, t / 2); body.add(ghost);
   const gun = buildGun(model);
-  gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3 }[model] || 2.2) * size); gun.g.rotation.y = Math.PI;
-  gun.g.position.set(w * 0.52, h * 0.5, t + 0.12);
+  gun.g.traverse(o => { o.castShadow = false; });   // 駒が持つ銃は影を落とさない（小さくてほとんど見えないため）
+  // 相手から見て分かりやすいよう、銃と手は大きめ（1.4倍）。体の正面は +z なので、右手は -x 側
+  gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3 }[model] || 2.2) * 1.4 * size); gun.g.rotation.y = Math.PI;
+  gun.g.position.set(-w * 0.55, h * 0.5, t + 0.16);
   body.add(gun.g);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   flash.scale.setScalar(0.7); flash.visible = false; gun.muzzle.add(flash);
@@ -299,4 +339,56 @@ export function buildActor(ch, size, model = 'pistol'): any {
   flatten(root);
   scene.add(root);
   return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, xray, ghost, w, h, t };
+}
+
+// ================= 遠くの駒の銃：簡単な形 =================
+// 15m より遠いと銃は小さく、つや・照り返しは見分けられないので、見えている部品を1つの形にまとめ、部品ごとの色だけで描く
+//   （部品ごとに描くと 10〜20 回かかるのが 1 回で済む）。スキンごとに一度だけ作って使い回す。銃口の光はそのまま出る
+const LOD_FAR = 15;
+const lodMat = toon({ vertexColors: true });
+function slotColor(id: string, slot: string, mat: any): number {
+  const s = SKINS[id];
+  if (mat === handMat) return P.kiji[1];
+  if (s && slot) {
+    if (slot === 'line') return s.line ?? s.detail.c;
+    if (slot === 'slideDark') return s.slide.c;
+    if (slot === 'bore') return P.sumi[0];
+    const st = s[slot] || s.extra?.[slot] || (slot === 'mag' ? { c: P.sumi[2] } : null);
+    if (st) return st.fade ? st.fade[0] : st.c;
+  }
+  if (mat?.color && !mat.map && !mat.isMeshMatcapMaterial) return mat.color.getHex();
+  return P.sumi[1];
+}
+function buildLod(gun) {
+  gun.g.updateMatrixWorld(true);
+  const inv = gun.g.matrixWorld.clone().invert(), geos = [], col = new THREE.Color();
+  gun.g.traverse(o => {
+    if (!o.isMesh || !o.geometry.attributes.position) return;
+    for (let p = o; p && p !== gun.g; p = p.parent) if (!p.visible) return;
+    const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone());
+    for (const k of Object.keys(g.attributes)) if (!['position', 'normal'].includes(k)) g.deleteAttribute(k);
+    if (!g.attributes.normal) g.computeVertexNormals();
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    col.setHex(slotColor(gun.skin, o.userData.slot, o.material)).convertSRGBToLinear();
+    const n = g.attributes.position.count, c = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    geos.push(g);
+  });
+  const m = new THREE.Mesh(mergeGeometries(geos), lodMat);
+  m.visible = false;
+  return m;
+}
+// 駒の銃の近い・遠いを切り替える（毎フレーム。切り替わったときだけ中身を入れ替える）
+export function updateGunLod(A, camPos) {
+  const far = camPos.distanceTo(A.root.position) > LOD_FAR;
+  const key = far ? A.gun.skin : null;
+  if (A.lodKey === key) return;
+  A.lodKey = key;
+  if (A.lod) A.lod.visible = false;
+  A.gun.g.traverse(o => { if (o.isMesh) o.layers.set(far ? 1 : 0); });   // 近いときの部品は、遠いと描かない（カメラは 0 番だけ描く）
+  if (!far) return;
+  A.lods = A.lods || {};
+  if (!A.lods[key]) { A.lods[key] = buildLod(A.gun); A.gun.g.add(A.lods[key]); }
+  A.lod = A.lods[key]; A.lod.layers.set(0); A.lod.visible = true;
 }

@@ -63,6 +63,15 @@ export function makeSpace(ou: number, ov: number) {
       g.translate(c.x, c.y, c.z);
       return flat(g);
     },
+    // 好きな形（大きさは mm で作る）を図面の (u, v)・幅方向 x に置く。rot：[x, y, z] の回転（ラジアン）
+    //   スキンの小さな飾り（宝石・鈴・鎖の輪など）に使う
+    put(geo: THREE.BufferGeometry, u: number, v: number, x = 0, rot: [number, number, number] = [0, 0, 0]) {
+      const g = geo.clone();
+      g.rotateX(rot[0]); g.rotateY(rot[1]); g.rotateZ(rot[2]);
+      g.scale(1 / 1000, 1 / 1000, 1 / 1000);
+      const c = S.at(u, v, x); g.translate(c.x, c.y, c.z);
+      return flat(g);
+    },
     // 前後に向いた円柱（銃口の穴など）。seg を少なくしてローポリに
     rod(u0: number, u1: number, v: number, r: number, seg = 8, x = 0) {
       const g = new THREE.CylinderGeometry(r / 1000, r / 1000, (u1 - u0) / 1000, seg);

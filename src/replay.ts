@@ -9,7 +9,8 @@ import { PHYS } from './physics';
 import { DmgNums, Particles, Tracers, VM, vmFlashLight } from './effects';
 import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
-import { bot, botActor, player, playerActor, view } from './game';
+import { bot, botActor, foeRef, paintFoe, player, playerActor, view } from './game';
+import { paintGun } from './loadout';
 import { animateActor, hipFov, poseViewModel } from './camera';
 
 export const Replay = (() => {
@@ -87,7 +88,9 @@ export const Replay = (() => {
       look: frames[i].b.aim.clone(), liveGadgets: Gadgets.snapshot(), fp: fakeOf(player), fb: fakeOf(bot), bobPhase: 0, hm: 0, hurt: 0, fovK: 1,
     };
     gs.state = 'killcam'; gs.mouseDown = false; gs.rightDown = false;
-    // 決めた側の銃を持つ
+    // 決めた側の銃を持つ。相手の視点なら、一人称の銃も相手のスキン（飾りまで）にする
+    paintFoe(true);
+    if (!win) paintGun(VM.models[shooter.w.model], foeRef(shooter.w.model));
     VM.setWeapon(shooter.w.model);
     Object.assign(VM, { kick: 0, slideT: 0, flashT: 0, dip: 0, equip: 0, dash: 0, guard: 0 }); VM.sway.set(0, 0, 0);
     playerActor.root.visible = !win; botActor.root.visible = win;
@@ -211,7 +214,8 @@ export const Replay = (() => {
     Arrows.showGhosts([]); Arrows.setLiveVisible(true);
     Grenades.showGhosts([]); Grenades.setLiveVisible(true);
     Gadgets.restore(play.liveGadgets);
-    // 銃と駒を元の状態へ
+    // 銃と駒を元の状態へ（相手の銃は色だけに戻し、一人称の銃は自分のスキンに戻す）
+    paintFoe(false); VM.applyLoadout();
     VM.setWeapon(player.w.model); VM.pist.anim?.update(0); VM.flashT = 0; VM.flash.visible = false; vmFlashLight.intensity = 0;
     playerActor.root.visible = false; playerActor.dead = null; playerActor.body.rotation.set(0, 0, 0);
     botActor.root.visible = true;

@@ -146,11 +146,12 @@ export function perfTick(rdt) {
 }
 let frameNo = 0;
 export function render(withGun?) {
-  // 影は画質「中」なら 2 フレームに1回だけ描き直す（動きはほぼ変わらず、影の計算が半分）
+  // 影は画質「中」なら 3 フレームに1回だけ描き直す（動きはほぼ変わらず、影の計算が 1/3）
   frameNo++;
   renderer.shadowMap.autoUpdate = false;
   if (!Q.shadowEvery || frameNo % Q.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
   renderer.clear();
+  if (gs.menu3d) return;   // ガチャ・持ち物の画面が全面に出ている間は、後ろのゲームの画面を描かない
   renderer.render(scene, cam);
   if (withGun && gs.state !== 'title') { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
 }

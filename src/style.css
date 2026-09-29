@@ -276,3 +276,116 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 /* 将棋モード：盤面の左上のタイトルへ */
 .bm-quit { position: absolute; left: 18px; top: 18px; pointer-events: auto }
 .bm-e { top: 60px }
+
+/* ================= 持ち物 ================= */
+/* レア度の色：N 鼠・R 青・SR 紫・LR 金（札の帯・銃の後ろの光） */
+.r-base { --rc: var(--kiji-2) } .r-N { --rc: var(--nezumi-2) } .r-R { --rc: var(--ao-2) } .r-SR { --rc: var(--fuji-2) } .r-LR { --rc: var(--kin-2) }
+.pts { display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--panel) }
+.pts small { font-size: 12px; color: var(--text-dim); letter-spacing: 1px }
+.pts b { font: 900 20px var(--font-ui); color: var(--accent); min-width: 1ch; text-align: center }
+.title-pts { position: fixed; top: 16px; right: 16px }
+.inv { width: min(1280px, 100%); height: calc(100vh - 48px); min-height: 520px; display: grid; gap: 14px; text-align: left;
+  grid-template: "head head head" auto "guns stage list" 1fr / 190px minmax(0, 1fr) 360px }
+.inv-head { grid-area: head; display: flex; align-items: center; gap: 16px }
+.inv-head .h { margin-right: auto; font-family: var(--font-koma); font-size: 34px; letter-spacing: 6px }
+/* 左：武器の列 */
+.inv-guns { grid-area: guns; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0 }
+.inv-gun { display: grid; grid-template: "n sw" auto "c sw" auto / 1fr auto; align-items: center; gap: 0 8px; padding: 9px 12px; text-align: left; cursor: pointer;
+  background: var(--panel-soft); color: var(--text); border: 1px solid var(--line); border-left: 3px solid transparent; border-radius: var(--r-s); font: inherit }
+.inv-gun b { grid-area: n; font-size: 14px } .inv-gun small { grid-area: c; font-size: 11px; color: var(--text-dim) } .inv-gun .inv-sw { grid-area: sw }
+.inv-gun:hover { border-color: var(--line-strong) }
+.inv-gun.on { border-left-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 18%, var(--panel)) }
+/* 真ん中：銃を回して見せる台と、選んだスキンの説明 */
+.inv-stage { grid-area: stage; display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
+  background: radial-gradient(ellipse 70% 60% at 50% 45%, color-mix(in srgb, var(--rc) 26%, var(--sumi-1)), var(--sumi-0) 75%) }
+.inv-view { position: relative; flex: 1; min-height: 220px; cursor: grab }
+.inv-view:active { cursor: grabbing }
+.inv-view canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important }
+.inv-view::after { content: ""; position: absolute; left: 20%; right: 20%; bottom: 10%; height: 18px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--sumi-0) 70%, transparent), transparent) }
+.inv-hint { position: absolute; right: 14px; top: 12px; font-size: 11px; color: var(--text-dim); pointer-events: none }
+.inv-info { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px 18px; background: color-mix(in srgb, var(--sumi-0) 72%, transparent); border-top: 1px solid color-mix(in srgb, var(--rc) 45%, transparent) }
+.inv-rar { display: flex; align-items: baseline; gap: 10px }
+.inv-rar b { font: 900 italic 22px var(--font-ui); color: var(--rc); letter-spacing: 1px }
+.inv-rar span { font-size: 12px; color: var(--text-dim); letter-spacing: 2px }
+.inv-name { font: 900 28px var(--font-koma); letter-spacing: 2px; line-height: 1.2; overflow-wrap: anywhere }
+.inv-name input { font: 700 20px var(--font-ui); width: min(100%, 22em); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--accent); background: var(--sumi-0); color: var(--text) }
+.inv-meta { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px; color: var(--text-dim); align-items: center }
+.inv-meta b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums }
+.inv-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px }
+.inv-acts .btn[disabled] { opacity: .55; cursor: default; transform: none; filter: none }
+/* 色の見本：少し重ねた丸 */
+.inv-sw { display: inline-flex; vertical-align: middle }
+.inv-sw i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--sumi-0); margin-left: -5px; box-shadow: 0 0 0 1px var(--line-strong) }
+.inv-sw i:first-child { margin-left: 0 }
+/* 右：持っているスキンの札 */
+.inv-list { grid-area: list; display: flex; flex-direction: column; gap: 10px; min-height: 0 }
+.inv-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.inv-count { margin-left: auto; font-size: 12px; color: var(--text-dim) }
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; overflow-y: auto; min-height: 0; align-content: start; padding: 2px }
+.inv-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 10px 10px 13px; min-width: 0; text-align: left; cursor: pointer;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-s); font: inherit; overflow: hidden }
+.inv-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--rc) }
+.inv-card em { position: absolute; right: 9px; top: 7px; font: 900 italic 13px var(--font-ui); color: var(--rc) }
+.inv-card .inv-sw { margin-bottom: 2px }
+.inv-card b { font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.inv-card small { font-size: 11px; color: var(--text-dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.inv-card:hover { border-color: var(--line-strong) }
+.inv-card.sel { border-color: var(--text); box-shadow: 0 0 0 1px var(--text) }
+.inv-card.r-LR { background: linear-gradient(160deg, color-mix(in srgb, var(--kin-1) 20%, var(--panel)), var(--panel) 60%) }
+.inv-eq { font-size: 10px; font-weight: 800; color: var(--sumi-0); background: var(--accent); padding: 1px 6px; border-radius: 4px; letter-spacing: 1px }
+.inv-star { position: absolute; right: 9px; bottom: 7px; color: var(--accent); font-size: 13px }
+.inv-empty { text-align: left }
+/* 狭い画面：縦に積む */
+@media (max-width: 900px) {
+  .inv { height: auto; grid-template: "head" auto "guns" auto "stage" auto "list" auto / minmax(0, 1fr) }
+  .inv-guns { flex-direction: row; overflow-x: auto; padding-bottom: 4px }
+  .inv-gun { flex: none }
+  .inv-view { height: 42vh; flex: none }
+  .inv-grid { overflow: visible }
+}
+
+/* ================= ガチャ ================= */
+.ga { position: fixed; inset: 0; text-align: left; overflow: hidden;
+  background: radial-gradient(ellipse 80% 70% at 50% 42%, color-mix(in srgb, var(--ai-0) 70%, var(--sumi-1)), var(--sumi-0) 72%) }
+.ga-view { position: absolute; inset: 0 }
+.ga-view canvas { width: 100% !important; height: 100% !important; display: block }
+.ga-dark { position: absolute; inset: 0; background: radial-gradient(ellipse at center, color-mix(in srgb, var(--kin-0) 25%, var(--sumi-0)), var(--sumi-0) 70%); opacity: 0; transition: opacity .8s; pointer-events: none }
+.ga.dark .ga-dark { opacity: 1 }
+.ga-head { position: absolute; top: 16px; left: 20px; right: 20px; display: flex; align-items: center; gap: 12px; z-index: 1 }
+.ga-head .h { margin-right: auto; font-family: var(--font-koma); font-size: 34px; letter-spacing: 6px }
+.ga-panel { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 20px; text-align: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r) }
+.ga-rates { display: flex; gap: 16px; font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums }
+.ga-rates b { color: var(--rc); font-style: italic; font-weight: 900; margin-right: 4px }
+.ga-pity { margin: 0; font-size: 13px; color: var(--text-dim) }
+.ga-pity b { color: var(--accent) }
+.ga-btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center }
+.ga-pull { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 160px; padding: 10px 24px }
+.ga-pull b { font: 900 22px var(--font-ui); letter-spacing: 2px }
+.ga-pull small { font-size: 12px; font-weight: 700; opacity: .75 }
+.ga-pull.ten { background: linear-gradient(160deg, var(--kin-2), var(--kin-1)); box-shadow: 0 0 18px color-mix(in srgb, var(--kin-2) 45%, transparent) }
+.ga-pull[disabled] { opacity: .45; cursor: default; filter: none; transform: none }
+.ga-skip { position: absolute; right: 20px; bottom: 24px; z-index: 1 }
+.ga-count { position: absolute; left: 50%; top: 24px; transform: translateX(-50%); font: 900 italic 18px var(--font-ui); color: var(--text-dim); font-variant-numeric: tabular-nums }
+/* 名前の出るところ */
+.ga-cap { position: absolute; left: 50%; bottom: 40px; transform: translate(-50%, 12px); width: min(620px, calc(100% - 32px)); text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none }
+.ga-cap.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto }
+.ga-rar { display: flex; align-items: baseline; gap: 10px }
+.ga-rar b { font: 900 italic 40px var(--font-ui); color: var(--rc); letter-spacing: 2px; text-shadow: 0 0 22px color-mix(in srgb, var(--rc) 60%, transparent) }
+.ga-rar span { font-size: 13px; color: var(--text-dim); letter-spacing: 3px }
+.ga-name { font: 900 34px var(--font-koma); letter-spacing: 3px; text-shadow: var(--shade); overflow-wrap: anywhere }
+.ga-sub { font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center }
+/* 結果：左に銃、右に引いたものの札 */
+.ga-result .ga-cap { left: 20px; bottom: 28px; transform: none; width: min(520px, calc(100% - 440px)); align-items: flex-start; text-align: left }
+.ga-result .ga-sub { justify-content: flex-start }
+.ga-list { position: absolute; right: 20px; top: 76px; bottom: 24px; width: 380px; display: flex; flex-direction: column; gap: 12px }
+.ga-list .inv-grid { flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)) }
+.ga-list .ga-btns { justify-content: flex-end }
+@media (max-width: 900px) {
+  .ga-result .ga-cap { position: absolute; left: 16px; right: 16px; width: auto; top: 70px; bottom: auto }
+  .ga-list { left: 16px; right: 16px; width: auto; top: 52vh }
+  .ga-panel { bottom: 16px }
+}

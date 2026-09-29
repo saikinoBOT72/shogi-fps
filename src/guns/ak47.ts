@@ -111,8 +111,135 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
       ],
     },
   };
+  // スキンの付け足し（SR 以上）：輪郭はほぼ変えない小さな部品
+  //   brake：銃口の飾りマズルブレーキ（切り欠き2つ） / line：機関部の両脇に光る線
+  //   charm：ハンドガードの留め金から下がる根付（紐とお守り） / plate：ストックの両脇の飾り板
+  const addons = [
+    { name: 'brake', slot: 'barrel', geo: S.rod(866, 898, 100, 12.5, 8) },
+    { name: 'brake', slot: 'bore', geo: S.box(873, 879, 109, 113.5, 7) },
+    { name: 'brake', slot: 'bore', geo: S.box(885, 891, 109, 113.5, 7) },
+    { name: 'line', slot: 'line', geo: S.box(262, 462, 78, 80.5, 0.8, 13.3) },
+    { name: 'line', slot: 'line', geo: S.box(262, 462, 78, 80.5, 0.8, -13.3) },
+    { name: 'charm', slot: 'detail', geo: S.box(518, 520, 36, 66, 1.2) },
+    { name: 'charm', slot: 'accent', geo: S.extrude([[510, 36], [528, 36], [528, 12], [519, 6], [510, 12]], 5, { bevel: 1 }) },
+    { name: 'plate', slot: 'accent', geo: S.box(70, 150, 38, 54, 1, 19.6) },
+    { name: 'plate', slot: 'accent', geo: S.box(70, 150, 38, 54, 1, -19.6) },
+  ];
+  //   rings：銃身の飾りの輪3つ / studs：ストックの上の縁に沿ったラインストーン / gems：ストック・機関部・照星の宝石
+  //   chain：機関部の後ろからストックへ垂れる鎖（右側） / tassel：ストックの下の房 / bell：ガスブロックから下がる鈴
+  const gem = (r: number) => new THREE.OctahedronGeometry(r, 0), ball = (r: number, d = 0) => new THREE.IcosahedronGeometry(r, d);
+  for (const u of [706, 796, 852]) addons.push({ name: 'rings', slot: 'accent', geo: S.rod(u, u + 5, 100, 11, 8) });
+  for (const s of [1, -1]) for (let u = 30; u <= 210; u += 22.5)
+    addons.push({ name: 'studs', slot: 'gem', geo: S.put(gem(2.6), u, 79 + (u - 6) * 18 / 232 - 9, 19.8 * s) });
+  for (const s of [1, -1]) {
+    addons.push({ name: 'gems', slot: 'gem', geo: S.put(gem(6.5), 110, 46, 21 * s, [0, 0, Math.PI / 4]) });
+    addons.push({ name: 'gems', slot: 'gem', geo: S.put(gem(4), 296, 88, 14.5 * s) });
+  }
+  addons.push({ name: 'gems', slot: 'gem', geo: S.put(gem(3.5), 831, 151) });
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10, u = 250 + (170 - 250) * t, v = 66 + (52 - 66) * t - 30 * 4 * t * (1 - t);
+    addons.push({ name: 'chain', slot: 'accent', geo: S.put(new THREE.TorusGeometry(3, 0.9, 4, 8), u, v, 14.5 + 6 * t, [0, i % 2 ? Math.PI / 2 : 0, 0.3]) });
+  }
+  addons.push({ name: 'tassel', slot: 'detail', geo: S.box(18, 20, -50, -26, 1.2) });
+  addons.push({ name: 'tassel', slot: 'accent', geo: S.put(ball(4.5), 19, -53) });
+  addons.push({ name: 'tassel', slot: 'accent', geo: S.put(new THREE.ConeGeometry(6.5, 26, 8), 19, -70) });
+  addons.push({ name: 'bell', slot: 'detail', geo: S.box(769, 771, 78, 96, 1.2) });
+  addons.push({ name: 'bell', slot: 'accent', geo: S.put(ball(7, 1), 770, 70) });
+  addons.push({ name: 'bell', slot: 'bore', geo: S.box(765, 775, 62.6, 64.4, 3) });   // 鈴の口の切れ目（下）
+
+  // ----- 銃剣（R）：bayonet 銃身の下の柄と鍔、銃口の輪、銃口より前へ伸びる刃（背に小さなのこぎり） -----
+  addons.push({ name: 'bayonet', slot: 'handle', geo: S.extrude([[764, 70], [856, 70], [858, 76], [856, 84], [764, 84], [760, 77]], 13, { bevel: 1.5 }) });
+  addons.push({ name: 'bayonet', slot: 'bladeMetal', geo: S.box(754, 764, 68, 86, 15) });        // 柄頭
+  addons.push({ name: 'bayonet', slot: 'bladeMetal', geo: S.box(856, 866, 64, 92, 16) });        // 鍔
+  addons.push({ name: 'bayonet', slot: 'bladeMetal', geo: S.put(new THREE.TorusGeometry(11.5, 2, 5, 12), 866, 100) });   // 銃口の輪
+  addons.push({ name: 'bayonet', slot: 'blade', geo: S.extrude([[866, 72], [986, 72], [1016, 80], [990, 88], [866, 88]], 3.2, { bevel: 0.6 }) });
+  for (let u = 880; u < 960; u += 8) addons.push({ name: 'bayonet', slot: 'blade', geo: S.extrude([[u, 88], [u + 4, 91.5], [u + 8, 88]], 2.4, { bevel: 0 }) });
+  // ----- 柄巻（SR）：wrap ハンドガードの両脇を刀の柄のように組紐でひし形に巻く・前後の巻き留め / knot 前の花結びと垂れる紐 -----
+  {
+    const U0 = 530, U1 = 682, V0 = 72, V1 = 98, n = 7, step = (U1 - U0) / n, dh = V1 - V0, len = Math.hypot(step, dh) + 2, ang = Math.atan2(dh, step);
+    for (const s of [1, -1]) for (let i = 0; i < n; i++) for (const d of [1, -1]) {
+      addons.push({ name: 'wrap', slot: 'cord', geo: S.put(new THREE.BoxGeometry(len, 3, 1.3).rotateZ(ang * d), U0 + step * (i + 0.5), (V0 + V1) / 2, 18.7 * s, [0, Math.PI / 2, 0]) });
+    }
+    for (const [u0, u1] of [[522, 530], [682, 690]]) addons.push({ name: 'wrap', slot: 'cord', geo: S.box(u0, u1, 69, 101.5, 38.4) });
+    const petalK = (a: number) => { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(5, 5, 0, 10); sh.quadraticCurveTo(-5, 5, 0, 0); return new THREE.ExtrudeGeometry(sh, { depth: 2, bevelEnabled: false, curveSegments: 4 }).translate(0, 0, -1).rotateZ(a); };
+    for (const s of [1, -1]) {
+      for (let k = 0; k < 4; k++) addons.push({ name: 'knot', slot: 'cord', geo: S.put(petalK(k * Math.PI / 2 + Math.PI / 4), 694, 72, 19.8 * s, [0, Math.PI / 2, 0]) });
+      addons.push({ name: 'knot', slot: 'cord', geo: S.put(new THREE.IcosahedronGeometry(3.2, 0), 694, 72, 20.2 * s) });
+      addons.push({ name: 'knot', slot: 'cord', geo: S.box(692.5, 694.5, 40, 70, 1.6, 20 * s) });
+      addons.push({ name: 'knot', slot: 'cord', geo: S.put(new THREE.ConeGeometry(3.4, 14, 6), 693.5, 36, 20 * s) });
+    }
+  }
+
+  // ----- 鬼：oni_ で始まる -----
+  //   oni_horns：照門の台から後ろへ反る2本の角 / oni_fangs：ハンドガードの下の牙 / oni_studs：ストックの両脇の金棒の鋲
+  //   oni_mask：ハンドガードの留め金から下がる鬼の面（角と光る目）
+  for (const s of [1, -1]) {
+    // 角は3つの節で、根元は太く上へ、先は後ろへ大きく反る
+    addons.push({ name: 'oni_horns', slot: 'horn', geo: S.put(new THREE.CylinderGeometry(4.6, 6.5, 16, 6), 496, 124, 8 * s, [0.25, 0, -0.35 * s]) });
+    addons.push({ name: 'oni_horns', slot: 'horn', geo: S.put(new THREE.CylinderGeometry(3, 4.6, 16, 6), 492, 138, 11 * s, [0.75, 0, -0.45 * s]) });
+    addons.push({ name: 'oni_horns', slot: 'horn', geo: S.put(new THREE.ConeGeometry(3, 16, 6), 482, 148, 13.5 * s, [1.3, 0, -0.5 * s]) });
+    for (const [u, h] of [[556, 11], [616, 13], [674, 20]]) addons.push({ name: 'oni_fangs', slot: 'horn', geo: S.put(new THREE.ConeGeometry(3.4, h, 5), u, 70 - h / 2, 8 * s, [Math.PI, 0, 0]) });
+    // 鋲：ストックの上の縁と平行に3列、同じ間隔でそろえる（下の縁に近すぎる所には置かない）
+    const top = (u: number) => 79 + (u - 6) * 18 / 232, bottom = (u: number) => -26 + (u - 22) * 82 / 174;
+    for (let r = 0; r < 3; r++) for (let u = 44; u <= 212; u += 24) {
+      const v = top(u) - 12 - r * 17;
+      if (v - 8 < bottom(u)) continue;
+      addons.push({ name: 'oni_studs', slot: 'stud', geo: S.put(new THREE.SphereGeometry(3.4, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2), u, v, 19.2 * s, [0, 0, -Math.PI / 2 * s]) });
+    }
+  }
+  addons.push({ name: 'oni_mask', slot: 'detail', geo: S.box(518, 520, 44, 66, 1.2) });
+  addons.push({ name: 'oni_mask', slot: 'mask', geo: S.put(new THREE.CylinderGeometry(10, 9, 3.5, 10).rotateZ(Math.PI / 2), 519, 32, 0) });
+  for (const x of [-1, 1]) {
+    addons.push({ name: 'oni_mask', slot: 'horn', geo: S.put(new THREE.ConeGeometry(2, 7, 5), 519 + x * 5, 45, 0, [0, 0, 0]) });
+    addons.push({ name: 'oni_mask', slot: 'line', geo: S.box(519 + x * 4 - 1.8, 519 + x * 4 + 1.8, 33, 35.5, 5) });
+  }
+  addons.push({ name: 'oni_mask', slot: 'horn', geo: S.box(514, 524, 24, 26, 5) });   // 牙をむいた口
+
+  // ----- 紅蓮だけの飾り（燃える紅い蓮）：gr_ で始まる -----
+  //   gr_lotus：銃口を囲む蓮の花びら（外は光る紅、内は紅い金属） / gr_flames：ハンドガードの両脇に燃え上がる炎（外は紅、内は橙に光る）
+  //   gr_thorns：ストックの上の縁に並ぶ紅い棘 / gr_shards：ストックの両脇に突き出た紅い結晶
+  //   gr_core：機関部の両脇で光る火の玉と紅い輪 / gr_chain：機関部からストックへ垂れる黒い鎖
+  const petal = (len: number, wid: number) => {
+    const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(wid, len * 0.45, 0, len); sh.quadraticCurveTo(-wid, len * 0.45, 0, 0);
+    return new THREE.ExtrudeGeometry(sh, { depth: 1.2, bevelEnabled: false, curveSegments: 3 }).translate(0, 7, -0.6);
+  };
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    addons.push({ name: 'gr_lotus', slot: 'line', geo: S.put(petal(22, 7), 872, 100, 0, [-0.95, 0, a]) });
+    addons.push({ name: 'gr_lotus', slot: 'barrel', geo: S.put(petal(15, 5), 874, 100, 0, [-0.7, 0, a + Math.PI / 8]) });
+  }
+  // 炎：下は平ら、上はぎざぎざに燃え上がる（外の大きい炎と、内の小さい炎）
+  const flame = (u0: number, u1: number, v0: number, tips: number[], k: number): [number, number][] => {
+    const pts: [number, number][] = [[u0, v0]], n = tips.length, step = (u1 - u0) / n;
+    tips.forEach((h, i) => { pts.push([u0 + step * (i + 0.2), v0 + h * k * 0.45]); pts.push([u0 + step * (i + 0.75), v0 + h * k]); });
+    pts.push([u1, v0]); return pts;
+  };
+  const TIPS = [22, 34, 26, 40, 30, 44, 32, 24];
+  // gr_hg：ハンドガードの両脇のシンプルな飾り（光る細い線2本と、真ん中の小さな蓮の紋）
+  for (const s of [1, -1]) {
+    for (const v of [80, 92]) for (const [u0, u1] of [[532, 590], [626, 684]]) addons.push({ name: 'gr_hg', slot: 'line', geo: S.box(u0, u1, v, v + 1.6, 0.8, 18.5 * s) });
+    for (const a of [-0.6, 0, 0.6]) addons.push({ name: 'gr_hg', slot: 'barrel', geo: S.put(petal(11, 3.6).rotateZ(a), 608, 76, 18.9 * s, [0, Math.PI / 2, 0]) });
+  }
+  for (const s of [1, -1]) {
+    addons.push({ name: 'gr_flames', slot: 'line', geo: S.extrude(flame(526, 690, 72, TIPS, 1), 1.2, { bevel: 0, x: 18.9 * s }) });
+    addons.push({ name: 'gr_flames', slot: 'gem', geo: S.extrude(flame(540, 676, 72, TIPS, 0.55), 1.2, { bevel: 0, x: 19.9 * s }) });
+  }
+  for (let u = 26; u <= 226; u += 25)
+    addons.push({ name: 'gr_thorns', slot: 'barrel', geo: S.put(new THREE.ConeGeometry(3.2, 13, 5), u, 79 + (u - 6) * 18 / 232 + 6, 0, [0.45, 0, 0]) });
+  for (const s of [1, -1]) for (const [du, dv, len, tilt] of [[0, 0, 16, 0.5], [12, -6, 11, 1.0], [-10, 4, 9, -0.2]]) {
+    const g = new THREE.OctahedronGeometry(4, 0); g.scale(1, len / 4, 1);
+    addons.push({ name: 'gr_shards', slot: 'accent', geo: S.put(g, 120 + du, 40 + dv, 21 * s, [0, 0, tilt * s]) });
+  }
+  for (const s of [1, -1]) {
+    addons.push({ name: 'gr_core', slot: 'barrel', geo: S.ring(398, 80, 10, 7, 2.4, 10, { x: 13.6 * s }) });
+    addons.push({ name: 'gr_core', slot: 'line', geo: S.put(new THREE.IcosahedronGeometry(5.5, 1), 398, 80, 14 * s) });
+  }
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12, u = 250 + (150 - 250) * t, v = 66 + (48 - 66) * t - 36 * 4 * t * (1 - t);
+    addons.push({ name: 'gr_chain', slot: 'frame', geo: S.put(new THREE.TorusGeometry(3.4, 1.1, 4, 8), u, v, 14.5 + 6 * t, [0, i % 2 ? Math.PI / 2 : 0, 0.3]) });
+  }
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'mokume',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume',
     info: { name: 'AK-47', real: '全長 880mm・銃身 415mm', reload: 2.0 },
     vm: { scale: 1.0, yaw: -0.3, hip: new THREE.Vector3(0.17, -0.17, -0.28), ads: new THREE.Vector3(0.11, -0.21, -0.26) },
   });
