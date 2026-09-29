@@ -158,6 +158,13 @@ export const devMapsOn = () => !!(settings as any).dev?.hiddenMaps;
 export const selectableMaps = () => MAP_LIST.filter(m => !m[2] || devMapsOn());
 // 自分で選ぶマップ：未公開のマップを選んだままオフにしたときは、最初のマップにする
 export const playableMap = (id: string) => (selectableMaps().some(m => m[0] === id) ? id : 'valley');
+// ランダム（'random'）も含めて、遊ぶマップを決める。reroll：対局の始めは引き直す（それ以外は今のマップのまま）
+export function pickMap(id: string, reroll = false) {
+  if (id !== 'random') return playableMap(id);
+  const list = selectableMaps();
+  if (!reroll && list.some(m => m[0] === mapId)) return mapId;
+  return list[Math.floor(Math.random() * list.length)][0];
+}
 export const onMapChange: ((id: string) => void)[] = [];   // 切り替えたときに呼ぶ（経路探索・物理）
 const MAPS: Record<string, any> = {};
 export const mapLV = (id: string) => MAPS[id].lv;

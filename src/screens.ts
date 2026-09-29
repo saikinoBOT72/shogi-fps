@@ -3,7 +3,7 @@ import { gs } from './state';
 import { $, DEFAULT_KEYS, DEV_PASSWORD, DIFFS, KEY_ACTIONS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, keyName, saveSettings, settings } from './core';
 import { SFX } from './audio';
 import { requestLock } from './input';
-import { bot, botActor, paintActors, player, playerActor, resetMatch, resolveFoe, stats } from './game';
+import { bot, botActor, paintActors, player, playerActor, resetMatch, resolveFoe, resolveMe, stats } from './game';
 import { VM } from './effects';
 import { initPips } from './hud';
 import { BoardMode } from './boardmode';
@@ -114,7 +114,7 @@ function showDevMenu(back: () => void) {
 // ================= 操作方法 =================
 // 操作説明（スキルは今の駒に合わせる）
 export const keysHTML = (edit = false) => {
-  const sks = (PIECES[gs.matchCtx ? gs.matchCtx.myType : settings.myPiece] || PIECES.P).skills.map(k => SKILLS[k]);
+  const sks = (PIECES[gs.matchCtx ? gs.matchCtx.myType : player ? player.type : settings.myPiece] || PIECES.P).skills.map(k => SKILLS[k]);
   const K = (settings as any).keys;
   const k = (key, what) => `<div><kbd>${key}</kbd><span>${what}</span></div>`;
   const bind = ([a, what]) => edit
@@ -192,9 +192,10 @@ export function showTitle() {
 
 // マップ（v: { map }。dis: 選べない＝部屋を作った人が決める）。山寺の暗さは「こわい」で固定
 // 未公開のマップは、開発者メニューでオンにした人だけに出る（相手が選んだときは、選べない表示のまま見える）
-export function mapPickHTML(v, dis = false, title = 'マップ') {
-  const list = MAP_LIST.filter(m => selectableMaps().includes(m) || (dis && m[0] === v.map));
-  const cur = dis ? v.map : playableMap(v.map);
+export function mapPickHTML(v, dis = false, title = 'マップ', withRandom = false) {   // withRandom：「ランダム」も選べる（一人で遊ぶとき）
+  const list: [string, string][] = MAP_LIST.filter(m => selectableMaps().includes(m) || (dis && m[0] === v.map)).map(m => [m[0], m[1]]);
+  if (withRandom) list.push(['random', 'ランダム']);
+  const cur = dis ? v.map : withRandom && v.map === 'random' ? 'random' : playableMap(v.map);
   const seg = (id, items, cur) => `<div class="seg" id="${id}">${items.map(([k, n]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}"${dis ? ' disabled' : ''}>${n}</button>`).join('')}</div>`;
   return `<div class="panel form"><div class="row"><span>${title}</span>${seg('mapSeg', list, cur)}</div></div>`;
 }
@@ -207,7 +208,7 @@ function showSolo() {
   gs.state = 'title';
   overlay(`<div class="screen title">
     <h2 class="h">一人で遊ぶ</h2>
-    ${mapPickHTML(settings)}
+    ${mapPickHTML(settings, false, 'マップ', true)}
     <div class="modes">
       <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは撃ち合い（ステージは守る側が選ぶ）</small></button>
       <button class="mode" id="goDuel"><b>撃ち合い</b><small>好きな駒どうしで 1 対 1</small></button>
@@ -231,8 +232,9 @@ export function pieceSelectHTML() {
     `<button data-k="${k}" class="${sel === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}${withRandom
     ? `<button data-k="random" class="${sel === 'random' ? 'on' : ''}">${koma('？')}<span class="val">ランダム</span></button>` : ''}</div>`;
   const me = PIECES[settings.myPiece] || PIECES.P;
-  return `<section class="panel"><h3>あなたの駒</h3>${opts(settings.myPiece, 'pickMe', false)}
-      <p class="detail">${koma(me.name, ' s')}<b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `スキル「${SKILLS[k].name}」：${SKILLS[k].help}`).join('　') || 'スキルなし'}</p></section>
+  return `<section class="panel"><h3>あなたの駒</h3>${opts(settings.myPiece, 'pickMe', true)}
+      <p class="detail">${settings.myPiece === 'random' ? `${koma('？', ' s')}<b>ランダム</b>　対局ごとに、どの駒になるかが変わる`
+        : `${koma(me.name, ' s')}<b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `スキル「${SKILLS[k].name}」：${SKILLS[k].help}`).join('　') || 'スキルなし'}`}</p></section>
     <div class="vs-mark">VS</div>
     <section class="panel"><h3>相手の駒</h3>${opts(settings.foePiece, 'pickFoe', true)}</section>`;
 }
@@ -307,7 +309,7 @@ export function showResult(win) {
 export function startMatch(foeType?: string) {
   SFX.init();
   if (Net.on) resetNetMatch();
-  resetMatch(foeType || (gs.matchCtx ? gs.matchCtx.foeType : resolveFoe()));
+  resetMatch(foeType || (gs.matchCtx ? gs.matchCtx.foeType : resolveFoe()), gs.matchCtx ? undefined : resolveMe());
   initPips();
   $('meName').textContent = `${player.def.name}　${player.w.name}`;
   $('foeTag').textContent = bot.def.name;

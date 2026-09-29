@@ -16,7 +16,7 @@ import { damagePlayer } from './ai';
 import { killBot } from './hud';
 import { BoardMode } from './boardmode';
 import { bindMapPick, mapPickHTML } from './screens';
-import { applyAtmos, playableMap } from './world';
+import { applyAtmos, pickMap } from './world';
 import { equippedAll } from './loadout';
 
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
@@ -54,7 +54,7 @@ const cb = {
   code: (c: string) => waiting(`<div class="ol-code">${c}</div><p>このコードを友達に伝えてね。入ってくるのを待っています…</p>`),
   connected: () => {
     foe = { k: null, ready: false }; meReady = false; mode = 'duel';
-    if (Net.host) { room.map = playableMap(settings.map); room.dark = settings.dark; Net.send({ t: 'mode', m: mode }); sendRoom(); }
+    if (Net.host) { room.map = pickMap(settings.map, true); room.dark = settings.dark; Net.send({ t: 'mode', m: mode }); sendRoom(); }
     applyRoom(); sendPick(); showLobby();
   },
   error: (t: string) => showOnline(t),

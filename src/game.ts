@@ -6,7 +6,7 @@ import { gs } from './state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, scene } from './render';
-import { LV, SPAWN, SPAWN2, WATER_Y, colTop, colliders, floorBelow, groundAt, playableMap, useMap } from './world';
+import { LV, SPAWN, SPAWN2, WATER_Y, colTop, colliders, floorBelow, groundAt, pickMap, useMap } from './world';
 import { PHYS, blockers, physOf } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
@@ -72,15 +72,16 @@ export function paintFoe(full: boolean) {
   if (r && !full) skinMaterials(skinKey(r));   // リプレイで使う材質も先に作っておく（リプレイの始まりで止まらないように）
 }
 export const pieceKeys = () => Object.keys(PIECES);
+export const resolveMe = () => (settings.myPiece === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : PIECES[settings.myPiece] ? settings.myPiece : 'P');
 export function resolveFoe() {
   const k = settings.foePiece;
   return k === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : (PIECES[k] ? k : 'P');
 }
 
-export function resetMatch(foeType?) {
+export function resetMatch(foeType?, myPick?: string) {   // myPick：対局の始めに決めた自分の駒（ランダムのとき）
   // 将棋モードでは守る側が選んだマップ、オンラインでは部屋を作った人が選んだマップ（未公開でもそのまま遊べる）
-  useMap(gs.boardMap || gs.netMap || playableMap(settings.map));
-  const myType = gs.matchCtx ? gs.matchCtx.myType : PIECES[settings.myPiece] ? settings.myPiece : 'P';
+  useMap(gs.boardMap || gs.netMap || pickMap(settings.map, !!myPick));
+  const myType = gs.matchCtx ? gs.matchCtx.myType : myPick || (settings.myPiece === 'random' ? (player && player.type) || 'P' : PIECES[settings.myPiece] ? settings.myPiece : 'P');
   foeType = foeType || (gs.matchCtx && gs.matchCtx.foeType) || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
   ensureActors(myType, foeType);
   player = makeEntity(myType, false);

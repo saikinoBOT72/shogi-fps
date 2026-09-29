@@ -3,7 +3,7 @@ import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
 import { $, BH, C, LIGHT, PIECES, Q, TIME_LIMIT, V3, rand, settings } from './core';
-import { MAP_LIST, playableMap, selectableMaps } from './world';
+import { MAP_LIST, pickMap, selectableMaps } from './world';
 import { SFX } from './audio';
 import { PIECE_DEPTH, boardTex, canvasTex, darkWoodTex, pieceGeo, renderer, speckle, toon } from './render';
 import { pieceSolidMats } from './physics';
@@ -369,7 +369,7 @@ export const BoardMode = (() => {
       const mn = label(me), fn = label(foe);
       // ステージは攻められた（守る）側が選ぶ。CPU が守るときは、選べるマップからランダム
       const meDef = !playerIsAttacker, done = resolve;
-      let stage = meDef ? playableMap(settings.map) : online ? null : selectableMaps()[Math.floor(Math.random() * selectableMaps().length)][0];
+      let stage = meDef ? pickMap(settings.map, true) : online ? null : selectableMaps()[Math.floor(Math.random() * selectableMaps().length)][0];
       let sent = false;
       gs.boardMap = stage;
       const mapName = id => (MAP_LIST.find(m => m[0] === id) || [id, id])[1];
