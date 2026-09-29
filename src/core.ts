@@ -22,8 +22,8 @@ export const PIECES = {
   P: { name: '歩', value: 1, hp: 90,  size: 0.8,  speed: 7.2, jump: 7.5, weapon: 'pistol',   skills: ['step', 'cloak'] },
   L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'sniper',   skills: ['xray', 'boxes'], strafe: 0.7 },
   N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing', 'volley'] },
-  S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['c4', 'missile'] },
-  G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 7,   jump: 7,   weapon: 'shotgun',  skills: ['physical', 'guard'] },
+  S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['emp', 'missile'] },
+  G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.5, jump: 7,   weapon: 'shotgun',  skills: ['physical', 'guard'] },
   B: { name: '角', value: 8, hp: 125, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skills: ['smoke', 'bigshot'] },
   R: { name: '飛', value: 10, hp: 130, size: 0.95, speed: 6.5, jump: 7,  weapon: 'smg',      skills: ['grapple', 'flash'] },
   // 王は取られたら負けの駒。価値は ∞（99 以上は ∞ と表示）
@@ -42,7 +42,7 @@ export const WEAPONS = {
   },
   // 3発バースト（銀）。1発が重く、撃つほど上に跳ねる癖の強い銃。burstGap: バースト内の間隔
   burst: {
-    name: 'ベレッタ 93R', model: 'burst', dmg: 22, head: 1.6, rate: 0.55, burst: 3, burstGap: 0.07, spread: 0.016, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
+    name: 'ベレッタ 93R', model: 'burst', dmg: 26, head: 1.6, rate: 0.42, burst: 3, burstGap: 0.07, spread: 0.016, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
     move: 0.035, air: 0.09, ads: 0.4, mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
   },
   // ナイフ（全員が持つ）：目の前を切りつける。ダメージは弱め、背中からは back 倍
@@ -53,8 +53,8 @@ export const WEAPONS = {
   },
   // 連射で押し切る。近〜中距離
   smg: {
-    name: 'MP5K', model: 'mp5', dmg: 10, head: 1.4, rate: 0.075, spread: 0.02, bloomShot: 0.004, bloomMax: 0.045, bloomRecover: 0.15,
-    move: 0.025, air: 0.08, ads: 0.5, mag: 30, reload: 1.7, auto: true, recoil: 0.008, falloff: [10, 28, 0.55], pref: 9,
+    name: 'MP5K', model: 'mp5', dmg: 10, head: 1.4, rate: 0.075, spread: 0.028, bloomShot: 0.006, bloomMax: 0.063, bloomRecover: 0.15,
+    move: 0.035, air: 0.11, ads: 0.5, mag: 30, reload: 1.7, auto: true, recoil: 0.008, falloff: [10, 28, 0.55], pref: 9,
   },
   // 弓：長押しで引き絞り、離して撃つ。引くほど速く・強く・まっすぐ。矢は重力で落ちる
   // dmgMin〜dmg: 引き具合で変わるダメージ / drawTime: 引き切るまでの秒 / speedMin〜speedMax: 矢の速さ / drawSpread: 引きが浅いときのブレ
@@ -92,9 +92,9 @@ export const SKILLS = {
   // 突撃：前方へ一気に踏み込む。突撃中は被ダメージ半減、ぶつかると体当たりダメージ
   charge: { name: '突撃', type: 'dash', key: 'KeyE', cooldown: 18, duration: 0.32, speed: 26, damageTaken: 0.5, ram: 18,
     help: '前方へダッシュ・被ダメ半減・体当たり' },
-  // 身体強化：10秒間、足が速くなり高く跳べる（speedMul: 速さの倍率 / jumpMul: ジャンプの倍率）
-  physical: { name: '身体強化', type: 'buff', key: 'KeyE', cooldown: 24, duration: 10, speedMul: 1.35, jumpMul: 1.3, damageTaken: 1,
-    help: '10秒間、足が速くなり高く跳べる' },
+  // 身体強化：6秒間、足が速くなり高く跳べ、受けるダメージも減る（speedMul: 速さの倍率 / jumpMul: ジャンプの倍率）
+  physical: { name: '身体強化', type: 'buff', key: 'KeyE', cooldown: 24, duration: 6, speedMul: 1.5, jumpMul: 1.45, damageTaken: 0.8,
+    help: '6秒間、足が速く高く跳べ、被ダメ0.8倍' },
   // すり足：左右（A/D の向き）へ素早くステップ。2回まで続けて使える
   step: { name: 'すり足', type: 'step', key: 'KeyE', cooldown: 9, charges: 2, duration: 0.16, speed: 22, damageTaken: 1,
     help: 'A/Dの方向へ素早くステップ（2回まで）' },
@@ -116,6 +116,10 @@ export const SKILLS = {
   // throw: 投げる速さ / hideAfter: 相手から見えなくなるまでの秒
   c4: { name: 'C4', type: 'c4', cooldown: 36, duration: 0, dmg: 180, radius: 4.5, knock: 12, lift: 7, self: 0.4, throw: 5, hideAfter: 3, damageTaken: 1,
     help: '近くにポイと置く・もう一度押すと爆発（近いと即死級）' },
+  // EMP：グレネードのように投げ、当たった所で大きな球の EMP が一瞬広がる。巻き込んだ相手は disable 秒スキルが使えず（使っている最中のスキルも切れる）、足も slow 倍に遅くなる
+  //   相手のタレット歩も止まる。speed: 投げる速さ / radius: 球の半径
+  emp: { name: 'EMP', type: 'emp', cooldown: 30, duration: 0, speed: 22, radius: 7, disable: 5, slow: 0.6, damageTaken: 1,
+    help: '投げて当たった所に EMP が広がる・巻き込んだ相手は5秒スキル封じ＆鈍足' },
   // ミサイル（CoD のプレデターミサイル風）：空の上から降ってくるミサイルを操作して当てる（その間 自分は無防備）
   // もう一度押すと自分に戻り、ミサイルはまっすぐ落ちる。height: 出てくる高さ / speed: 速さ
   missile: { name: 'ミサイル', type: 'missile', cooldown: 48, duration: 0, dmg: 75, radius: 4, knock: 10, lift: 6, self: 0.4, speed: 24, height: 60, life: 8, damageTaken: 1,

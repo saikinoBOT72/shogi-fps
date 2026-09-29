@@ -150,16 +150,49 @@ function updateMissiles(dt) {
   }
 }
 
-// ---------- 投げる物：閃光弾・エンダーパール ----------
+// ---------- 投げる物：閃光弾・エンダーパール・EMP ----------
 const throws = [];
+const empGeo = flatGeo(new THREE.IcosahedronGeometry(0.09, 0)), empM = toon({ color: C(P.sumi[1]), emissive: C(P.mizu[1]), emissiveIntensity: 0.9 });
 const flashGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.16, 6), flashM = toon({ color: C(P.sumi[2]) });
 const pearlGeo = flatGeo(new THREE.IcosahedronGeometry(0.1, 1)), pearlM = toon({ color: C(P.seiji[0]), emissive: C(P.fuji[0]), emissiveIntensity: 0.6 });
 function toss(kind, e, aim, sk) {
-  const m = track(new THREE.Mesh(kind === 'flash' ? flashGeo : pearlGeo, kind === 'flash' ? flashM : pearlM));
+  const m = track(new THREE.Mesh(kind === 'flash' ? flashGeo : kind === 'emp' ? empGeo : pearlGeo, kind === 'flash' ? flashM : kind === 'emp' ? empM : pearlM));
   const pos = eyeOf(e).addScaledVector(aim, 0.6);
   m.position.copy(pos);
   throws.push({ kind, owner: e, sk, m, pos, vel: aim.clone().multiplyScalar(sk.speed).add(new V3(0, 3, 0)), t: 0, stuck: false });
-  SFX.play(kind === 'flash' ? 'skFlashPin' : 'skC4', e.isBot ? pos : null);
+  SFX.play(kind === 'pearl' ? 'skC4' : 'skFlashPin', e.isBot ? pos : null);
+}
+// EMP：当たった所で球が一瞬広がる。中にいた相手はスキル封じと鈍足、相手のタレット歩は止まる
+const bubbleGeo = new THREE.IcosahedronGeometry(1, 3);
+const bubbles = [];
+function empAt(p, T) {
+  const sk = T.sk;
+  const shell = track(new THREE.Mesh(bubbleGeo, new THREE.MeshBasicMaterial({ color: P.mizu[2], transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })));
+  const wire = track(new THREE.Mesh(bubbleGeo, new THREE.MeshBasicMaterial({ color: P.shiro[2], wireframe: true, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending })));
+  shell.position.copy(p); wire.position.copy(p);
+  bubbles.push({ shell, wire, t: 0, r: sk.radius });
+  for (let i = 0; i < 30; i++) Particles.glow(p.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.3, sk.radius))), i % 3 ? P.mizu[2] : P.shiro[2]);
+  SFX.play('skEmp', p);
+  const t = foeOf(T.owner);
+  if (t && !t.dead && chest(t).distanceTo(p) <= sk.radius) hitEmp(t, sk);
+  for (const R of turrets) if (R.owner !== T.owner && R.pos.distanceTo(p) <= sk.radius) R.empT = sk.disable;
+}
+function hitEmp(e, sk) {
+  e.empT = sk.disable; e.empMax = sk.disable; e.empSlow = sk.slow;
+  // 使っている最中のスキルも切れる（動くスキルは勢いのまま）。ミサイルの操作も切れる
+  for (const s of e.slots) if (s.t > 0 && !['dash', 'step', 'leap', 'grapple'].includes(s.sk.type)) s.t = 0;
+  const M = missiles.find(m => m.owner === e && m.ctrl); if (M) M.ctrl = false;
+  for (let i = 0; i < 12; i++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.mizu[2]);
+  if (!e.isBot) { SFX.play('skEmpHit'); view.shake = Math.max(view.shake, 0.3); }
+}
+function updateBubbles(dt) {
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const B = bubbles[i]; B.t += dt;
+    const k = Math.min(1, B.t / 0.18), f = Math.max(0, 1 - (B.t - 0.18) / 0.5);
+    for (const m of [B.shell, B.wire]) m.scale.setScalar(Math.max(0.01, B.r * (1 - (1 - k) ** 3)));
+    B.shell.material.opacity = 0.35 * f; B.wire.material.opacity = 0.5 * f; B.wire.rotation.y += dt * 3;
+    if (f <= 0) { B.shell.visible = B.wire.visible = false; bubbles.splice(i, 1); }
+  }
 }
 // 閃光（VALORANT 方式）：炸裂した瞬間に閃光弾が画面の中に見えていたら目がくらむ。画面の外なら平気。遠いほど少し短い
 function flashAt(p, sk) {
@@ -199,10 +232,12 @@ function updateThrows(dt) {
         const p = body || wall.point;
         const n = wall && wall.face && !body ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : T.vel.clone().normalize().negate();
         if (T.kind === 'pearl') { warp(T, p.clone(), n); T.m.visible = false; throws.splice(i, 1); continue; }
+        if (T.kind === 'emp') { empAt(p.clone().addScaledVector(n, 0.2), T); T.m.visible = false; throws.splice(i, 1); continue; }
         T.pos.copy(p).addScaledVector(n, 0.12); T.stuck = true;
       } else T.pos.copy(next);
       T.m.position.copy(T.pos); T.m.rotation.x += dt * 9;
       if (T.kind === 'pearl') Particles.trail(T.pos, P.fuji[1]);
+      if (T.kind === 'emp') Particles.trail(T.pos, P.mizu[2]);
     }
     if (T.kind === 'flash' && T.t >= T.sk.fuse) { flashAt(T.pos, T.sk); T.m.visible = false; throws.splice(i, 1); continue; }
     if (T.t > 8) { T.m.visible = false; throws.splice(i, 1); }
@@ -294,6 +329,7 @@ function updateTurrets(dt) {
       head.rotation.y += Math.atan2(Math.sin(want - head.rotation.y), Math.cos(want - head.rotation.y)) * Math.min(1, dt * 10);
     }
     T.cd -= dt;
+    if (T.empT > 0) { T.empT -= dt; if (Math.random() < dt * 6) Particles.glow(muzzle.clone().add(new V3(rand(-0.3, 0.3), rand(-0.3, 0.3), rand(-0.3, 0.3))), P.mizu[2]); continue; }   // EMP で止まっている
     if (!sees || T.seen < 0.4 || T.cd > 0) continue;   // 見つけてから少し待って撃つ
     T.cd = T.sk.rate;
     const r = castShot({ w: turretW, isBot: T.owner.isBot, pos: T.pos }, t, from, from, dir, T.sk.spread, true);
@@ -339,8 +375,8 @@ export const Gadgets = {
   ctrlOf: e => missiles.find(m => m.owner === e && m.ctrl),
   // 操作をやめる（ミサイルはそのまままっすぐ飛ぶ）
   release(e) { const M = missiles.find(m => m.owner === e && m.ctrl); if (M) M.ctrl = false; },
-  update(dt) { updateRopes(); if (dt <= 0) return; updateC4(dt); updateMissiles(dt); updateThrows(dt); updateRings(dt); updateTurrets(dt); },
-  clear() { [...turrets].forEach(T => breakTurret(T, false)); reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; throws.length = 0; rings.length = 0; gs.flash = 0; },
+  update(dt) { updateRopes(); if (dt <= 0) return; updateC4(dt); updateMissiles(dt); updateThrows(dt); updateRings(dt); updateBubbles(dt); updateTurrets(dt); },
+  clear() { [...turrets].forEach(T => breakTurret(T, false)); reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; throws.length = 0; rings.length = 0; bubbles.length = 0; gs.flash = 0; },
   // リプレイ用：出ている物の位置・大きさ・濃さ
   snapshot: () => reg.map((o, i) => (o.visible ? [i, o.position.x, o.position.y, o.position.z, o.rotation.x, o.rotation.y, o.rotation.z, o.scale.x, opOf(o)] : null)).filter(Boolean),
   restore(s) {

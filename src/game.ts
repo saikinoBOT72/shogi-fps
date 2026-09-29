@@ -6,7 +6,7 @@ import { gs } from './state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam, scene } from './render';
-import { LV, SPAWN, WATER_Y, colTop, colliders, floorBelow, groundAt, playableMap, useMap } from './world';
+import { LV, SPAWN, SPAWN2, WATER_Y, colTop, colliders, floorBelow, groundAt, playableMap, useMap } from './world';
 import { PHYS, blockers, physOf } from './physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
 import { Arrows } from './arrows';
@@ -88,9 +88,12 @@ export function resetMatch(foeType?) {
   VM.setWeapon(player.w.model);
   // 出撃地点：外周の塀の裏（開始時にお互いが見えない）
   // 出撃：左右の橋のたもと（屋根つきの関所の中）
-  const side = Net.on && !Net.host ? -1 : 1;   // オンラインで部屋に入った側は反対の橋から
-  player.pos.set(side * SPAWN.x + rand(-1, 1), LV.V, side * SPAWN.z + rand(-1, 1));
-  bot.pos.set(-side * SPAWN.x + rand(-1, 1), LV.V, -side * SPAWN.z + rand(-1, 1));
+  // 攻め守りの形のマップ（SPAWN2 あり）は、一人で遊ぶときはどちら側から出るかを毎回ランダムに
+  const side = Net.on ? (Net.host ? 1 : -1) : SPAWN2.on && Math.random() < 0.5 ? -1 : 1;   // オンラインで部屋に入った側は反対の橋から
+  const spawnOf = s => (SPAWN2.on ? (s > 0 ? SPAWN : SPAWN2) : { x: s * SPAWN.x, z: s * SPAWN.z });
+  const ps = spawnOf(side), bs = spawnOf(-side);
+  player.pos.set(ps.x + rand(-1, 1), LV.V, ps.z + rand(-1, 1));
+  bot.pos.set(bs.x + rand(-1, 1), LV.V, bs.z + rand(-1, 1));
   Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
     persona: Object.values(PERSONAS)[Math.floor(Math.random() * 3)] });
   stats = { shots: 0, hits: 0, heads: 0, dealt: 0, taken: 0, time: 0 };
@@ -120,7 +123,10 @@ export function collide(e) {
   e.onGround = false; e.wallN = null;
   if (e.pos.y <= GROUND) { e.pos.y = GROUND; if (e.vy < 0) e.vy = 0; e.onGround = true; e.surf = 'grass'; }
   // 動かない障害物に加えて、体を止める重い小物（スキルの木箱も）とも当たる
+  let hf = null;
   for (const c of PHYS.solid.length ? colliders.concat(PHYS.solid) : colliders) {
+    if (c.kind === 'pyr') { pyrCollide(e, c); continue; }
+    if (c.kind === 'hf') { hf = c; continue; }   // なめらかな地形は、ほかの床を調べたあとで
     let cx, cz, top, bottom;
     if (c.kind !== 'cyl') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = colTop(c, cx, cz); bottom = c.min.y; }
     else {
@@ -134,8 +140,15 @@ export function collide(e) {
     // 坂を下っているときは、浮かずに坂に沿って下りる
     if (e.pos.y > top) { if (c.kind === 'ramp' && wasGround && e.vy <= 0 && e.pos.y - top < 0.5) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = c.surf; } continue; }
     // 着地：上面を上から通り過ぎたか、上面のすぐ下（低い段差は自動で上がる）
-    if (e.vy <= 0 && (e.pos.y >= top - 0.4 || (e.prevY ?? e.pos.y) >= top)) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = c.surf; continue; }
+    //   slip（ピラミッドの斜面）は着地できない。横へ押し出されて、段を1つずつ滑り落ちる
+    if (!c.slip && e.vy <= 0 && (e.pos.y >= top - 0.4 || (e.prevY ?? e.pos.y) >= top)) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = c.surf; continue; }
     if (e.pos.y + e.height <= bottom || e.pos.y >= top) continue;
+    // 天井：下から頭をぶつけた（前のフレームでは頭が下面より下にいた）ときは、頭を下面で止めるだけ
+    //   （横へ押し出すと、屋根や2階の床の端まで一気に飛ばされる＝ワープしてしまうため）
+    if (bottom > e.pos.y + 0.4 && (e.prevY ?? e.pos.y) + e.height <= bottom + 0.05) {
+      e.pos.y = bottom - e.height; if (e.vy > 0) e.vy = 0;
+      continue;
+    }
     let nx, nz, push;
     if (d2 > 1e-8) { const d = Math.sqrt(d2); nx = dx / d; nz = dz / d; push = R - d; }
     else if (c.kind === 'cyl') {
@@ -150,9 +163,27 @@ export function collide(e) {
     const vn = e.vel.x * nx + e.vel.z * nz;
     if (vn < 0) { e.vel.x -= vn * nx; e.vel.z -= vn * nz; }
   }
+  // なめらかな地形：下にめり込んでいたら上へ。坂を下るときは地面に沿って下りる（ほかの床に立っていなければ）
+  if (hf) {
+    const top = hf.at(e.pos.x, e.pos.z);
+    if (e.pos.y < top) {
+      if (!(top - e.pos.y > 1.5 && (e.prevY ?? e.pos.y) < top - 1.5)) { e.pos.y = top; if (e.vy < 0) e.vy = 0; e.onGround = true; e.surf = hf.surf; }
+    } else if (!e.onGround && wasGround && e.vy <= 0 && e.pos.y - top < 0.5) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = hf.surf; }
+  }
   const lim = H - R;
   if (Math.abs(e.pos.x) > lim) { e.pos.x = clamp(e.pos.x, -lim, lim); e.vel.x = 0; }
   if (Math.abs(e.pos.z) > lim) { e.pos.z = clamp(e.pos.z, -lim, lim); e.vel.z = 0; }
+}
+// ピラミッドの斜面（51°）：立てずに、いちばん近い面から外へ押し出される（落ちると段なしで滑り落ちる）
+//   通路・部屋（holes）の中は判定しない（中の壁は別の当たり判定）。壁登りもできない（wallN を付けない）
+function pyrCollide(e, c) {
+  if (e.pos.y >= c.y0 + c.h || e.pos.y + e.height <= c.y0) return;
+  if (c.holes.some(h => e.pos.x > h.x0 && e.pos.x < h.x1 && e.pos.z > h.z0 && e.pos.z < h.z1 && e.pos.y < h.y1)) return;
+  const dx = e.pos.x - c.cx, dz = e.pos.z - c.cz, R = e.radius;
+  const s = c.half * (1 - Math.max(0, e.pos.y - c.y0) / c.h);   // 足もとの高さでの、ピラミッドの半分の幅
+  if (Math.max(Math.abs(dx), Math.abs(dz)) >= s + R) return;
+  if (Math.abs(dx) >= Math.abs(dz)) { const sg = Math.sign(dx) || 1; e.pos.x = c.cx + sg * (s + R); if (e.vel.x * sg < 0) e.vel.x = 0; }
+  else { const sg = Math.sign(dz) || 1; e.pos.z = c.cz + sg * (s + R); if (e.vel.z * sg < 0) e.vel.z = 0; }
 }
 export function hasLOS(a, b, ignoreSmoke?) {
   if (!ignoreSmoke && Smoke.blocks(a, b)) return false;   // 煙の向こうは見えない
@@ -193,7 +224,7 @@ export function moveEntity(e, wish, dt) {
   } else if (lp) {
     lp.t -= dt;   // 跳んでいる間は勢いのまま（空中で向きを変えられない）
   } else {
-    const gd = act(e, 'guard'), bf = act(e, 'buff'), slow = (gd ? gd.sk.slow : 1) * (bf ? bf.sk.speedMul : 1) * (e.pos.y < WATER_Y ? 0.6 : 1);   // 川の中は遅い・身体強化中は速い
+    const gd = act(e, 'guard'), bf = act(e, 'buff'), slow = (gd ? gd.sk.slow : 1) * (bf ? bf.sk.speedMul : 1) * (e.empT > 0 ? e.empSlow : 1) * (e.pos.y < WATER_Y ? 0.6 : 1);   // 川の中は遅い・身体強化中は速い・EMP を受けると遅い
     e.knockT = Math.max(0, (e.knockT || 0) - dt);
     const flung = e.knockT > 0 && !e.onGround;   // 爆風で飛ばされている間
     const target = wish.clone().multiplyScalar(e.def.speed * RULES.speed * (e.isBot || e.running ? 1 : RULES.walk) * (e.speedMul || 1) * slow);
@@ -382,6 +413,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
 // ================= プレイヤー =================
 // 使える回数（charges）を1つ使い、待ち時間で1つずつ戻る
 export function skillTick(e, dt) {
+  if (e.empT > 0) e.empT = Math.max(0, e.empT - dt);
   for (const s of e.slots) {
     const sk = s.sk;
     // 動くスキル（突撃・すり足・桂跳び）の時間は moveEntity で進める
@@ -406,6 +438,7 @@ export function useSkill(e, i, dir, force = false) {
   // もう一度押す系：C4 の起爆・ミサイルの操作をやめる
   if (sk.type === 'c4' && Gadgets.c4Of(e)) { SFX.play('skC4b', e.isBot ? e.pos : null); Gadgets.detonate(e); return true; }
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
+  if (!force && e.empT > 0) { if (!e.isBot) SFX.play('empty'); return false; }   // EMP を受けている間はスキルが使えない
   if (!force && (s.charges <= 0 || s.t > 0)) return false;
   if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
   // 狙っている向き（上下も含む）
@@ -449,8 +482,8 @@ export function useSkill(e, i, dir, force = false) {
     SFX.play('skBoxes', e.isBot ? e.pos : null);
   } else if (t === 'grapple') {
     s.target = hook; SFX.play('skGrapple', e.isBot ? e.pos : null);
-  } else if (t === 'flash' || t === 'pearl') {
-    if (t === 'flash') onAttack(e);
+  } else if (t === 'flash' || t === 'pearl' || t === 'emp') {
+    if (t !== 'pearl') onAttack(e);
     Gadgets.toss(t, e, aim, sk);
   } else if (t === 'shock') {
     onAttack(e); Gadgets.shockwave(e, sk);
@@ -670,3 +703,12 @@ export function damageBot(res) {
   SFX.play(res.head ? 'head' : 'hit');
   if (killed) killBot();
 }
+
+// ================= 砂漠の神殿の仕掛け =================
+// 壺が割れた：素焼きのかけらと砂けむり
+PHYS.onBreak = (p, kind) => {
+  if (kind !== 'jar') return;
+  Particles.shards(p, [P.daidai[1], P.daidai[0], P.kiji[2]], 14, 0.9);
+  Particles.dust(p, 8, 1.2);
+  SFX.play('jarBreak', p);
+};

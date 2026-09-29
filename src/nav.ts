@@ -8,7 +8,8 @@ export const Nav = (() => {
   // 床として使うのは地面から立っている面だけ（屋根や吊り橋のような宙に浮いた床は、下の地面を隠さないように外す）
   // マスの高さ（盤・段・階段の上面）と、通れないマス。マップを切り替えたら作り直す
   function build() {
-  const walkC = colliders.filter(c => c.walk && c.kind !== 'cyl' && c.min.y <= GROUND + 0.05), solidC = colliders.filter(c => !c.walk);
+  // nav の付いた床（砂漠の神殿の回廊の天井など）は宙に浮いていても床として使う（下の通路は CPU は通らない）
+  const walkC = colliders.filter(c => c.walk && c.kind !== 'cyl' && (c.min.y <= GROUND + 0.05 || c.nav)), solidC = colliders.filter(c => !c.walk);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = i - off + 0.5, z = j - off + 0.5;
     let h = GROUND;
@@ -18,6 +19,7 @@ export const Nav = (() => {
     if (!b) for (const c of solidC) {
       const top = c.kind === 'cyl' ? c.y1 : c.max.y, bottom = c.kind === 'cyl' ? c.y0 : c.min.y;
       if (top <= h + 0.4 || bottom >= h + 1.8) continue;
+      if (c.kind === 'pyr' && c.holes.some(o => x > o.x0 && x < o.x1 && z > o.z0 && z < o.z1)) continue;   // ピラミッドの通路・部屋
       const hit = c.kind === 'cyl' ? Math.hypot(x - c.x, z - c.z) < c.r + R : x > c.min.x - R && x < c.max.x + R && z > c.min.z - R && z < c.max.z + R;
       if (hit) { b = true; break; }
     }

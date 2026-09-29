@@ -79,6 +79,7 @@ export function updateCamera(dt, rdt) {
   view.stepRoll = damp(view.stepRoll || 0, 0, 6, rdt);
   if (act(p, 'step')) cam.rotation.z += (view.stepRoll || 0) * 0.06;
   view.fov = damp(view.fov, targetFov, dashing ? 20 : 12, rdt);
+  if (!Number.isFinite(view.fov)) view.fov = Number.isFinite(targetFov) ? targetFov : 70;   // 画面の大きさが一瞬 0 になったときなどに壊れたままにならないように
   cam.fov = view.fov; cam.updateProjectionMatrix();
   sky.position.copy(cam.position);
   SFX.listener(cam);

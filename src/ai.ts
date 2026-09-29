@@ -113,7 +113,7 @@ export function updateBot(dt) {
     // 透明化している相手は、すぐ近くでないと見えない
     // 目がくらんでいる間は見えない（閃光弾）
     if (b.blindT > 0) b.blindT -= dt;
-    const los = !player.dead && hasLOS(bEye, pEye) && !(act(player, 'cloak') && dist > 3) && !(b.blindT > 0);
+    const los = !player.dead && hasLOS(bEye, pEye) && !(act(player, 'cloak') && dist > 3) && !(b.blindT > 0) && dist < (gs.stormVis ?? Infinity);   // 砂嵐の中は近くしか見えない
     if (los) { b.seen += dt; b.lostT = 0; b.lastKnown.copy(player.pos); }
     else { b.seen = Math.max(0, b.seen - dt * 2); b.lostT += dt; }
     // 透視中は、見えていなくても居場所が分かる
@@ -327,6 +327,12 @@ export const SKILL_AI = {
   grapple(b, c, i, s) {
     if (!ready(s)) return;
     if ((c.los && player.pos.y > b.pos.y + 2.5 && c.dist < 30) || b.stuck > 0.8) useSkill(b, i, c.toP);
+  },
+  // EMP：見えている相手へ、撃ち合いの前に投げる（相手がスキルを使っている最中なら、切りに投げる）
+  emp(b, c, i, s) {
+    if (!ready(s) || !c.los || c.dist < 4 || c.dist > 22) return;
+    const busy = player.slots.some(x => x.t > 0 && ['buff', 'cloak', 'guard', 'heal'].includes(x.sk.type));
+    if (busy || Math.random() < c.dt * 0.35 * b.persona.eager) useSkill(b, i, c.toP);
   },
   // 閃光弾：中距離で撃ち合う前に投げる
   flash(b, c, i, s) {

@@ -389,3 +389,34 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
   .ga-list { left: 16px; right: 16px; width: auto; top: 52vh }
   .ga-panel { bottom: 16px }
 }
+
+/* ================= バフ・デバフ ================= */
+/* 金色＝バフ、青＝EMP、朱＝その他のデバフ。名前・残り秒・減っていくゲージ */
+#status { position: absolute; left: 26px; bottom: 132px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
+#foeStatus { display: flex; gap: 6px; justify-content: center; margin-top: 2px }
+.st { --sc: var(--kin-2); display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: baseline; min-width: 132px; box-sizing: border-box;
+  padding: 5px 10px 6px; border-radius: 6px; border-left: 3px solid var(--sc); background: color-mix(in srgb, var(--sumi-0) 58%, transparent) }
+.st.emp { --sc: var(--mizu-2) } .st.debuff { --sc: var(--shu-2) }
+.st b { font-weight: 800; font-size: 14px; color: var(--sc); letter-spacing: 1px }
+.st span { font: 700 13px var(--font-ui); font-variant-numeric: tabular-nums }
+.st small { grid-column: 1 / -1; font-size: 11px; color: var(--text-dim) }
+.st i { grid-column: 1 / -1; height: 3px; margin-top: 4px; background: color-mix(in srgb, var(--shiro-2) 15%, transparent); overflow: hidden }
+.st u { display: block; height: 100%; background: var(--sc); transform-origin: left }
+.st.emp { animation: stEmp .5s ease-in-out infinite alternate }
+@keyframes stEmp { to { box-shadow: 0 0 12px color-mix(in srgb, var(--mizu-2) 55%, transparent) } }
+#foeStatus .st { min-width: 0; padding: 3px 8px 4px } #foeStatus .st b { font-size: 12px } #foeStatus .st span { font-size: 11px } #foeStatus .st small { display: none }
+/* EMP を受けている：画面の縁が青く、細い走査線がちらつく */
+#empfx { position: absolute; inset: 0; opacity: 0; transition: opacity .15s; pointer-events: none;
+  box-shadow: inset 0 0 160px 36px color-mix(in srgb, var(--mizu-1) 55%, transparent);
+  background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--mizu-2) 8%, transparent) 0 2px, transparent 2px 6px); animation: empFlick .14s steps(2) infinite }
+@keyframes empFlick { 50% { background-position: 0 3px } }
+/* 身体強化中：画面の縁が金色に燃えるように脈打つ（太い金の光・縁の細い線・四隅から差し込む光） */
+#bufffx { position: absolute; inset: 0; opacity: 0; transition: opacity .25s; pointer-events: none;
+  box-shadow: inset 0 0 200px 50px color-mix(in srgb, var(--kin-1) 62%, transparent), inset 0 0 0 3px color-mix(in srgb, var(--kin-2) 75%, transparent), inset 0 0 26px 6px color-mix(in srgb, var(--kin-2) 70%, transparent);
+  background: radial-gradient(ellipse 60% 55% at 50% 50%, transparent 55%, color-mix(in srgb, var(--daidai-1) 22%, transparent) 100%);
+  animation: buffPulse .7s ease-in-out infinite alternate }
+@keyframes buffPulse { from { filter: brightness(.75) saturate(1) } to { filter: brightness(1.35) saturate(1.3) } }
+/* EMP でスキル封じ：スキルの輪が灰色に、キーの字が青く */
+#skill .sk.jam .ring { filter: grayscale(1) brightness(.6) }
+#skill .sk.jam .key { color: var(--mizu-2); text-shadow: 0 0 8px var(--mizu-1) }
+#skill .sk.jam .nm { color: var(--mizu-2) }

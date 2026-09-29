@@ -3,7 +3,7 @@ import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { C, LIGHT, V3, clamp, lerp, rand } from './core';
 import { GUN_BUILDERS, buildGun, cam, flatten, handMat, makeEyes, makePiece, makeShield, outlineMat, pieceGeo, pieceWoodMat, scene, starTex, toon } from './render';
-import { groundAt } from './world';
+import { floorBelow, groundAt } from './world';
 import { SKINS } from './guns/skins';
 import { equippedRef, paintGun } from './loadout';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -19,6 +19,8 @@ export const Particles = (() => {
   sets.forEach(s => { for (let i = 0; i < N; i++) s.ps.push({ life: 0 }); });
   function spawn(glowing, pos, vel, o) {
     const s = sets[glowing ? 1 : 0], idx = s.i = (s.i + 1) % N, p = s.ps[idx];
+    const g0 = groundAt(pos.x, pos.z), roof = g0 > pos.y + 0.3;   // 屋根の下で出た（地面の高さが上の屋根になっている）
+    p.floor = roof ? floorBelow(pos.x, pos.z, pos.y) : null;
     Object.assign(p, { pos: pos.clone(), vel, rot: new V3(rand(0, 6), rand(0, 6), rand(0, 6)), spin: new V3(rand(-12, 12), rand(-12, 12), rand(-12, 12)), size: o.size, life: o.life, max: o.life, grav: o.grav ?? 18, bounce: o.bounce ?? 0.3, grow: o.grow ?? 0, drag: o.drag ?? 0 });
     s.im.setColorAt(idx, col.copy(o.color));
     s.im.instanceColor.needsUpdate = true;
@@ -31,7 +33,7 @@ export const Particles = (() => {
         p.was = true; p.life -= dt;
         p.vel.y -= p.grav * dt; p.vel.multiplyScalar(1 - p.drag * dt);
         p.pos.addScaledVector(p.vel, dt);
-        const gy = groundAt(p.pos.x, p.pos.z);
+        const gy = p.floor ?? groundAt(p.pos.x, p.pos.z);
         if (p.pos.y < gy + p.size / 2) { p.pos.y = gy + p.size / 2; p.vel.y *= -p.bounce; p.vel.x *= 0.6; p.vel.z *= 0.6; p.spin.multiplyScalar(0.5); }
         p.rot.addScaledVector(p.spin, dt);
         const k = p.life / p.max;
@@ -51,6 +53,10 @@ export const Particles = (() => {
     },
     wood(point, dir, n = 10, power = 1) {
       for (let i = 0; i < n; i++) spawn(false, point, dir.clone().multiplyScalar(rand(2, 6) * power).add(new V3(rand(-3, 3), rand(1, 5), rand(-3, 3)).multiplyScalar(power)), { size: rand(0.05, 0.15), life: rand(0.9, 1.8), color: WOOD[i % 3], grav: 18, bounce: 0.35 });
+    },
+    // かけら（割れた壺など）：色を選べる
+    shards(point, cols, n = 12, power = 1) {
+      for (let i = 0; i < n; i++) spawn(false, point, new V3(rand(-3, 3), rand(1.5, 5), rand(-3, 3)).multiplyScalar(power), { size: rand(0.06, 0.16), life: rand(0.9, 1.6), color: C(cols[i % cols.length]), grav: 18, bounce: 0.3 });
     },
     // 矢の軌跡
     trail(point, color) { spawn(true, point, new V3(0, 0, 0), { size: 0.045, life: 0.5, color: C(color).multiplyScalar(1.6), grav: 0, bounce: 0 }); },
@@ -268,6 +274,7 @@ export const VM: any = (() => {
 //   グリップ（銃の原点）を画面の右下へ、銃口を照準の少し右下で止まるように、向き・大きさ・位置を決める
 //   短い銃（ハンドガン）は銃口の位置を手前にして、大きくなりすぎないようにする
 export function fitViewModel(m) {
+  if (!(innerWidth > 0 && innerHeight > 0)) { if (!m.ads) { m.hip = HIP.clone(); m.ads = HIP.clone(); } return; }   // 画面が 0 の大きさのとき（最小化など）は合わせない（大きさが壊れるため）。次の画面の大きさの変化で合わせ直す
   if (m.anim) m.anim.rebase();
   // 決まった持ち方の武器（ナイフなど）：向き・大きさ・位置をそのまま使う
   if (m.vmFixed) {

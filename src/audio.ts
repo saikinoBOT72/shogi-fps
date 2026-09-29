@@ -57,10 +57,10 @@ export const SFX = (() => {
     bus.gain.setTargetAtTime(1, ctx.currentTime, 1.2);
     const a = amb = { id, bus, srcs: [], alive: true };
     // 続く音
-    const loop = (type, f, q, g, sweep?) => {
+    const loop = (type, f, q, g, sweep?, gain?) => {
       const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
       const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
-      const gg = ctx.createGain(); gg.gain.value = g;
+      const gg = gain || ctx.createGain(); if (!gain) gg.gain.value = g;
       s.connect(fl).connect(gg).connect(bus); s.start(); a.srcs.push(s);
       if (sweep) { const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = sweep[0]; lg.gain.value = sweep[1]; lfo.connect(lg).connect(fl.frequency); lfo.start(); a.srcs.push(lfo); }
     };
@@ -72,6 +72,12 @@ export const SFX = (() => {
       every(12, 25, () => { const d = out(null, 0.7, 1600, bus); const n = 1 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) { const at = i * 0.6; N(d, { at, dur: 0.35, type: 'bandpass', f0: 850, f1: 700, q: 5, g: 0.03, atk: 0.03 }); T(d, { at, type: 'sawtooth', f0: 500, f1: 420, dur: 0.33, g: 0.01, atk: 0.03 }); } });   // カラス
       every(30, 60, () => gong(out(null, 0.9, 900, bus), 0, 98, 0.04));   // 遠くの鐘
       every(3.5, 3.6, () => { const d = out(null, 0.3, 5000, bus); for (let i = 0; i < 27; i++) P(d, i * 0.13 + rand(0, 0.03), 3600, 0.05, 0.003, 'triangle'); });   // 虫の声
+    } else if (id === 'desert') {
+      loop('bandpass', 520, 0.9, 0.005, [0.09, 160]);       // 乾いた風（かすか・ゆっくり強弱）
+      every(25, 50, () => { const d = out(null, 0.8, 2600, bus); T(d, { f0: 2400, f1: 1500, dur: 0.9, g: 0.008, atk: 0.1 }); });   // 遠くの鷹
+      // 砂嵐：低くかすかな風のうなり（強さは setStorm で変える。ふだんは 0。うるさくしない）
+      const sg = ctx.createGain(); sg.gain.value = 0; (a as any).storm = sg;
+      loop('bandpass', 320, 0.7, 0, [0.25, 80], sg);
     } else if (id === 'onsen') {
       loop('lowpass', 320, 0.7, 0.004);                     // 湯の流れる音（かすか）
       every(18, 32, () => { const d = out(null, 0.6, 1800, bus); wood(d, 0, 520, 0.05, 0.12); wood(d, 0.09, 470, 0.02, 0.1); });   // 遠くの鹿威し（こん）
@@ -233,6 +239,7 @@ export const SFX = (() => {
       if (surf === 'stone') { N(d, { dur: 0.05, f0: 450 * k, f1: 250, g: 0.2 * v, atk: 0.004 }); N(d, { dur: 0.02, type: 'bandpass', f0: 1300 * k, q: 1.5, g: 0.04 * v }); }
       else if (surf === 'wood') { wood(d, 0, 105 * k, 0.14 * v, 0.1); N(d, { dur: 0.05, f0: 350, g: 0.12 * v, atk: 0.005 }); }
       else if (surf === 'gravel') { N(d, { dur: 0.09, f0: 600 * k, f1: 300, g: 0.14 * v, atk: 0.01 }); for (let i = 0; i < 8; i++) N(d, { at: Math.random() * 0.08, dur: 0.014, type: 'bandpass', f0: rand(1200, 2600), q: 2.5, g: 0.035 * v * rand(0.4, 1) }); }
+      else if (surf === 'sand') { N(d, { dur: 0.11, f0: 380 * k, f1: 180, g: 0.13 * v, atk: 0.015 }); for (let i = 0; i < 4; i++) N(d, { at: Math.random() * 0.07, dur: 0.02, type: 'bandpass', f0: rand(900, 1800), q: 1.5, g: 0.02 * v * rand(0.4, 1) }); }   // 砂：さくっ
       else if (surf === 'water') N(d, { dur: 0.18, f0: 500 * k, f1: 280, g: 0.13 * v, atk: 0.05 });
       else { N(d, { dur: 0.08, f0: 380 * k, f1: 180, g: 0.2 * v, atk: 0.008 }); N(d, { dur: 0.06, type: 'bandpass', f0: 1100, q: 0.8, g: 0.025 * v, atk: 0.01 }); }
     },
@@ -256,6 +263,10 @@ export const SFX = (() => {
       else if (kind.startsWith('snow')) N(d, { dur: 0.14, f0: 420, f1: 150, g: 0.5 * g, atk: 0.01 });   // 雪玉：ぼふっ
       else if (kind === 'toro') { N(d, { dur: 0.08, f0: 380, f1: 200, g: 0.6 * g }); P(d, 0.005, 180, 0.12, 0.1 * g); }   // 石灯籠：ごとっ
       else if (kind === 'kasa') N(d, { dur: 0.1, type: 'bandpass', f0: 900, q: 1.2, g: 0.15 * g, atk: 0.01 });   // 番傘：ばさっ
+      else if (kind === 'drum') { N(d, { dur: 0.1, f0: 300, f1: 150, g: 0.6 * g }); P(d, 0.005, 150, 0.14, 0.1 * g); }   // 積み石：ごとん
+      else if (kind === 'stoneSled') { N(d, { dur: 0.25, type: 'bandpass', f0: 500, f1: 300, q: 1, g: 0.35 * g, atk: 0.03 }); wood(d, 0, 180, 0.3 * g, 0.1); }   // そり：ずずっ
+      else if (kind === 'sandbag') N(d, { dur: 0.12, f0: 260, f1: 110, g: 0.6 * g, atk: 0.01 });   // 砂袋：どさっ
+      else if (kind === 'jar') { P(d, 0, 520, 0.08, 0.1 * g, 'triangle'); N(d, { dur: 0.05, type: 'bandpass', f0: 1400, q: 2, g: 0.15 * g }); }
       else if (kind === 'milk') { wood(d, 0, 330, 0.3 * g, 0.08); for (let i = 0; i < 3; i++) P(d, 0.01 + i * 0.03, rand(2400, 3200), 0.12, 0.03 * g, 'triangle'); }   // 瓶がかちゃっ
       else wood(d, 0, 310, 0.45 * g, 0.1);   // 木箱
     },
@@ -298,7 +309,13 @@ export const SFX = (() => {
       N(d, { at: 0.2, dur: 0.6, type: 'bandpass', f0: 900, f1: 1600, q: 3, g: 0.15, atk: 0.1 });
       for (let i = 0; i < 10; i++) N(d, { at: 0.22 + i * 0.05, dur: 0.02, type: 'bandpass', f0: 1800, q: 4, g: 0.05 });
     },
+    // 素焼きの壺が割れる：高いぱりんと、砂がさらさら
+    jarBreak(pos) { const d = out(pos, 0.1); N(d, { dur: 0.06, type: 'highpass', f0: 2500, g: 0.5 }); for (let i = 0; i < 7; i++) P(d, 0.01 + i * 0.025 + Math.random() * 0.02, rand(1800, 3600), 0.08, 0.06, 'triangle'); N(d, { at: 0.05, dur: 0.5, type: 'bandpass', f0: 3000, f1: 1500, q: 1, g: 0.08, atk: 0.05 }); },
     skFlashPin(pos) { tick(out(pos), 0, 2600, 0.3); },
+    // EMP：低い「ドン」と、高く鳴って下がる電気の「ジジッ」
+    skEmp(pos) { const d = out(pos, 0.3); T(d, { f0: 90, f1: 40, dur: 0.35, g: 0.5 }); N(d, { dur: 0.45, type: 'bandpass', f0: 4200, f1: 600, q: 4, g: 0.35 }); for (let i = 0; i < 6; i++) tick(d, 0.04 + i * 0.05, 3000 + i * 400, 0.15, 0.02); },
+    // EMP を受けた（自分）：短い電気のノイズ
+    skEmpHit() { const d = out(); N(d, { dur: 0.25, type: 'bandpass', f0: 2500, f1: 900, q: 3, g: 0.25 }); for (let i = 0; i < 4; i++) tick(d, i * 0.04, 3600, 0.12, 0.015); },
     // 閃光：破裂と耳鳴り
     skFlash(pos) { const d = out(pos, 0.4); N(d, { dur: 0.05, type: 'highpass', f0: 2000, g: 0.8 }); N(d, { dur: 0.3, f0: 5000, f1: 500, g: 0.7 }); P(d, 0.02, 3600, 2.2, 0.06, 'sine'); },
     skPearl(pos) { const d = out(pos, 0.3); T(d, { f0: 900, f1: 150, dur: 0.3, g: 0.2 }); P(d, 0.3, 1200, 0.3, 0.08); },
@@ -364,6 +381,8 @@ export const SFX = (() => {
   }
   return {
     init, listener, ambience,
+    // 砂嵐の音の強さ（0〜1）
+    setStorm(k) { const g = amb && (amb as any).storm; if (g) g.gain.setTargetAtTime(0.01 * k, ctx.currentTime, 0.5); },
     play(name, ...a) { if (!ctx) return; try { sounds[name](...a); } catch (e) { if (import.meta.env.DEV) console.warn('音が鳴らせない:', name, e); } },
     setVol(v) { if (master) master.gain.value = v; },
   };

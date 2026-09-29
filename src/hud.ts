@@ -63,6 +63,29 @@ const cloakFx = document.createElement('div'); cloakFx.id = 'cloakfx'; $('hud').
 const flashFx = document.createElement('div'); flashFx.id = 'flashfx'; $('hud').appendChild(flashFx);
 const guideTxt = document.createElement('div'); guideTxt.id = 'guideTxt'; guideTxt.className = 'shadow'; $('hud').appendChild(guideTxt);
 const skillKey = i => keyName((settings as any).keys[i === 0 ? 'skill' : 'skill2']);
+// バフ・デバフ：自分のは HP の上、相手のは相手の HP の下に、名前と残り時間のゲージで並べる
+const statusEl = document.createElement('div'); statusEl.id = 'status'; $('hud').appendChild(statusEl);
+const foeStatusEl = document.createElement('div'); foeStatusEl.id = 'foeStatus'; $('top').appendChild(foeStatusEl);
+const empFx = document.createElement('div'); empFx.id = 'empfx'; $('hud').prepend(empFx);     // EMP を受けている：画面が青くちらつく（HP などの字より下に敷く）
+const buffFx = document.createElement('div'); buffFx.id = 'bufffx'; $('hud').prepend(buffFx);  // 身体強化中：画面の縁が金色に（字より下に敷く）
+const BUFFS = ['buff', 'guard', 'cloak', 'xray', 'heal', 'homing', 'bigshot', 'volley'];
+function statusesOf(e, me: boolean) {
+  const out = [];
+  for (const s of e.slots) if (s.t > 0 && BUFFS.includes(s.sk.type) && s.sk.duration >= 1) out.push({ cls: 'buff', name: s.sk.name, k: s.t / s.sk.duration, t: s.t });
+  if (e.empT > 0) out.push({ cls: 'emp', name: 'EMP', sub: 'スキル封じ・鈍足', k: e.empT / (e.empMax || 5), t: e.empT });
+  if (me && gs.flash > 0.3) out.push({ cls: 'debuff', name: '目くらみ', k: Math.min(1, gs.flash / 3), t: gs.flash });
+  return out;
+}
+function drawStatus(el: HTMLElement, list: any[], key: string) {
+  if (changed(key, list.map(x => x.cls + x.name).join('|')))
+    el.innerHTML = list.map(x => `<div class="st ${x.cls}"><b>${x.name}</b><span></span>${x.sub ? `<small>${x.sub}</small>` : ''}<i><u></u></i></div>`).join('');
+  list.forEach((x, j) => {
+    const c = el.children[j] as HTMLElement; if (!c) return;
+    const txt = x.t.toFixed(1);
+    if (changed(key + 't' + j, txt)) c.querySelector('span').textContent = txt;
+    setStyle(c.querySelector('u'), 'transform', `scaleX(${Math.max(0, Math.min(1, x.k)).toFixed(2)})`);
+  });
+}
 export function initSkills() {
   $('skill').innerHTML = player.slots.map((s, i) => `<div class="sk" id="sk${i}"><span class="nm"></span><div class="ring">
     <svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="23" fill="rgba(0,0,0,.4)" stroke="rgba(255,255,255,.2)" stroke-width="4"/>
@@ -155,16 +178,22 @@ export function updateHUD(dt) {
     const k = s.charges >= max ? 1 : 1 - s.cd / sk.cooldown;
     setAttr(el.querySelector('.arc'), 'stroke-dashoffset', (144.5 * (1 - k)).toFixed(1));
     const again = (sk.type === 'c4' && Gadgets.c4Of(p)) || (sk.type === 'missile' && Gadgets.ctrlOf(p));
-    const ready = s.charges > 0 || !!again;
+    const jam = p.empT > 0 && !again;   // EMP でスキル封じ
+    if (changed('skj' + i, jam)) el.classList.toggle('jam', jam);
+    const ready = (s.charges > 0 || !!again) && !jam;
     if (changed('skr' + i, ready)) el.classList.toggle('ready', ready);
     const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak', 'volley'].includes(sk.type);   // 鉤縄・投げ物はすぐ終わるので出さない
     const name = sk.type === 'c4' && Gadgets.c4Of(p) ? 'C4 起爆' : sk.type === 'missile' && Gadgets.ctrlOf(p) ? '戻る'
       : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' || sk.type === 'buff' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
-    const nm = el.querySelector('.nm'), txt = name + (max > 1 ? ` ×${s.charges}` : '');
+    const nm = el.querySelector('.nm'), txt = jam ? `${sk.name} 封じ ${p.empT.toFixed(1)}` : name + (max > 1 ? ` ×${s.charges}` : '');
     if (changed('skn' + i, txt)) nm.textContent = txt;
   });
   // 透明化中は画面の縁が青白く、ミサイル操作中は案内
   setStyle(cloakFx, 'opacity', act(p, 'cloak') ? '1' : '0');
+  drawStatus(statusEl, p.dead ? [] : statusesOf(p, true), 'stMe');
+  drawStatus(foeStatusEl, bot.dead ? [] : statusesOf(bot, false), 'stFoe');
+  setStyle(empFx, 'opacity', p.empT > 0 && !p.dead ? Math.min(1, p.empT * 2).toFixed(2) : '0');
+  setStyle(buffFx, 'opacity', act(p, 'buff') && !p.dead ? '1' : '0');
   // 閃光弾で目がくらむ（最後の1秒でゆっくり戻る）
   if (gs.flash > 0) gs.flash = Math.max(0, gs.flash - dt);
   setStyle(flashFx, 'opacity', Math.min(1, gs.flash || 0).toFixed(2));
