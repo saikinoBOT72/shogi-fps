@@ -155,6 +155,7 @@ const Scene = (() => {
   const front = <T extends THREE.Object3D>(o: T) => { o.traverse(c => c.layers.set(FRONT)); return o; };
   let camMode: 'board' | 'gun' = 'board', shake = 0, radius = 0.3, spin = 0, orbit = 0, orbiting = false, slow = 1;
   const hold = new THREE.Vector3();   // 銃を見せる場所（盤の上）
+  const camHold = new THREE.Vector3(); let camR = 0.3;   // カメラが見ている所と大きさ（hold・radius へなめらかに寄る）
   const tex = (w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d')); return new THREE.CanvasTexture(c); };
   const glowTex = tex(64, 64, g => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,255,255,0.6)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
   const beamTex = tex(4, 128, g => { const r = g.createLinearGradient(0, 0, 0, 128); r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(1, 'rgba(255,255,255,1)'); g.fillStyle = r; g.fillRect(0, 0, 4, 128); });
@@ -251,11 +252,12 @@ const Scene = (() => {
       hemi.intensity = 0.5 * LIGHT; sun.intensity = 1.1 * LIGHT;   // 盤と駒は明るすぎないように
     } else {
       hemi.intensity = 0.8 * LIGHT; sun.intensity = 1.6 * LIGHT;
-      const dist = radius / Math.tan(Math.min(vf, hf * (res ? 0.48 : 1))) * (phase === 'result' ? 0.85 : 1.05);
+      camHold.lerp(hold, Math.min(1, rdt * 3.5)); camR += (radius - camR) * Math.min(1, rdt * 3.5);
+      const dist = camR / Math.tan(Math.min(vf, hf * (res ? 0.48 : 1))) * (phase === 'result' ? 0.85 : 1.05);
       if (orbiting) orbit += rdt * 0.7;
       // 登場の間は見下ろして、後ろの盤も見せる。銃はカメラの方へ傾けて、横から見た形のまま見せる
       const el = phase === 'result' ? 0.2 : 0.72, d2 = dist * (phase === 'result' ? 1 : 1.25);
-      cam.position.set(hold.x + Math.cos(orbit) * Math.cos(el) * d2, hold.y + Math.sin(el) * d2, hold.z + Math.sin(orbit) * Math.cos(el) * d2); cam.lookAt(hold);
+      cam.position.set(camHold.x + Math.cos(orbit) * Math.cos(el) * d2, camHold.y + Math.sin(el) * d2, camHold.z + Math.sin(orbit) * Math.cos(el) * d2); cam.lookAt(camHold);
       holder.rotation.set(0, -orbit, phase === 'result' ? 0 : el * 0.85, 'YZX');
       spin += dt; spinG.rotation.y = phase === 'result' || orbiting ? spin * 0.4 : Math.sin(spin * 0.7) * 0.35;
     }
@@ -512,18 +514,17 @@ const Scene = (() => {
     return pr;
   }
   // 駒が割れて、木のかけらが飛び散る
-  // 駒が宙に持ち上がって震え、割れて木のかけらが飛び散る
+  // 駒が少し持ち上がって（上向きのまま）震え、割れて木のかけらが飛び散る
   async function shatter(s: { e: any; pos: THREE.Vector3 }, r: string) {
     const e = s.e, g = e.obj as THREE.Group, from = g.position.clone(), q0 = g.quaternion.clone();
     world.removeBody(e.body); const i = dyn.indexOf(e); if (i >= 0) dyn.splice(i, 1);   // 手で動かす
-    const col = RAR_COL[r], lift = 2.2;
+    const col = RAR_COL[r], lift = 0.8;
     SFX.play('sel');
     await new Promise<void>(res => {
       let t = 0;
       ticks.push(dt => {
         t += dt; const k = Math.min(1, t / 0.9), up = 1 - (1 - Math.min(1, k / 0.55)) ** 3, tr = Math.max(0, (k - 0.5) / 0.5);   // 上がって、震える
         g.position.set(from.x + rand(-1, 1) * tr * 0.06, from.y + up * lift, from.z + rand(-1, 1) * tr * 0.06);
-        g.quaternion.copy(q0); g.rotateX(up * 0.9);   // こちらへ字を向ける
         if (tr > 0 && Math.random() < 0.5) burst(g.position.clone(), col, 1, 1.2, 0.12);
         if (k >= 1) { res(); return true; }
       });
@@ -565,7 +566,15 @@ const Scene = (() => {
     const r = rarOf(it), s = slots.get(it), lr = r === 'LR';
     if (!lr && boardBodies.length !== 1) wholeBoard();
     board.visible = true;
-    const pr = pairFor(modelOf(it)), sc = 1.25 / pr.radius;
+    const pr = pairFor(modelOf(it)), sc = 1.25 / pr.radius, wasGun = camMode === 'gun';
+    // 前の銃を見せていたら：その銃は縮んで消え、カメラが次の駒へなめらかに寄る
+    if (wasGun && s) {
+      let t = 0;
+      ticks.push(dt => { t += dt; holder.scale.multiplyScalar(Math.max(0, 1 - dt * 6)); if (t > 0.35) { holder.visible = false; return true; } });
+      const p = s.e.obj.position;
+      hold.set(p.x, 0.5, p.z); radius = 1.1;
+      await wait(0.8); if (my !== runId) return;
+    }
     // 4 駒が割れる
     const at = s ? await shatter(s, r) : new THREE.Vector3(0, 0, 0);
     if (my !== runId) return;
@@ -573,6 +582,7 @@ const Scene = (() => {
     useGun(it, sc);
     const pos = lr ? new THREE.Vector3(0, 0, 0) : at.clone();
     hold.set(pos.x, 2.6, pos.z);
+    if (!wasGun) { camHold.copy(hold); camR = radius; }   // 盤の全体から銃へは切り替え（そのあとは、なめらかに寄る）
     if (lr) {
       // 5 LR：盤が割れ、下から光の柱と共に銃がせり上がる
       await splitBoard(my); if (my !== runId) return;
@@ -743,7 +753,7 @@ const Scene = (() => {
     clearTicks(); orbiting = false; slow = 1; veilTo = 0;
     board.visible = false; pieces.visible = false; stays.visible = false;
     const pr = useGun(it, 1), sk = SKINS[pr.b.skin];
-    holder.position.set(0, 0, 0); hold.set(0, 0, 0); orbit = Math.PI / 2;
+    holder.position.set(0, 0, 0); hold.set(0, 0, 0); orbit = Math.PI / 2; camHold.copy(hold); camR = radius;
     pr.a.g.visible = false; pr.b.g.visible = true; pr.edge.visible = false;
     if (sk?.fx?.aura !== undefined) aura(pr, sk.fx.aura);
   }
