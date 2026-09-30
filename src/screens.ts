@@ -15,9 +15,15 @@ import { showInventory } from './inventory';
 import { showGacha } from './gacha';
 
 // ================= 共通 =================
+// 画面を出す。同じ画面を描き直すとき（見出しが同じ）は、スクロールの位置を保ち、出てくる動きもつけない
 export function overlay(html, dim?) {
-  const o = $('overlay'); o.innerHTML = html; o.style.display = 'flex'; o.classList.toggle('dim', !!dim);
-  o.scrollTop = 0;
+  const o = $('overlay'), shown = o.style.display === 'flex', top = o.scrollTop;
+  const key = () => o.querySelector('.h, .res, .ga-head h2')?.textContent || '';
+  const before = shown ? key() : null;
+  o.innerHTML = html; o.style.display = 'flex'; o.classList.toggle('dim', !!dim);
+  const same = before !== null && before === key();
+  o.scrollTop = same ? top : 0;
+  if (!same) { o.classList.remove('enter'); void o.offsetWidth; o.classList.add('enter'); }
 }
 export const hideOverlay = () => { $('overlay').style.display = 'none'; };
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };

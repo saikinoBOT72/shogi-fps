@@ -5,14 +5,14 @@ import { P } from './palette';
 import { $, LIGHT, WEAPONS } from './core';
 import { GUN_BUILDERS, handMat } from './render';
 import { DESIGNS, RARITY, SKINS, gachaColors } from './guns/skins';
-import { GUN_OF_MODEL, Loadout, Owned, equipItem, itemName, itemsOf, paintGun, pointsText, saveLoadout, seedHex } from './loadout';
+import { GUN_OF_MODEL, Loadout, Owned, equipItem, itemName, itemsOf, paintGun, pointsText, saveLoadout, seedHex, weaponName } from './loadout';
 import { VM } from './effects';
 import { paintActors } from './game';
 import { overlay } from './screens';
 
 // 並べる順（持ち替えの順と同じ：ハンドガン系 → 連射 → 重い銃 → 弓・ナイフ）
 const MODELS = ['pistol', 'burst', 'mp5', 'ak', 'm870', 'mk2', 'm79', 'bow', 'karambit'];
-const wName = (m: string) => (Object.values(WEAPONS) as any[]).find(w => w.model === m)?.name || m;
+const wName = weaponName;
 const RANK = { N: 0, R: 1, SR: 2, LR: 3 };
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

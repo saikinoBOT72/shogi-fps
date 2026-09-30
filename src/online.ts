@@ -1,4 +1,5 @@
-// 友達と対戦（撃ち合い）：部屋を作る・入る → おたがい駒を選んで準備OK → 撃ち合い
+// 友達と対戦：部屋を作る・入る → 遊び方（撃ち合い・将棋モード・ブラインド将棋）とマップを決め、おたがい準備OK → 開始
+// 将棋モード・ブラインド将棋の盤の上のやりとりは boardmode.ts（ここからは届いたものを渡すだけ）
 // 対戦中は、自分の位置・向き・スキルの状態を 1 秒に 30 回送り、撃った・投げた・当てた・倒れたはその場で送る
 // 当たったかどうかは撃った側の画面で決め、ダメージは受けた側が自分の HP から引く（HP を決めるのは本人）
 import { P } from './palette';
@@ -81,11 +82,12 @@ export function showLobby() {
   overlay(`<div class="screen wide">
     <h2 class="h">友達と対戦　<small>部屋 ${Net.code}</small></h2>
     <div class="panel form"><div class="row"><span>遊び方<small>${Net.host ? 'あなたが決める' : '部屋を作った人が決める'}</small></span>
-      <div class="seg" id="olMode">${[['duel', '撃ち合い'], ['board', '将棋モード']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${Net.host ? '' : ' disabled'}>${n}</button>`).join('')}</div></div></div>
+      <div class="seg" id="olMode">${[['duel', '撃ち合い'], ['board', '将棋モード'], ['blind', 'ブラインド将棋']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${Net.host ? '' : ' disabled'}>${n}</button>`).join('')}</div></div></div>
     ${mapPickHTML(room, !Net.host)}
-    ${mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは撃ち合い</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
+    ${mode === 'blind' ? '<p class="note" style="text-align:center">始める前に、自分の3段の中で駒を並べ替えられる。対局中、相手の駒は字の無い駒に見える（打った駒・成った駒も）。<br>動きから何の駒か覚えながら戦い、撃ち合いで姿を見て答え合わせ。部屋を作った人が先手</p>'
+      : mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは撃ち合い</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
       <p class="detail"><b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `「${SKILLS[k].name}」${SKILLS[k].help}`).join('　')}</p></section>`}
-    <div class="ol-foe">相手：${mode === 'board' ? '' : f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : '<span>準備中</span>'}</div>
+    <div class="ol-foe">相手：${mode !== 'duel' ? '' : f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : '<span>準備中</span>'}</div>
     <div class="menu"><button class="btn sub" id="olLeave">抜ける</button><button class="btn${meReady ? ' sub' : ''}" id="olReady">${meReady ? '準備OK を取り消す' : '準備OK'}</button></div>
   </div>`, true);
   document.querySelectorAll<HTMLElement>('#olPick button').forEach(b => b.onclick = e => {
@@ -105,7 +107,7 @@ export function showLobby() {
 function maybeStart() { if (Net.host && inLobby && meReady && foe.ready && foe.k) { Net.send({ t: 'start', m: mode }); begin(); } }
 function begin() {
   inLobby = false; meReady = false; foe.ready = false; snap = null; sendT = 0;
-  if (mode === 'board') BoardMode.startOnline(Net.host);
+  if (mode === 'board' || mode === 'blind') BoardMode.startOnline(Net.host, mode === 'blind');
   else startMatch(foe.k);
 }
 // 撃ち合いが始まるとき（将棋モードの撃ち合いでも）：前の様子を捨てる
@@ -135,7 +137,7 @@ Net.onMsg = (m: any) => {
     case 'start': if (!Net.host) { mode = m.m || 'duel'; begin(); } break;
     case 'room': room.map = m.map; room.dark = m.dark; meReady = false; sendPick(); applyRoom(); if (inLobby) showLobby(); break;
     case 'mode': mode = m.m; meReady = false; sendPick(); if (inLobby) showLobby(); break;
-    case 'bm': case 'bp': case 'bwait': case 'bresign': case 'bstage': BoardMode.onNet(m); break;
+    case 'bm': case 'bp': case 'bwait': case 'bresign': case 'bstage': case 'bsetup': BoardMode.onNet(m); break;
     case 'bye': leaveRoom(); lost(); break;
     case 's': snap = m; break;
     case 'fire': if (inMatch()) remoteFire(m); break;

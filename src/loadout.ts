@@ -1,6 +1,9 @@
 // 持ち物（ガチャで引いたスキン）と、武器ごとの装備。この PC のブラウザに保存する
 // スキン1つは「デザイン・色の番号」だけで決まる（色は番号から毎回同じに作れる）
 import { DESIGNS, SKINS, gachaSkin } from './guns/skins';
+import { WEAPONS } from './core';
+// 武器の見た目（model）の名前。どの画面でも WEAPONS の名前にそろえる
+export const weaponName = (m: string) => (Object.values(WEAPONS) as any[]).find(w => w.model === m)?.name || m;
 
 // ゲームの武器の見た目（model）→ スキンのデザインの銃の名前
 export const GUN_OF_MODEL: Record<string, string> = { pistol: 'pistol', burst: 'b93r', karambit: 'karambit', mp5: 'mp5', bow: 'yumi', mk2: 'mk2', ak: 'ak', m79: 'm79', m870: 'm870' };

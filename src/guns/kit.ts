@@ -99,10 +99,10 @@ export class PartBuilder {
   private pending = new Map<THREE.Object3D, Record<string, THREE.BufferGeometry[]>>();
   constructor(private space: ReturnType<typeof makeSpace>) { this.parts.root = this.root; }
 
-  // 動く部品：pivot（図面の点）を回転の中心にした入れ物を作る
-  part(name: string, pivot: Pt, parent: THREE.Object3D = this.root) {
+  // 動く部品：pivot（図面の点）を回転の中心にした入れ物を作る。x：回転の中心を左右にずらす（mm。リボルバーのクレーンなど）
+  part(name: string, pivot: Pt, parent: THREE.Object3D = this.root, x = 0) {
     const g = new THREE.Group();
-    const p = this.space.at(pivot[0], pivot[1]);
+    const p = this.space.at(pivot[0], pivot[1], x);
     // 親の原点からの位置にする
     const pp = parent === this.root ? new THREE.Vector3() : (parent.userData.pivotAt as THREE.Vector3);
     g.position.copy(p).sub(pp);

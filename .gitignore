@@ -7,3 +7,6 @@ docs/
 .claude/
 vite.guns.config.ts
 tools/build-skin-viewer.mjs
+# PC の中だけ：作りかけの銃（見本ページで見る）・タイトル画面のデザインの試作
+src/guns/wip/
+design-title/

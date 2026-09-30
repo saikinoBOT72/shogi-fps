@@ -1,4 +1,5 @@
-// CPU
+// 撃ち合いの CPU：見つける・追う・撃つ・物陰から顔を出して撃つ・追い詰められたら退いて回復・見失ったら横から回り込む
+//   見えていない相手は、最後に見た所（角の先）を狙って待つ（壁越しには狙わない）。スキルの使い方は SKILL_AI、性格は PERSONAS
 import { Gadgets } from './gadgets';
 import { gs } from './state';
 import { DIFFS, V3, clamp, lerp, rand, settings } from './core';
@@ -86,16 +87,44 @@ export function navNext(b, tgt, dt, pEye) {
   }
   return b.path[b.pathI];
 }
-export function findCover(e, from) {
+export function findCover(e, from, maxR = 11) {
   let best = null, bd = Infinity;
   for (let i = 0; i < 22; i++) {
-    const a = rand(0, Math.PI * 2), r = rand(2.5, 11);
+    const a = rand(0, Math.PI * 2), r = rand(Math.min(2.5, maxR * 0.4), maxR);
     const x = e.pos.x + Math.cos(a) * r, z = e.pos.z + Math.sin(a) * r;
     if (insideCollider(x, z, e.radius + 0.2, e.pos.y)) continue;
     if (bodyVisible(new V3(x, e.pos.y, z), e, from)) continue;   // 体が少しでも見える所は隠れ場所にしない
     if (r < bd) { bd = r; best = new V3(x, 0, z); }
   }
   return best;
+}
+// 退く場所：相手から見えず、相手から遠ざかる所（まっすぐ行ける所を優先）
+function findRetreat(e, from, foePos) {
+  let best = null, bs = -Infinity;
+  const d0 = Math.hypot(e.pos.x - foePos.x, e.pos.z - foePos.z);
+  for (let i = 0; i < 28; i++) {
+    const a = rand(0, Math.PI * 2), r = rand(3, 14);
+    const x = e.pos.x + Math.cos(a) * r, z = e.pos.z + Math.sin(a) * r;
+    if (insideCollider(x, z, e.radius + 0.2, e.pos.y)) continue;
+    const p = new V3(x, e.pos.y, z);
+    if (bodyVisible(p, e, from)) continue;
+    const s = (Math.hypot(x - foePos.x, z - foePos.z) - d0) - r * 0.35 + (reachable(e, e.pos, p) ? 3 : 0);
+    if (s > bs) { bs = s; best = p.setY(0); }
+  }
+  if (best) return best;
+  // 隠れられる所が無ければ、相手と反対の方へ走る
+  const away = new V3(e.pos.x - foePos.x, 0, e.pos.z - foePos.z).normalize();
+  for (const r of [9, 6, 3.5]) { const x = e.pos.x + away.x * r, z = e.pos.z + away.z * r; if (!insideCollider(x, z, e.radius + 0.2, e.pos.y)) return new V3(x, 0, z); }
+  return null;
+}
+// 物陰から撃つ：近くの隠れ場所（anchor）を覚え、顔を出して撃つ（out）→ 引っ込む（in）を繰り返す
+function updatePeek(b, want, pEye, dt) {
+  if (!want) { b.anchor = null; b.peekIn = false; return; }
+  b.anchorT = (b.anchorT || 0) - dt; b.peekT = (b.peekT || 0) - dt;
+  const lost = b.anchor && bodyVisible(new V3(b.anchor.x, b.pos.y, b.anchor.z), b, pEye);
+  if (!b.anchor || b.anchorT <= 0 || lost) { b.anchor = findCover(b, pEye, 5.5); b.anchorT = 2.5; }
+  if (!b.anchor) { b.peekIn = false; return; }
+  if (b.peekT <= 0) { b.peekIn = !b.peekIn; b.peekT = b.peekIn ? rand(0.5, 1.1) : rand(1.3, 2.6); }
 }
 
 export function updateBot(dt) {
@@ -114,7 +143,7 @@ export function updateBot(dt) {
     // 目がくらんでいる間は見えない（閃光弾）
     if (b.blindT > 0) b.blindT -= dt;
     const los = !player.dead && hasLOS(bEye, pEye) && !(act(player, 'cloak') && dist > 3) && !(b.blindT > 0) && dist < (gs.stormVis ?? Infinity);   // 砂嵐の中は近くしか見えない
-    if (los) { b.seen += dt; b.lostT = 0; b.lastKnown.copy(player.pos); }
+    if (los) { b.seen += dt; b.lostT = 0; b.lastKnown.copy(player.pos); b.flankSide = 0; }
     else { b.seen = Math.max(0, b.seen - dt * 2); b.lostT += dt; }
     // 透視中は、見えていなくても居場所が分かる
     if (!los && act(b, 'xray')) { b.lastKnown.copy(player.pos); b.lostT = Math.min(b.lostT, 0.5); }
@@ -136,14 +165,34 @@ export function updateBot(dt) {
     } else b.coverPt = null;
 
     const guarding = !!act(b, 'guard');
+    // 追い詰められたら退く：HP が少なく、相手の方が元気なとき（突撃型は退かない）。退いた先で回復を待つ
+    const cornered = los && P !== PERSONAS.rush && b.hp < b.def.hp * 0.35 && player.hp > b.hp * 1.2;
+    if (cornered && !b.retreatPt) { b.retreatPt = findRetreat(b, pEye, player.pos); b.retreatT = 3; }
+    if (b.retreatPt) {
+      b.retreatT -= dt;
+      if (b.retreatT <= 0 || Math.hypot(b.retreatPt.x - b.pos.x, b.retreatPt.z - b.pos.z) < 0.8 || (!los && b.lostT > 0.6)) { b.retreatPt = null; if (!los) b.healing = true; }
+    }
+    b.retreating = !!b.retreatPt;
+    // 物陰から撃つ：慎重型はいつも、バランス型は傷ついたときや遠いとき。近すぎるときは撃ち合いに集中
+    const wantPeek = los && !guarding && !b.retreating && !b.coverPt && dist > 5 && b.w.kind !== 'melee'
+      && (P === PERSONAS.careful || (P === PERSONAS.normal && (b.hp < b.def.hp * 0.75 || dist > 12)));
+    updatePeek(b, wantPeek, pEye, dt);
+    const peekIn = wantPeek && b.anchor && b.peekIn;
+    if (peekIn && b.w.kind !== 'bow' && b.ammo < b.w.mag * 0.7 && !b.reloading) startReload(b);   // 引っ込んでいる間にリロード
     if (guarding) {
       // 構えている間はまっすぐ詰める
       wish.copy(toP);
+    } else if (b.retreatPt) {
+      wish.copy(b.retreatPt).sub(b.pos).setY(0).normalize().addScaledVector(side, 0.35);   // ジグザグに退く
+    } else if (peekIn) {
+      wish.copy(b.anchor).sub(b.pos).setY(0);
+      if (wish.length() < 0.4) wish.set(0, 0, 0);
     } else if (b.coverPt) {
       wish.copy(b.coverPt).sub(b.pos).setY(0);
       if (wish.length() < 0.5) { wish.set(0, 0, 0); if (bodyVisible(b.pos, b, pEye)) b.coverT = 0; }   // 着いても見えていたら探し直す
     } else if (los) {
       wish.addScaledVector(toP, dist > pref + 3 ? 1 : dist < pref - 4 ? -0.8 : 0).addScaledVector(side, 0.9);
+      if (wantPeek && b.anchor) { const back = b.anchor.clone().sub(b.pos).setY(0); if (back.length() > 3.5) wish.addScaledVector(back.normalize(), 1.2); }
     } else if (b.healing) {
       // 回復待ち：体がはみ出していたり煙の中なら、ちゃんと隠れられる所へ移ってから待つ
       b.coverT -= dt;
@@ -154,7 +203,12 @@ export function updateBot(dt) {
       } else { wish.set(0, 0, 0); b.healPt = null; }
     } else {
       // 見失ったら最後に見た場所へ。まっすぐ行けなければ中継地点を経由
-      const tgt = b.lostT < 3 ? b.lastKnown : player.pos;
+      let tgt = b.lostT < 3 ? b.lastKnown : player.pos;
+      if (b.lostT >= 3 && dist > 12) {
+        if (!b.flankSide) b.flankSide = Math.random() < 0.5 ? -1 : 1;
+        const fx = player.pos.x - toP.z * b.flankSide * 9, fz = player.pos.z + toP.x * b.flankSide * 9;
+        if (!insideCollider(fx, fz, b.radius + 0.2, player.pos.y)) tgt = new V3(fx, player.pos.y, fz);
+      }
       const next = navNext(b, tgt, dt, pEye);
       wish.copy(next || tgt).sub(b.pos).setY(0);
       if (!next && wish.length() < 1.5) wish.copy(toP).add(side);
@@ -175,11 +229,12 @@ export function updateBot(dt) {
     b.lastPos.copy(b.pos);
 
     // 照準：プレイヤーの位置を遅れて追いかけるので、横移動していると当てにくい
-    const chest = new V3(player.pos.x, player.pos.y + player.height * 0.62, player.pos.z);
+    const seenAt = los ? player.pos : b.lastKnown;
+    const chest = new V3(seenAt.x, seenAt.y + player.height * 0.62, seenAt.z);
     b.aimPt.lerp(chest, 1 - Math.exp(-D.track * dt));
     weaponTick(b, dt);
     b.fireDelay -= dt;
-    const busy = b.slots.some(s => s.t > 0 && ['dash', 'leap', 'heal', 'guard', 'grapple'].includes(s.sk.type));
+    const busy = b.slots.some(s => s.t > 0 && ['dash', 'leap', 'heal', 'guard', 'grapple'].includes(s.sk.type)) || peekIn;   // 引っ込んでいる間は撃たない
     if (b.w.kind === 'bow') {
       // 弓：引き絞ってから、相手の動きと矢の落ちを見越して放つ。追尾中は見えていなくても撃つ
       const armed = !!act(b, 'homing');
@@ -270,11 +325,11 @@ export const SKILL_AI = {
   },
   // 身体強化：相手が遠くて詰めたいとき、または撃たれて逃げたいときに使う
   physical(b, c, i, s) {
-    if (ready(s) && ((c.los && c.dist > c.pref + 4) || b.hurtT > 0.9)) useSkill(b, i, c.toP);
+    if (ready(s) && ((c.los && c.dist > c.pref + 4 && !b.retreating) || b.hurtT > 0.9 || b.retreating)) useSkill(b, i, c.toP);
   },
   // すり足：狙われている・撃たれたときに横へ逃げる
   step(b, c, i, s) {
-    if (ready(s) && c.los && (b.hurtT > 0.9 || (c.aimedAt && Math.random() < c.dt * 3 * b.persona.eager))) useSkill(b, i, c.side);
+    if (ready(s) && c.los && (b.hurtT > 0.9 || b.retreating || (c.aimedAt && Math.random() < c.dt * 3 * b.persona.eager))) useSkill(b, i, b.retreating ? c.side.clone().sub(c.toP) : c.side);
   },
   // 追尾：隠れた相手を曲がる矢で追い出す。見えていても時々使う
   homing(b, c, i, s) {
@@ -287,7 +342,7 @@ export const SKILL_AI = {
   },
   // 煙幕：撃たれてHPが減ってきたら煙を張って身を隠す
   smoke(b, c, i, s) {
-    if (ready(s) && c.los && b.hurtT > 0 && b.hp < b.def.hp * 0.6) useSkill(b, i, c.toP);
+    if (ready(s) && c.los && ((b.hurtT > 0 && b.hp < b.def.hp * 0.6) || b.retreating)) useSkill(b, i, c.toP);
   },
   // 大玉：見えている相手へ撃ち込む前に使う
   bigshot(b, c, i, s) {
@@ -295,7 +350,7 @@ export const SKILL_AI = {
   },
   // 透明化：見失っている間に回り込む。追い詰められたら逃げる
   cloak(b, c, i, s) {
-    if (ready(s) && ((!c.los && b.lostT > 0.5 && c.dist > 8 && Math.random() < c.dt * 0.5 * b.persona.eager) || (c.los && b.hurtT > 0 && b.hp < b.def.hp * 0.4))) useSkill(b, i, c.toP);
+    if (ready(s) && ((!c.los && b.lostT > 0.5 && c.dist > 8 && Math.random() < c.dt * 0.5 * b.persona.eager) || (c.los && ((b.hurtT > 0 && b.hp < b.def.hp * 0.4) || b.retreating)))) useSkill(b, i, c.toP);
   },
   // 透視：見失ったら居場所を探る
   xray(b, c, i, s) {
@@ -321,7 +376,7 @@ export const SKILL_AI = {
   },
   // 木箱：撃たれているとき、相手との間に遮蔽を作る
   boxes(b, c, i, s) {
-    if (ready(s) && c.los && b.hurtT > 0 && c.dist > 8) useSkill(b, i, c.toP);
+    if (ready(s) && c.los && ((b.hurtT > 0 && c.dist > 8) || (b.retreating && c.dist > 4))) useSkill(b, i, c.toP);
   },
   // 鉤縄：相手が高い所にいるとき、見えていれば引き寄せられて一気に上がる。行き詰まったときも
   grapple(b, c, i, s) {
@@ -341,6 +396,11 @@ export const SKILL_AI = {
   // エンダーパール：見失った相手の方へ一気に近づく（遠いとき）
   pearl(b, c, i, s) {
     if (ready(s) && !c.los && b.lostT > 1.5 && c.dist > 22 && b.hp > b.def.hp * 0.4) useSkill(b, i, c.toP);
+    else if (ready(s) && b.retreating && b.retreatPt && c.dist < 14) {
+      const e = new V3(b.pos.x, b.pos.y + b.eyeH, b.pos.z);
+      b.skillAim = b.retreatPt.clone().setY(b.pos.y + 1).sub(e).normalize().add(new V3(0, 0.25, 0)).normalize();
+      useSkill(b, i, c.toP); b.skillAim = null;
+    }
   },
   // 衝撃波：近くに来た相手を吹き飛ばす
   // タレット歩：撃ち合いが始まったら目の前に置く

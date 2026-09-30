@@ -1,4 +1,4 @@
-// ゲーム状態・移動と当たり判定・武器・プレイヤー
+// ゲーム状態・プレイヤー・スキル（移動と当たり判定は game/move.ts、武器は game/weapons.ts）
 import { Gadgets } from './gadgets';
 import { P } from './palette';
 import * as THREE from 'three';
@@ -18,6 +18,10 @@ import { Replay } from './replay';
 import { Net, r2, vec } from './net';
 import { equippedRef, paintGun, skinKey, validRef } from './loadout';
 import { skinMaterials } from './guns/skins';
+import { eyeOf, surfOf, hasLOS, act, moveEntity, tryJump } from './game/move';
+import { currentSpread, canFire, startReload, weaponTick, facingOf, skillDamageMul, fire } from './game/weapons';
+export * from './game/move';
+export * from './game/weapons';
 
 // ================= ゲーム状態 =================
 gs.state = 'title';   // title / countdown / fight / end
@@ -95,7 +99,7 @@ export function resetMatch(foeType?, myPick?: string) {   // myPick：対局の�
   const ps = spawnOf(side), bs = spawnOf(-side);
   player.pos.set(ps.x + rand(-1, 1), LV.V, ps.z + rand(-1, 1));
   bot.pos.set(bs.x + rand(-1, 1), LV.V, bs.z + rand(-1, 1));
-  Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
+  Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, retreatPt: null, retreatT: 0, retreating: false, anchor: null, anchorT: 0, peekIn: false, peekT: 0, flankSide: 0, skillAim: null, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
     persona: Object.values(PERSONAS)[Math.floor(Math.random() * 3)] });
   stats = { shots: 0, hits: 0, heads: 0, dealt: 0, taken: 0, time: 0 };
   view.yaw = Math.atan2(-(bot.pos.x - player.pos.x), -(bot.pos.z - player.pos.z));
@@ -110,305 +114,6 @@ export function resetMatch(foeType?, myPick?: string) {   // myPick：対局の�
   gs.timeScale = 1; gs.slowmoT = 0;
   VM.ready();
   document.querySelectorAll('.dd').forEach(e => e.remove());
-}
-
-// ================= 物理・当たり判定 =================
-export const ray = new THREE.Raycaster();
-(ray as any).firstHitOnly = true;   // 各メッシュで一番手前の当たりだけ調べる（高速化）
-export const eyeOf = e => new V3(e.pos.x, e.pos.y + e.eyeH, e.pos.z);
-
-// 立っている床の種類（足音用）：水の中なら 'water'
-export const surfOf = e => (e.pos.y < WATER_Y ? 'water' : e.surf || 'grass');
-export function collide(e) {
-  const R = e.radius, wasGround = e.onGround;
-  e.onGround = false; e.wallN = null;
-  if (e.pos.y <= GROUND) { e.pos.y = GROUND; if (e.vy < 0) e.vy = 0; e.onGround = true; e.surf = 'grass'; }
-  // 動かない障害物に加えて、体を止める重い小物（スキルの木箱も）とも当たる
-  let hf = null;
-  for (const c of PHYS.solid.length ? colliders.concat(PHYS.solid) : colliders) {
-    if (c.kind === 'pyr') { pyrCollide(e, c); continue; }
-    if (c.kind === 'hf') { hf = c; continue; }   // なめらかな地形は、ほかの床を調べたあとで
-    let cx, cz, top, bottom;
-    if (c.kind !== 'cyl') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = colTop(c, cx, cz); bottom = c.min.y; }
-    else {
-      const dx = e.pos.x - c.x, dz = e.pos.z - c.z, d = Math.hypot(dx, dz);
-      if (d <= c.r) { cx = e.pos.x; cz = e.pos.z; } else { cx = c.x + dx / d * c.r; cz = c.z + dz / d * c.r; }
-      top = c.y1; bottom = c.y0;
-    }
-    const dx = e.pos.x - cx, dz = e.pos.z - cz, d2 = dx * dx + dz * dz;
-    if (d2 >= R * R) continue;
-    // 上面より上にいる間は何もしない（ジャンプ中に上面へ吸い寄せられないように）
-    // 坂を下っているときは、浮かずに坂に沿って下りる
-    if (e.pos.y > top) { if (c.kind === 'ramp' && wasGround && e.vy <= 0 && e.pos.y - top < 0.5) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = c.surf; } continue; }
-    // 着地：上面を上から通り過ぎたか、上面のすぐ下（低い段差は自動で上がる）
-    //   slip（ピラミッドの斜面）は着地できない。横へ押し出されて、段を1つずつ滑り落ちる
-    if (!c.slip && e.vy <= 0 && (e.pos.y >= top - 0.4 || (e.prevY ?? e.pos.y) >= top)) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = c.surf; continue; }
-    if (e.pos.y + e.height <= bottom || e.pos.y >= top) continue;
-    // 天井：下から頭をぶつけた（前のフレームでは頭が下面より下にいた）ときは、頭を下面で止めるだけ
-    //   （横へ押し出すと、屋根や2階の床の端まで一気に飛ばされる＝ワープしてしまうため）
-    if (bottom > e.pos.y + 0.4 && (e.prevY ?? e.pos.y) + e.height <= bottom + 0.05) {
-      e.pos.y = bottom - e.height; if (e.vy > 0) e.vy = 0;
-      continue;
-    }
-    let nx, nz, push;
-    if (d2 > 1e-8) { const d = Math.sqrt(d2); nx = dx / d; nz = dz / d; push = R - d; }
-    else if (c.kind === 'cyl') {
-      const vx = e.pos.x - c.x, vz = e.pos.z - c.z, d = Math.hypot(vx, vz) || 1;
-      nx = vx / d; nz = vz / d; push = c.r + R - d;
-    } else {
-      const o = [[-1, 0, e.pos.x - c.min.x], [1, 0, c.max.x - e.pos.x], [0, -1, e.pos.z - c.min.z], [0, 1, c.max.z - e.pos.z]].sort((a, b) => a[2] - b[2])[0];
-      nx = o[0]; nz = o[1]; push = o[2] + R;
-    }
-    e.pos.x += nx * push; e.pos.z += nz * push;
-    e.wallN = new V3(nx, 0, nz); e.wallTop = top;   // 壁登り用：触れている壁の向きと高さ
-    const vn = e.vel.x * nx + e.vel.z * nz;
-    if (vn < 0) { e.vel.x -= vn * nx; e.vel.z -= vn * nz; }
-  }
-  // なめらかな地形：下にめり込んでいたら上へ。坂を下るときは地面に沿って下りる（ほかの床に立っていなければ）
-  if (hf) {
-    const top = hf.at(e.pos.x, e.pos.z);
-    if (e.pos.y < top) {
-      if (!(top - e.pos.y > 1.5 && (e.prevY ?? e.pos.y) < top - 1.5)) { e.pos.y = top; if (e.vy < 0) e.vy = 0; e.onGround = true; e.surf = hf.surf; }
-    } else if (!e.onGround && wasGround && e.vy <= 0 && e.pos.y - top < 0.5) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = hf.surf; }
-  }
-  const lim = H - R;
-  if (Math.abs(e.pos.x) > lim) { e.pos.x = clamp(e.pos.x, -lim, lim); e.vel.x = 0; }
-  if (Math.abs(e.pos.z) > lim) { e.pos.z = clamp(e.pos.z, -lim, lim); e.vel.z = 0; }
-}
-// ピラミッドの斜面（51°）：立てずに、いちばん近い面から外へ押し出される（落ちると段なしで滑り落ちる）
-//   通路・部屋（holes）の中は判定しない（中の壁は別の当たり判定）。壁登りもできない（wallN を付けない）
-function pyrCollide(e, c) {
-  if (e.pos.y >= c.y0 + c.h || e.pos.y + e.height <= c.y0) return;
-  if (c.holes.some(h => e.pos.x > h.x0 && e.pos.x < h.x1 && e.pos.z > h.z0 && e.pos.z < h.z1 && e.pos.y < h.y1)) return;
-  const dx = e.pos.x - c.cx, dz = e.pos.z - c.cz, R = e.radius;
-  const s = c.half * (1 - Math.max(0, e.pos.y - c.y0) / c.h);   // 足もとの高さでの、ピラミッドの半分の幅
-  if (Math.max(Math.abs(dx), Math.abs(dz)) >= s + R) return;
-  if (Math.abs(dx) >= Math.abs(dz)) { const sg = Math.sign(dx) || 1; e.pos.x = c.cx + sg * (s + R); if (e.vel.x * sg < 0) e.vel.x = 0; }
-  else { const sg = Math.sign(dz) || 1; e.pos.z = c.cz + sg * (s + R); if (e.vel.z * sg < 0) e.vel.z = 0; }
-}
-export function hasLOS(a, b, ignoreSmoke?) {
-  if (!ignoreSmoke && Smoke.blocks(a, b)) return false;   // 煙の向こうは見えない
-  const d = b.clone().sub(a), dist = d.length();
-  ray.set(a, d.normalize()); ray.far = dist;
-  const hit = ray.intersectObjects(blockers, true).length > 0;
-  ray.far = Infinity;
-  return !hit;
-}
-
-// 移動（加速・摩擦・コヨーテタイム）
-// 効いているスキル（type で探す）
-export const act = (e, type) => e && e.slots && e.slots.find(s => s.t > 0 && s.sk.type === type);
-export function moveEntity(e, wish, dt) {
-  wish = wish.clone();
-  const mv = e.slots.find(s => s.t > 0 && (s.sk.type === 'dash' || s.sk.type === 'step')), lp = act(e, 'leap'), gp = act(e, 'grapple');
-  // 横移動が遅い駒（香）：向いている方向に対して横の成分を縮める
-  if (e.def.strafe && wish.lengthSq() > 0) {
-    const f = facingOf(e), along = wish.dot(f);
-    wish = f.clone().multiplyScalar(along).add(wish.clone().addScaledVector(f, -along).multiplyScalar(e.def.strafe));
-  }
-  if (gp) {
-    // 鉤縄：狙った所へ一直線に引き寄せられる（重力に負けないよう上向きの速さも毎フレーム決める）
-    gp.t -= dt;
-    const to = gp.target.clone().sub(e.pos.clone().add(new V3(0, e.height * 0.4, 0))), d = to.length();
-    if (d < 1.3 || gp.t <= 0) {
-      gp.t = 0; e.vy = Math.max(e.vy, 5); e.vel.multiplyScalar(0.4);
-      // 段や崖の縁に掛けたときは、縁の上まで跳び上がって乗る
-      const fwd = gp.target.clone().sub(e.pos).setY(0).normalize(), ahead = gp.target.clone().addScaledVector(fwd, 1.2);
-      const top = groundAt(ahead.x, ahead.z);
-      if (top > e.pos.y + 0.3 && top - e.pos.y < 4.5) { e.vy = Math.sqrt(2 * G * (top - e.pos.y + 0.8)); e.vel.copy(fwd.multiplyScalar(5)); e.knockT = 0.7; }   // 前への勢いを空中で保つ
-    }
-    else { to.multiplyScalar(gp.sk.speed / d); e.vel.set(to.x, 0, to.z); e.vy = to.y + G * dt; e.onGround = false; e.airT = 1; }
-  } else if (mv) {
-    mv.t -= dt;
-    e.vel.copy(mv.dir).multiplyScalar(mv.sk.speed);
-    if (mv.t <= 0) e.vel.multiplyScalar(0.35);
-  } else if (lp) {
-    lp.t -= dt;   // 跳んでいる間は勢いのまま（空中で向きを変えられない）
-  } else {
-    const gd = act(e, 'guard'), bf = act(e, 'buff'), slow = (gd ? gd.sk.slow : 1) * (bf ? bf.sk.speedMul : 1) * (e.empT > 0 ? e.empSlow : 1) * (e.pos.y < WATER_Y ? 0.6 : 1);   // 川の中は遅い・身体強化中は速い・EMP を受けると遅い
-    e.knockT = Math.max(0, (e.knockT || 0) - dt);
-    const flung = e.knockT > 0 && !e.onGround;   // 爆風で飛ばされている間
-    const target = wish.clone().multiplyScalar(e.def.speed * RULES.speed * (e.isBot || e.running ? 1 : RULES.walk) * (e.speedMul || 1) * slow);
-    const dv = target.sub(e.vel); dv.y = 0;
-    const acc = (e.onGround ? 75 : flung ? 1.5 : 22) * dt;
-    if (dv.length() > acc) dv.setLength(acc);
-    e.vel.add(dv);
-  }
-  e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt;
-  // 壁登り：壁に向かってジャンプを押し続けると登る。登れるのは自分の身長ぶんまで。
-  // 途中で離れたら、着地するまでつかみ直せない
-  if (e.onGround) e.climbH = e.height;
-  const wasClimbing = e.climbing;
-  e.climbing = !!(e.wantClimb && e.wallN && e.climbH > 0 && e.pos.y < e.wallTop);
-  if (e.climbing) { e.vy = Math.max(e.vy, 5.5); e.climbH -= 5.5 * dt; e.airT = 1; e.jumped = true; }
-  else if (wasClimbing) e.climbH = 0;
-  const prevVy = e.vy;
-  e.prevY = e.pos.y;
-  e.vy -= G * dt; e.pos.y += e.vy * dt;
-  const was = e.onGround;
-  collide(e);
-  if (e.onGround) { e.airT = 0; e.jumped = false; } else e.airT += dt;
-  if (!was && e.onGround && prevVy < -4) onLand(e, -prevVy);
-  if (lp && lp.t > 0 && e.onGround && lp.sk.duration - lp.t > 0.15) { lp.t = 0; leapLand(e, lp.sk); }
-  e.moving = Math.hypot(e.vel.x, e.vel.z) > 1;
-}
-export function tryJump(e) {
-  if (e.airT < 0.1 && !e.jumped) { const bf = act(e, 'buff'); e.vy = e.def.jump * (bf ? bf.sk.jumpMul : 1); e.jumped = true; e.onGround = false; e.airT = 1; if (!e.isBot) SFX.play('jump'); return true; }
-  return false;
-}
-// 桂跳びの着地：周りの相手と小物を吹き飛ばす
-export function leapLand(e, sk) {
-  const foe = e === player ? bot : player;
-  Particles.dust(e.pos, 22, 2.2);
-  PHYS.blast(e.pos.clone().setY(0.3), sk.radius * 1.3, 7);
-  SFX.play('boom', e.pos);
-  view.shake = Math.max(view.shake, clamp(1 - e.pos.distanceTo(player.pos) / 15, 0, 1) * 0.7);
-  if (foe.dead) return;
-  const d = Math.hypot(foe.pos.x - e.pos.x, foe.pos.z - e.pos.z);
-  if (d > sk.radius || Math.abs(foe.pos.y - e.pos.y) > 2.5) return;
-  const dmg = sk.dmg * (1 - d / sk.radius * 0.5) * skillDamageMul(foe, e.pos);
-  foe.vel.add(foe.pos.clone().sub(e.pos).setY(0).normalize().multiplyScalar(10)); foe.vy = 6; foe.onGround = false;
-  if (foe.isBot) damageBot({ dmg, head: false, point: eyeOf(foe) }); else damagePlayer(dmg, e.pos);
-}
-export function onLand(e, v) {
-  SFX.play('land', e.pos);
-  Particles.dust(e.pos, 5, 0.8);
-  if (!e.isBot) { view.dipV -= v * 0.012; VM.dip = Math.min(1, v * 0.05); }
-}
-export function separate(a, b) {
-  const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz), min = a.radius + b.radius;
-  if (d >= min || d < 1e-6) return;
-  if (a.pos.y + a.height < b.pos.y || b.pos.y + b.height < a.pos.y) return;
-  const p = (min - d) / 2, nx = dx / d, nz = dz / d;
-  a.pos.x -= nx * p; a.pos.z -= nz * p; b.pos.x += nx * p; b.pos.z += nz * p;
-}
-
-// ================= 武器 =================
-export function currentSpread(e) {
-  const w = e.w;
-  let s = w.spread + e.bloom + (w.kind === 'bow' ? (1 - (e.draw || 0)) * w.drawSpread : 0);
-  if (e.moving) s += w.move * clamp(Math.hypot(e.vel.x, e.vel.z) / e.def.speed, 0, 1);
-  if (!e.onGround) s += w.air;
-  if (!e.isBot) s *= lerp(1, w.ads, e.adsT || 0);
-  else if (w.zoom) s *= w.ads;
-  return s;
-}
-export const canFire = e => e.cd <= 0 && e.reloading <= 0 && e.ammo > 0 && !e.dead;
-export function startReload(e) {
-  if (e.reloading > 0 || e.ammo >= e.w.mag) return;
-  e.reloading = e.w.reload; e.burstLeft = 0;
-  if (!e.isBot) { SFX.play('reload', e.w.model, e.w.reload); VM.reload(e.w.reload); }
-}
-export function weaponTick(e, dt) {
-  e.cd -= dt;
-  // 連射の続き：狙っている向きへ、同じ引きの強さで次の矢を放つ
-  if (e.volleyLeft > 0 && !e.dead) {
-    e.volleyT -= dt;
-    if (e.volleyT <= 0) {
-      e.volleyLeft--; e.volleyT = e.volleyGap;
-      const eye = eyeOf(e);
-      const dir = e.isBot ? e.aimPt.clone().sub(eye).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
-      const keepCd = e.cd; e.draw = e.volleyDraw;
-      shootArrow(e, dir, eye.addScaledVector(dir, 0.6));
-      e.cd = Math.max(keepCd, e.w.rate);
-      if (!e.isBot) { VM.kick = 0.6; stats.shots++; }
-    }
-  }
-  e.bloom = Math.max(0, e.bloom - e.w.bloomRecover * dt);
-  if (e.reloading > 0) {
-    e.reloading -= dt;
-    if (e.reloading <= 0) e.ammo = e.w.mag;
-  }
-}
-
-// 向いている方向（盾の判定用）
-export function facingOf(e) {
-  if (e.isBot) { const y = botActor.root.rotation.y; return new V3(Math.sin(y), 0, Math.cos(y)); }
-  return new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw));
-}
-// スキルによる被ダメージ倍率（守りの構えは前からの弾だけ減らす）
-export function skillDamageMul(target, from) {
-  let m = 1;
-  for (const s of target.slots || []) {
-    if (!(s.t > 0)) continue;
-    if (s.sk.type !== 'guard') { m *= s.sk.damageTaken ?? 1; continue; }
-    const to = from.clone().sub(target.pos).setY(0).normalize();
-    if (facingOf(target).dot(to) > 0.2) m *= s.sk.damageTaken;
-  }
-  return m;
-}
-
-// 撃つ：origin から dir に撃つ。ショットガンは粒ごとに判定して合計する
-export function fire(shooter, target, origin, muzzle, dir) {
-  const w = shooter.w, sp = currentSpread(shooter);
-  let dmg = 0, head = false, point = null, miss = null, wallDist = 300, blocked = false, first = true;
-  const ends = [];
-  for (let i = 0; i < (w.pellets || 1); i++) {
-    const r = castShot(shooter, target, origin, muzzle, dir, sp, first);
-    first = false; ends.push([...vec(r.end), r.wall ? 1 : 0]);
-    if (r.dmg > 0) { dmg += r.dmg; head = head || r.head; point = point || r.point; blocked = blocked || r.blocked; }
-    else if (!miss) { miss = r.miss; wallDist = r.wallDist; }
-  }
-  shooter.ammo--; shooter.cd = w.rate;
-  onAttack(shooter);
-  if (Net.on && shooter === player) Net.send({ t: 'fire', e: ends });
-  // バースト：決まった数だけ短い間隔で続けて撃つ
-  if (w.burst) {
-    if (!(shooter.burstLeft > 0)) shooter.burstLeft = w.burst;
-    shooter.burstLeft--;
-    if (shooter.ammo <= 0) shooter.burstLeft = 0;
-    shooter.cd = shooter.burstLeft > 0 ? w.burstGap : w.rate;
-  }
-  shooter.bloom = Math.min(w.bloomMax, shooter.bloom + w.bloomShot);
-  if (shooter.ammo <= 0) startReload(shooter);
-  if (blocked) { SFX.play('guard', point); Particles.wood(point, new V3(0, 1, 0), 5, 0.6); }
-  return { dmg, head, point, blocked, miss: dmg > 0 ? null : miss, wallDist };
-}
-export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
-  const w = shooter.w;
-  const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
-  ray.set(origin, d); ray.far = 300;
-  const walls = ray.intersectObjects(blockers, true);
-  const wall = walls[0];
-  const wallDist = wall ? wall.distance : 300;
-  const tracerColor = shooter.isBot ? P.shu[2] : VM.fx.tracer ?? P.kin[2];   // 自分の弾の線は、LR スキンならその色
-  let hit = null;
-  if (target.isBot) {
-    const h = !botActor.dead && ray.intersectObject(botActor.hitMesh, false)[0];
-    if (h && h.distance < wallDist) hit = { point: h.point, dist: h.distance };
-  } else {
-    const r = target.radius, p = target.pos;
-    const box = new THREE.Box3(new V3(p.x - r, p.y, p.z - r), new V3(p.x + r, p.y + target.height, p.z + r));
-    const hp = ray.ray.intersectBox(box, new V3());
-    if (hp && hp.distanceTo(origin) < wallDist) hit = { point: hp, dist: hp.distanceTo(origin) };
-  }
-  let res: any = { dmg: 0, head: false, point: null };
-  if (hit) {
-    const [f0, f1, fm] = w.falloff;
-    let dmg = w.dmg * lerp(1, fm, clamp((hit.dist - f0) / (f1 - f0), 0, 1));
-    const head = hit.point.y > target.pos.y + target.height * 0.76;
-    if (head) dmg *= w.head;
-    const mul = skillDamageMul(target, shooter.pos);
-    dmg *= mul;
-    res = { dmg, head, point: hit.point, blocked: mul < 1 && !!act(target, 'guard'), end: hit.point };
-    Tracers.add(muzzle, hit.point, tracerColor);
-  } else {
-    const end = wall ? wall.point : origin.clone().addScaledVector(d, 150);
-    Tracers.add(muzzle, end, tracerColor);
-    if (wall) {
-      const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : d.clone().negate();
-      Particles.impact(wall.point, n);
-      const ph = physOf(wall), tur = Gadgets.turretOfHit(wall.object);
-      if (tur) Gadgets.damageTurret(tur, w.dmg * lerp(1, w.falloff[2], clamp((wallDist - w.falloff[0]) / (w.falloff[1] - w.falloff[0]), 0, 1)), shooter);
-      // 鐘楼の鐘：鳴らすと遠くまで響く（居場所がばれる）
-      if (wall.object.userData.bell && performance.now() - (gs.bellT || 0) > 400) { gs.bellT = performance.now(); SFX.play('bell', wall.point); aiHear(wall.point, 60); }
-      if (ph) { PHYS.hit(ph, wall.point, d, w.dmg * 0.15); Particles.wood(wall.point, n, 4, 0.5); }
-      else Decals.add(wall.point, n);
-      if (sound) SFX.play(Math.random() < 0.3 ? 'ricochet' : 'thud', wall.point);
-    }
-    res.miss = d; res.wallDist = wallDist; res.end = end; res.wall = !!wall;
-  }
-  return res;
 }
 
 // ================= プレイヤー =================
@@ -443,7 +148,7 @@ export function useSkill(e, i, dir, force = false) {
   if (!force && (s.charges <= 0 || s.t > 0)) return false;
   if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
   // 狙っている向き（上下も含む）
-  const aim = e.isBot && e.netAim ? e.netAim.clone() : e.isBot ? new V3(player.pos.x, player.pos.y + player.height * 0.6, player.pos.z).sub(eyeOf(e)).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
+  const aim = e.isBot && e.skillAim ? e.skillAim.clone() : e.isBot && e.netAim ? e.netAim.clone() : e.isBot ? new V3(player.pos.x, player.pos.y + player.height * 0.6, player.pos.z).sub(eyeOf(e)).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   // 鉤縄は掛ける所が無ければ使わない（回数も減らさない）
   let hook = null;
   if (sk.type === 'grapple') { hook = Gadgets.grappleTarget(e, aim, sk.range); if (!hook) { if (!e.isBot) SFX.play('empty'); return false; } }

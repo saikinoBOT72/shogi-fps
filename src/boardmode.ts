@@ -1,4 +1,6 @@
 // 将棋モード：盤で駒を動かし、駒を取るときは撃ち合いで決着。相手の玉を撃ち合いで取れば勝ち
+// ブラインド将棋（友達と対戦のときだけ）：始める前に自分の3段の中で駒を並べ替えられる。対局中、相手の駒は字の無い駒に見え
+//   （持ち駒から打った駒・成った駒も）、撃ち合いが始まって相手の姿を見るまで何の駒か分からない。決着したら全部表に返す
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
@@ -11,6 +13,8 @@ import { resetMatch } from './game';
 import { bindMapPick, hideOverlay, keysHTML, mapPickHTML, overlay, showTitle, startMatch } from './screens';
 import { Net } from './net';
 import { leave, showLobby } from './online';
+import { HAND_ORDER, PRO, attackedBy, canPromote, deadEnd, dropSquares, findKing, inCheck, inZone, initialBoard, label, nifu, rawMoves } from './shogi/rules';
+import { chooseMove, recordBattle } from './shogi/cpu';
 
 export const BoardMode = (() => {
   const S = 1.15;                                   // マスの大きさ
@@ -69,21 +73,14 @@ export const BoardMode = (() => {
   const pieceGroup = new THREE.Group(); bScene.add(pieceGroup);
   const handGroup = new THREE.Group(); bScene.add(handGroup);
 
-  // ---------- 将棋のルール（成りは未実装） ----------
-  const HAND_ORDER = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
+  // ---------- 対局の状態（ルールそのものは shogi/rules.ts、CPU の指し手は shogi/cpu.ts） ----------
   let board, hands, turn, selected, targets, lastMove, preview, busy, over, anim = null;
   let contest = null;   // 撃ち合いの最中：{ fx, fy, tx, ty, att: 挑んだ駒 }
+  let blind = false, setup = false, setupSel = null, hostSide = true;   // ブラインド将棋：setup = 並べ替えの最中
+  // この駒を字の無い駒に見せるか（ブラインドの相手の駒。決着したら見せる）
+  const hidden = p => blind && !over && p.owner === 1;
   let gen = 0, online = false;   // online: 友達と対戦（相手 = 1 は CPU ではなく友達。自分は必ず手前側）   // gen: 対局ごとの番号（途中でやめた対局の続きを止める）
-  const inB = (x, y) => x >= 0 && x < 9 && y >= 0 && y < 9;
-  const fwd = o => (o === 0 ? -1 : 1);
-  const fromEnd = (o, y) => (o === 0 ? y : 8 - y);   // 0 が相手陣の一番奥
-  const ORTH = [[1, 0], [-1, 0], [0, 1], [0, -1]], DIAG = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
-  const GOLD = [[0, 1], [1, 1], [-1, 1], [1, 0], [-1, 0], [0, -1]];
-  // 成り：成駒の字（赤）。成駒は盤上の動きが変わる（撃ち合いの性能は元の駒のまま）
-  const PRO = { P: 'と', L: '杏', N: '圭', S: '全', R: '龍', B: '馬' };
-  const label = p => (p.promoted ? PRO[p.type] : p.type === 'K' && p.owner === 1 ? '玉' : PIECES[p.type].name);
-  const canPromote = p => !p.promoted && !!PRO[p.type];
-  const inZone = (o, y) => (o === 0 ? y <= 2 : y >= 6);
+  const movesOf = (b, x, y) => rawMoves(b, x, y);
 
   // 途中の対局を保存（1手ごと）。決着したら消す
   const SAVE = 'shogiFps.board';
@@ -93,113 +90,8 @@ export const BoardMode = (() => {
     try { const d = JSON.parse(localStorage.getItem(SAVE) || 'null'); return d && d.board && d.hands ? d : null; } catch (e) { return null; }
   }
   function initBoard() {
-    board = [...Array(9)].map(() => Array(9).fill(null));
-    const back = 'LNSGKGSNL';
-    for (let x = 0; x < 9; x++) {
-      board[0][x] = { type: back[x], owner: 1 }; board[8][x] = { type: back[x], owner: 0 };
-      board[2][x] = { type: 'P', owner: 1 }; board[6][x] = { type: 'P', owner: 0 };
-    }
-    board[7][7] = { type: 'R', owner: 0 }; board[7][1] = { type: 'B', owner: 0 };
-    board[1][1] = { type: 'R', owner: 1 }; board[1][7] = { type: 'B', owner: 1 };
-    hands = [[], []];
-    turn = 0; selected = null; targets = []; lastMove = null; preview = null; busy = false; over = false;  }
-  function rawMoves(b, x, y) {
-    const p = b[y][x], f = fwd(p.owner), res = [];
-    const step = (dx, dy) => { const nx = x + dx, ny = y + dy * f; if (inB(nx, ny) && (!b[ny][nx] || b[ny][nx].owner !== p.owner)) res.push([nx, ny]); };
-    const slide = (dx, dy) => {
-      let nx = x + dx, ny = y + dy * f;
-      while (inB(nx, ny)) { const q = b[ny][nx]; if (q) { if (q.owner !== p.owner) res.push([nx, ny]); break; } res.push([nx, ny]); nx += dx; ny += dy * f; }
-    };
-    const t = p.type, pr = p.promoted;
-    if (t === 'K') [...ORTH, ...DIAG].forEach(d => step(d[0], d[1]));
-    else if (t === 'R') { ORTH.forEach(d => slide(d[0], d[1])); if (pr) DIAG.forEach(d => step(d[0], d[1])); }   // 龍
-    else if (t === 'B') { DIAG.forEach(d => slide(d[0], d[1])); if (pr) ORTH.forEach(d => step(d[0], d[1])); }   // 馬
-    else if (t === 'G' || pr) GOLD.forEach(d => step(d[0], d[1]));                                          // 金・と・杏・圭・全
-    else if (t === 'S') [[0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(d => step(d[0], d[1]));
-    else if (t === 'N') { step(1, 2); step(-1, 2); }
-    else if (t === 'L') slide(0, 1);
-    else if (t === 'P') step(0, 1);
-    return res;
-  }
-  // 行き所のないマス（歩・香の最奥、桂の奥2段）：そこへ動くときは必ず成る。そこには打てない
-  const deadEnd = (t, o, y) => ((t === 'P' || t === 'L') && fromEnd(o, y) === 0) || (t === 'N' && fromEnd(o, y) <= 1);
-  // 二歩：打てるが、打つとその筋の自分の駒が（打った歩も王も）爆発四散して消える
-  const nifu = (b, owner, x) => b.some(row => row[x] && row[x].type === 'P' && !row[x].promoted && row[x].owner === owner);
-  // この将棋のルール：撃ち合いで逆転できるので、王手放置・千日手はあり。詰みでは終わらない（玉は撃ち合いで取る）
-  // 反則は「打ち歩詰め」だけ（歩を打って、相手が王手をかわす手が1つもない形にする）
-  const safe = (b, owner, m) => { const nb = simulate(b, m, owner), k = findKing(nb, owner); return !k || !attackedBy(nb, 1 - owner, k[0], k[1]); };
-  const inCheck = (b, owner) => { const k = findKing(b, owner); return !!k && attackedBy(b, 1 - owner, k[0], k[1]); };
-  const movesOf = (b, x, y) => rawMoves(b, x, y);
-  function dropSquares(b, owner, type, h = hands) {
-    const res = [];
-    for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
-      if (b[y][x] || deadEnd(type, owner, y)) continue;
-      if (type === 'P') { const nb = simulate(b, { kind: 'drop', type, tx: x, ty: y }, owner); if (inCheck(nb, 1 - owner) && !canEscape(nb, h, 1 - owner)) continue; }
-      res.push([x, y]);
-    }
-    return res;
-  }
-  // 王手をかわす手があるか（打ち歩詰めの判定用）
-  function canEscape(b, h, owner) {
-    for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
-      const p = b[y][x];
-      if (p && p.owner === owner && rawMoves(b, x, y).some(([tx, ty]) => safe(b, owner, { kind: 'move', fx: x, fy: y, tx, ty }))) return true;
-    }
-    for (const type of new Set(h[owner] as string[])) for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++)
-      if (!b[y][x] && !deadEnd(type, owner, y) && safe(b, owner, { kind: 'drop', type, tx: x, ty: y })) return true;
-    return false;
-  }
-  function attackedBy(b, owner, x, y) {
-    for (let yy = 0; yy < 9; yy++) for (let xx = 0; xx < 9; xx++) {
-      const p = b[yy][xx];
-      if (p && p.owner === owner && rawMoves(b, xx, yy).some(([a, c]) => a === x && c === y)) return true;
-    }
-    return false;
-  }
-  function findKing(b, owner) {
-    for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) { const p = b[y][x]; if (p && p.type === 'K' && p.owner === owner) return [x, y]; }
-    return null;
-  }
-
-  // ---------- CPU の指し手 ----------
-  // 撃ち合いの勝ちやすさを駒の価値から見積もる（王は 12 として計算）
-  const val = t => (t === 'K' ? 12 : PIECES[t].value);
-  const pWin = (a, d) => { const va = Math.pow(val(a), 1.1), vd = Math.pow(val(d), 1.1); return va / (va + vd); };
-  function simulate(b, m, owner) {
-    const nb = b.map(r => r.slice());
-    if (m.kind === 'drop') nb[m.ty][m.tx] = { type: m.type, owner };
-    else { nb[m.ty][m.tx] = nb[m.fy][m.fx]; nb[m.fy][m.fx] = null; }
-    return nb;
-  }
-  function allMoves(owner) {
-    const res = [];
-    for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
-      const p = board[y][x];
-      if (p && p.owner === owner) movesOf(board, x, y).forEach(([tx, ty]) => res.push({ kind: 'move', fx: x, fy: y, tx, ty }));
-    }
-    // CPU は二歩を打たない
-    [...new Set(hands[owner])].forEach(type => dropSquares(board, owner, type).forEach(([tx, ty]) => { if (type !== 'P' || !nifu(board, owner, tx)) res.push({ kind: 'drop', type, tx, ty }); }));
-    return res;
-  }  function aiChoose() {
-    let best = null, bs = -Infinity;
-    for (const m of allMoves(1)) {
-      let s = Math.random() * 0.6;
-      const me = m.kind === 'drop' ? { type: m.type, owner: 1 } : board[m.fy][m.fx];
-      const worth = t => (t === 'K' ? 60 : val(t));
-      if (m.kind === 'move') {
-        const tgt = board[m.ty][m.tx];
-        if (tgt) { const p = pWin(me.type, tgt.type); s += p * worth(tgt.type) - (1 - p) * worth(me.type); }
-        if (attackedBy(board, 0, m.fx, m.fy)) s += val(me.type) * 0.4;   // 狙われている駒を逃がす
-        if (canPromote(me) && (inZone(1, m.fy) || inZone(1, m.ty))) s += 1.5;   // 成れる手
-        s += me.type === 'K' ? -0.3 : (m.ty - m.fy) * 0.12;
-      } else s += 0.25;
-      const nb = simulate(board, m, 1);
-      if (attackedBy(nb, 0, m.tx, m.ty)) s -= worth(me.type) * 0.45;    // 取られそうな所は避ける（撃ち合いで守れることもある）
-      const k = findKing(nb, 1);
-      if (k && attackedBy(nb, 0, k[0], k[1])) s -= 25;
-      if (s > bs) { bs = s; best = m; }
-    }
-    return best;
+    board = initialBoard(); hands = [[], []];
+    turn = 0; selected = null; targets = []; lastMove = null; preview = null; busy = false; over = false;
   }
 
   // ---------- 表示 ----------
@@ -220,12 +112,13 @@ export const BoardMode = (() => {
     for (let k = 0; k < 3; k++) branch(w / 2 + rand(-10, 10), w / 2 + rand(-10, 10), k * 2.1 + rand(0, 1), 46, 3.2, 3);
   }) });
   function pieceMesh(p) {
-    const g = new THREE.Group(), z = SIZE[p.type];
-    const m = new THREE.Mesh(pieceGeo, pieceSolidMats(label(p), p.promoted));
+    const hide = hidden(p);
+    const g = new THREE.Group(), z = hide ? 0.88 : SIZE[p.type];
+    const m = new THREE.Mesh(pieceGeo, pieceSolidMats(hide ? '' : label(p), !hide && p.promoted));
     m.scale.set(z * S * 0.82, z * S * 0.92, 0.3 / PIECE_DEPTH);
     m.rotation.x = -Math.PI / 2; m.position.y = 0.15; m.castShadow = true;
     g.add(m); g.rotation.y = p.owner === 1 ? Math.PI : 0;
-    if (p.cracked) {
+    if (p.cracked && !hide) {
       m.updateMatrixWorld(true);
       const b = new THREE.Box3().setFromObject(m), sz = b.getSize(new V3());
       const c = new THREE.Mesh(new THREE.PlaneGeometry(sz.x * 0.8, sz.z * 0.8), crackM);
@@ -264,7 +157,7 @@ export const BoardMode = (() => {
     pieceGroup.clear(); pickables.length = 0;
     for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
       const p = board[y][x];
-      if (!p) continue;
+      if (!p || (setup && p.owner === 1)) continue;
       if (contest && contest.fx === x && contest.fy === y) continue;   // 挑んでいる駒は相手のマスに描く
       const g = pieceMesh(p);
       g.position.copy(sq(x, y));
@@ -288,7 +181,14 @@ export const BoardMode = (() => {
       const counts = {};
       hands[o].forEach(t => { counts[t] = (counts[t] || 0) + 1; });
       let i = 0;
-      HAND_ORDER.forEach(t => {
+      const order = blind && !over && o === 1 ? hands[o].map((t, k) => ({ t, k })) : null;
+      if (order) for (const { t } of order) {
+        const g = pieceMesh({ type: t, owner: o, cracked: true });
+        const col = i % 3, row = Math.floor(i / 3);
+        g.position.set(-(BW / 2 + 1.4 + col * 0.8), -0.95, -(2.2 + row * 0.9)); g.scale.setScalar(0.8);
+        handGroup.add(g); i++;
+      }
+      if (!order) HAND_ORDER.forEach(t => {
         for (let n = 0; n < (counts[t] || 0); n++) {
           const g = pieceMesh({ type: t, owner: o, cracked: true });   // 持ち駒は相手から取った駒なので、ひび入り
           const col = i % 3, row = Math.floor(i / 3);
@@ -311,12 +211,13 @@ export const BoardMode = (() => {
       b.onclick = e => {
         e.stopPropagation();
         if (busy || turn !== 0 || over) return;
-        selected = { kind: 'drop', type: t }; targets = dropSquares(board, 0, t); refresh();
+        selected = { kind: 'drop', type: t }; targets = dropSquares(board, 0, t, hands); refresh();
       };
       hp.appendChild(b);
     });
     const he = $('bmHandE');
-    he.textContent = HAND_ORDER.map(t => PIECES[t].name.repeat(hands[1].filter(h => h === t).length)).join('') || 'なし';
+    he.textContent = blind && !over ? (hands[1].length ? `？ ×${hands[1].length}` : 'なし') : HAND_ORDER.map(t => PIECES[t].name.repeat(hands[1].filter(h => h === t).length)).join('') || 'なし';
+    $('bmSetup').style.display = setup ? 'flex' : 'none';
   }
   function paint() {
     const set = ([x, y]: number[], c, o = 0.45) => { const m = tiles[y][x].material; m.color.setHex(c); m.opacity = o; };
@@ -325,12 +226,17 @@ export const BoardMode = (() => {
     if (lm) { if (lm.kind === 'move') set([lm.fx, lm.fy], P.ki[2], 0.35); set([lm.tx, lm.ty], preview ? P.daidai[1] : P.ki[2], 0.45); }
     if (selected && selected.kind === 'move') set([selected.x, selected.y], P.ao[2], 0.55);
     targets.forEach(([x, y]) => set([x, y], board[y][x] ? P.shu[1] : P.midori[2], 0.5));
+    if (setup) {
+      for (let y = 6; y < 9; y++) for (let x = 0; x < 9; x++) set([x, y], P.midori[2], 0.12);
+      if (setupSel) set(setupSel, P.ao[2], 0.6);
+      return;
+    }
     const k = findKing(board, 0);
-    if (k && attackedBy(board, 1, k[0], k[1])) set(k, P.shu[1], 0.55);
+    if (!blind && k && attackedBy(board, 1, k[0], k[1])) set(k, P.shu[1], 0.55);
   }
   const setMsg = t => { $('bmMsg').textContent = t; };
   function turnMsg() {
-    const k = findKing(board, 0), check = k && attackedBy(board, 1, k[0], k[1]);
+    const k = findKing(board, 0), check = !blind && k && attackedBy(board, 1, k[0], k[1]);
     setMsg('あなたの番' + (check ? ' ― 王手！' : ''));
     if (check) SFX.play('check');
   }
@@ -338,9 +244,11 @@ export const BoardMode = (() => {
   // ---------- 操作 ----------
   const picker = new THREE.Raycaster(), mouse = new THREE.Vector2();
   renderer.domElement.addEventListener('click', e => {
-    if (gs.state !== 'board' || busy || turn !== 0 || over) return;
+    if (gs.state !== 'board' || over) return;
     mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
     picker.setFromCamera(mouse, bCam);
+    if (setup) { setupClick(picker.intersectObjects([...pickables, ...tiles.flat()], false)[0]); return; }
+    if (busy || turn !== 0) return;
     const hit = picker.intersectObjects([...pickables, ...tiles.flat()], false)[0];
     if (!hit) { selected = null; targets = []; refresh(); return; }
     const [x, y] = hit.object.userData.sq;
@@ -357,6 +265,33 @@ export const BoardMode = (() => {
     refresh();
   });
 
+  // ---------- ブラインド将棋：始める前の並べ替え ----------
+  function setupClick(hit) {
+    if (!hit || setupDone) { setupSel = null; refresh(); return; }
+    const [x, y] = hit.object.userData.sq;
+    if (y < 6) { setupSel = null; refresh(); return; }   // 自分の3段の中だけ
+    if (!setupSel) { if (board[y][x]) { setupSel = [x, y]; SFX.play('sel'); } refresh(); return; }
+    const [sx, sy] = setupSel;
+    if (sx !== x || sy !== y) { const t = board[y][x]; board[y][x] = board[sy][sx]; board[sy][sx] = t; SFX.play('place'); refresh({ kind: 'move', fx: sx, fy: sy, tx: x, ty: y }); }
+    setupSel = null; refresh();
+  }
+  let setupDone = false;
+  // 並べ終わった：自分の3段を送り、相手の並びが届いたら（向きを反対にして）盤に置いて始める
+  async function finishSetup() {
+    if (setupDone) return;
+    const g = gen;
+    setupDone = true; setupSel = null;
+    Net.send({ t: 'bsetup', v: [6, 7, 8].map(y => board[y].map(p => (p ? p.type : null))) });
+    setMsg('相手が並べ終わるのを待っています…'); refresh();
+    const v = await waitNet('bsetup');
+    if (g !== gen) return;
+    for (let i = 0; i < 3; i++) for (let x = 0; x < 9; x++) { const t = v[i] && v[i][x]; board[2 - i][8 - x] = t ? { type: t, owner: 1 } : null; }
+    setup = false; turn = hostSide ? 0 : 1;
+    SFX.play('battle');
+    refresh(); nextTurn();
+  }
+  function setupMsg() { setMsg('ブラインド将棋：自分の3段の中で並べ替えられます（動かす駒 → 置きたいマス）'); }
+
   // ---------- 撃ち合いへ ----------
   let battleDone = null;
   function battle(att, def, playerIsAttacker) {
@@ -366,7 +301,7 @@ export const BoardMode = (() => {
       gs.matchCtx = { myType: me.type, foeType: foe.type, playerIsAttacker };
       showUI(false);
       SFX.play('battle');
-      const mn = label(me), fn = label(foe);
+      const mn = label(me), hideFoe = blind, fn = hideFoe ? '？' : label(foe);
       // ステージは攻められた（守る）側が選ぶ。CPU が守るときは、選べるマップからランダム
       const meDef = !playerIsAttacker, done = resolve;
       let stage = meDef ? pickMap(settings.map, true) : online ? null : selectableMaps()[Math.floor(Math.random() * selectableMaps().length)][0];
@@ -378,9 +313,9 @@ export const BoardMode = (() => {
           ? mapPickHTML({ map: stage }, false, '守るあなたがステージを選ぶ') + (online ? '<button class="btn" id="bmStage">このステージで決定</button>' : '')
           : stage ? `<p>ステージ：<b>${mapName(stage)}</b>（${meDef ? 'あなた' : '相手'}が選んだ）</p>` : '<p>相手がステージを選んでいます…</p>';
         overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
-        <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
-        <p>${playerIsAttacker ? `勝てば相手の「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}` : `守り切れば攻めてきた「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}`}。負けるとあなたの「${mn}」は${me.cracked ? 'ひび入りなので割れて消える' : '取られる'}</p>
-        ${me.promoted || foe.promoted ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
+        <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted && !hideFoe ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
+        <p>${hideFoe ? (playerIsAttacker ? '勝てば相手の駒を取れる（何の駒かは、撃ち合いで姿を見るまで分からない）' : '守り切れば攻めてきた駒を取れる（何の駒かは、撃ち合いで姿を見るまで分からない）') : playerIsAttacker ? `勝てば相手の「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}` : `守り切れば攻めてきた「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}`}。負けるとあなたの「${mn}」は${me.cracked ? 'ひび入りなので割れて消える' : '取られる'}</p>
+        ${me.promoted || (foe.promoted && !hideFoe) ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
         ${stageHTML}
         ${online ? '' : '<button class="btn" id="bmFight">撃ち合い開始</button>'}${keysHTML()}`, true);
         if (!online) $('bmFight').onclick = e => { e.stopPropagation(); gs.boardMap = stage; startMatch(); };
@@ -398,6 +333,7 @@ export const BoardMode = (() => {
     const ctx = gs.matchCtx;
     const attackerWon = win === null ? false : (win === true) === ctx.playerIsAttacker;
     const playerWon = win === null ? !ctx.playerIsAttacker : win;
+    if (!online && win !== null) recordBattle(ctx.myType, ctx.foeType, ctx.playerIsAttacker, playerWon);
     $('hud').style.display = 'none';
     overlay(`<div class="res" style="color:${playerWon ? 'var(--kin-2)' : 'var(--shu-1)'}">${
       ctx.playerIsAttacker ? (attackerWon ? '駒を取った！' : '取り返された…') : (attackerWon ? '駒を取られた…' : '守り切った！')}</div>
@@ -469,7 +405,7 @@ export const BoardMode = (() => {
     }
     if (g !== gen) return;
     if (m.quiet) SFX.play('place');   // 置いた音（成るかを決めたあと）
-    if (justPromoted) SFX.play('promo');
+    if (justPromoted && !(blind && owner === 1)) SFX.play('promo');   // ブラインドでは相手が成ったことも知らせない
     lastMove = m.lost ? null : m; preview = null;
     refresh(m.lost ? null : m);
     if (winner !== null) { gameOver(winner, why); return; }
@@ -489,7 +425,10 @@ export const BoardMode = (() => {
     setMsg('相手の番…');
     await sleep(700);
     if (g !== gen) return;
-    const m = aiChoose();
+    await sleep(30);   // 考える前に「相手の番…」を画面に出す
+    if (g !== gen) return;
+    const m = chooseMove(board, hands);
+    if (!m) { gameOver(0, '相手が指せる手がなくなった'); return; }
     preview = m; paint();
     if (m.kind === 'move' && board[m.ty][m.tx]) {
       setMsg(`相手の「${label(board[m.fy][m.fx])}」が、あなたの「${label(board[m.ty][m.tx])}」を取りに来た！`);
@@ -514,7 +453,7 @@ export const BoardMode = (() => {
     const i = inbox.findIndex(x => x.t === 'bm');
     if (i < 0) return;
     const m = inbox.splice(i, 1)[0].m;
-    if (m.kind === 'move' && board[m.ty][m.tx]) setMsg(`相手の「${label(board[m.fy][m.fx])}」が、あなたの「${label(board[m.ty][m.tx])}」を取りに来た！`);
+    if (m.kind === 'move' && board[m.ty][m.tx]) setMsg(`相手の${blind ? '駒' : `「${label(board[m.fy][m.fx])}」`}が、あなたの「${label(board[m.ty][m.tx])}」を取りに来た！`);
     doMove(m, 1);
   }
   function tryFight() {
@@ -546,6 +485,7 @@ export const BoardMode = (() => {
   // winner: 0 あなた / 1 相手 / -1 引き分け。why: 決着の理由（なければ玉を取った）
   function gameOver(winner, why = '') {
     over = true; busy = true;
+    if (blind) { setup = false; refresh(); why = (why || (winner === 0 ? '相手の玉を討ち取った！' : 'あなたの王が討たれた…')) + '（相手の駒を表に返しました）'; }
     clearSave();
     if (winner >= 0) SFX.play(winner === 0 ? 'win' : 'lose');
     setMsg('');
@@ -564,22 +504,45 @@ export const BoardMode = (() => {
     <div class="bm-panel bm-e"><h4>相手の持ち駒</h4><div id="bmHandE"></div></div>
     <div class="bm-panel bm-p"><h4>あなたの持ち駒（クリックで打つ）</h4><div id="bmHandP"></div></div>
     <div class="bm-btns"><button class="small" id="bmResign">投了</button></div>
+    <div class="bm-setup" id="bmSetup"><button class="small" id="bmSetupReset">元の並びに戻す</button><button class="btn" id="bmSetupDone">並べ終わった</button></div>
     <div class="bm-help">駒をクリック → 光ったマスへ。赤いマスは相手の駒：撃ち合いで勝てば取れる、負けると取られる。取った駒を打つとひび入りになり、次に負けると割れて消える</div>`;
   document.body.appendChild(ui);
   function showUI(v) { ui.style.display = v ? 'block' : 'none'; }
-  $('bmResign').onclick = e => { e.stopPropagation(); if (!over && confirm('投了しますか？')) { gen++; if (online) Net.send({ t: 'bresign' }); gameOver(1, '投了'); } };
+  $('bmSetupDone').onclick = e => { e.stopPropagation(); if (setup) finishSetup(); };
+  $('bmSetupReset').onclick = e => {
+    e.stopPropagation();
+    if (!setup || setupDone) return;
+    const b0 = initialBoard(); for (let y = 6; y < 9; y++) board[y] = b0[y];
+    setupSel = null; refresh();
+  };
+  // はい／いいえを、ゲームの画面の中で聞く（ブラウザの確認の窓は使わない）
+  function askYesNo(q: string, yes: string, no: string, note = '') {
+    return new Promise<boolean>(res => {
+      overlay(`<div class="res" style="font-size:40px">${q}</div>${note ? `<p>${note}</p>` : ''}
+        <div style="display:flex;gap:14px;justify-content:center"><button class="btn ghost" id="bmNo">${no}</button><button class="btn" id="bmYes">${yes}</button></div>`, true);
+      $('bmYes').onclick = e => { e.stopPropagation(); hideOverlay(); res(true); };
+      $('bmNo').onclick = e => { e.stopPropagation(); hideOverlay(); res(false); };
+    });
+  }
+  $('bmResign').onclick = async e => {
+    e.stopPropagation();
+    if (over || !(await askYesNo('投了しますか？', '投了する', '続ける')) || over) return;
+    gen++; if (online) Net.send({ t: 'bresign' }); gameOver(1, '投了');
+  };
   $('bmQuit').onclick = e => { e.stopPropagation(); quit(); };
   // 対局の途中でタイトルへ（相手の番・撃ち合いの前後でも）
-  function quit() {
-    if (!over && !confirm('対局をやめてタイトルへ戻りますか？')) return;
+  async function quit() {
+    if (!over && !(await askYesNo('対局をやめますか？', 'タイトルへ戻る', '続ける', online ? '友達との部屋からも抜けます' : '途中の対局は保存されているので、あとで続きから遊べます'))) return;
     battleDone = null; hideOverlay();
     if (online) { close(); leave(); } else exit();
   }
   // 盤を片付ける（タイトルやロビーに移る前）
   function close() { gs.matchCtx = null; gs.boardMap = null; over = true; gen++; battleDone = null; online = false; inbox = []; waiters = []; showUI(false); }
   // 友達と対戦を始める（部屋を作った側が先手）
-  function startOnline(host) {
-    start(false, true);
+  function startOnline(host, blindMode = false) {
+    start(false, true, blindMode);
+    hostSide = host;
+    if (blindMode) { turn = -1; refresh(); setupMsg(); return; }   // 並べ終わるまで、どちらの番でもない
     turn = host ? 0 : 1;
     refresh(); nextTurn();
   }
@@ -594,10 +557,11 @@ export const BoardMode = (() => {
     $('bmNew').onclick = e => { e.stopPropagation(); clearSave(); start(); };
     $('bmBackT').onclick = e => { e.stopPropagation(); showTitle(); };
   }
-  function start(resume = false, net = false) {
+  function start(resume = false, net = false, blindMode = false) {
     SFX.init();
     gen++;
     online = net; inbox = []; waiters = []; meWait = foeWait = false;
+    blind = net && blindMode; setup = blind; setupSel = null; setupDone = false;
     initBoard();
     const d = resume && loadSave();
     if (d) { board = d.board; hands = d.hands; turn = d.turn; lastMove = d.lastMove; }
@@ -607,7 +571,7 @@ export const BoardMode = (() => {
     hideOverlay(); $('hud').style.display = 'none';
     showUI(true);
     refresh();
-    nextTurn();
+    if (!setup) nextTurn();
   }
   function exit() {
     gs.matchCtx = null; gs.boardMap = null; over = true; gen++;
@@ -637,8 +601,8 @@ export const BoardMode = (() => {
 
   showUI(false);
   return {
-    start, open, exit, abort, close, startOnline, onNet, get online() { return online; }, update, battleResult, scene: bScene, cam: bCam,
+    start, open, exit, abort, close, startOnline, onNet, get online() { return online; }, get blind() { return blind; }, update, battleResult, scene: bScene, cam: bCam,
     // 確認用：盤面を直接いじって表示を更新する（開発中のテストに使う）
-    debug: { get board() { return board; }, get hands() { return hands; }, refresh: () => refresh(), drops: (o, t) => dropSquares(board, o, t), inCheck: o => inCheck(board, o) },
+    debug: { get board() { return board; }, get hands() { return hands; }, refresh: () => refresh(), drops: (o, t) => dropSquares(board, o, t, hands), inCheck: o => inCheck(board, o) },
   };
 })();
