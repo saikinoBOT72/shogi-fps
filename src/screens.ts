@@ -10,9 +10,13 @@ import { BoardMode } from './boardmode';
 import { Net } from './net';
 import { leave, resetNetMatch, showLobby, showOnline } from './online';
 import { MAP_LIST, applyAtmos, playableMap, selectableMaps } from './world';
-import { devEquipRandom, devUnequipAll, pointsText } from './loadout';
+import { pointsText } from './loadout';
 import { showInventory } from './inventory';
 import { showGacha } from './gacha';
+import { showAccount, POLICY_LINK } from './accountScreen';
+import { showQuests, takeLoginBonus } from './questScreen';
+import { showMarket } from './marketScreen';
+import { Account, accountAvailable, onAccountChange } from './account';
 
 // ================= 共通 =================
 // 画面を出す。同じ画面を描き直すとき（見出しが同じ）は、スクロールの位置を保ち、出てくる動きもつけない
@@ -27,6 +31,7 @@ export function overlay(html, dim?) {
 }
 export const hideOverlay = () => { $('overlay').style.display = 'none'; };
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
+const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const koma = (ch: string, extra = '') => `<b class="koma${extra}">${ch}</b>`;
 
 // ================= 設定 =================
@@ -88,17 +93,10 @@ function showDevMenu(back: () => void) {
       <div class="row"><span>未公開マップ<small>オンにすると選べる（${MAP_LIST.filter(m => m[2]).map(m => m[1]).join('・')}）</small></span>${seg('devMaps', D.hiddenMaps ? '1' : '0')}</div>
       <div class="row"><span>オートエイム<small>押している間、相手の頭に照準が吸い付く</small></span>
         <span><button class="kbd-btn" id="devAim">${D.aimKey ? keyName(D.aimKey) : 'なし'}</button> <button class="small" id="devAimClear">なしにする</button></span></div>
-      <div class="row"><span>スキンを試す<small>全部の武器に、ランダムなスキンを持たせて装備する</small></span>
-        <span><button class="small" id="devSkin">ランダム</button> <button class="small" id="devSkinLR">LR だけ</button> <button class="small" id="devSkinOff">外す</button></span></div>
-      <p class="note" id="devSkinMsg"></p>
     </div>
     <div class="menu"><button class="btn sub" id="back">戻る</button></div>
   </div>`, true);
   document.querySelectorAll<HTMLElement>('#devMaps button').forEach(b => b.onclick = e => { e.stopPropagation(); D.hiddenMaps = b.dataset.v === '1'; saveSettings(); showDevMenu(back); });
-  const skinDone = (t: string) => { VM.applyLoadout(); paintActors(); $('devSkinMsg').textContent = t; };
-  on('devSkin', () => { devEquipRandom(); skinDone('ランダムなスキンを装備しました'); });
-  on('devSkinLR', () => { devEquipRandom('LR'); skinDone('LR のスキンを装備しました（眺めるキーで舞う光）'); });
-  on('devSkinOff', () => { devUnequipAll(); skinDone('初期スキンに戻しました'); });
   on('devAimClear', () => { D.aimKey = ''; saveSettings(); showDevMenu(back); });
   // キー設定と同じ：押してから割り当てたいキー（またはホイール・横のボタン）を押す。ESC でやめる
   on('devAim', () => {
@@ -175,19 +173,29 @@ function showControls(back: () => void) {
 }
 
 // ================= タイトル =================
+// ログインの状態が変わったら、タイトルの名前とポイントを出し直す（読み込みの順の都合で、最初に出したときに登録）
+let titleListen = false;
 export function showTitle() {
+  if (!titleListen) { titleListen = true; onAccountChange(() => { if (gs.state === 'title' && $('goSolo')) showTitle(); }); }
   gs.state = 'title'; $('hud').style.display = 'none';
+  if (takeLoginBonus(showTitle)) return;   // その日の最初：ログインボーナスを見せてからタイトルへ
   overlay(`<div class="screen title">
+    ${accountAvailable ? `<button class="acct-chip" id="openAcct">${!Account.ready ? '…' : Account.user ? `<small>${Account.user.isAnonymous ? 'ゲスト' : 'ログイン中'}</small><b>${esc(Account.name)}</b>` : '<b>ログイン</b>'}</button>` : ''}
     <div class="pts title-pts"><small>ポイント</small><b>${pointsText()}</b></div>
     <div class="logo">将棋<span>FPS</span></div>
     <div class="beta">ベータ版</div>
-    <div class="tagline">駒を取るときは、撃ち合いで決める。</div>
+    <div class="tagline">駒を取るときは、一騎打ちで決める。</div>
     <div class="modes">
-      <button class="mode" id="goSolo"><b>一人で遊ぶ</b><small>CPU と将棋モード・撃ち合い</small></button>
+      <button class="mode" id="goSolo"><b>一人で遊ぶ</b><small>CPU と将棋モード・一騎打ち</small></button>
       <button class="mode" id="goOnline"><b>友達と遊ぶ</b><small>部屋のコードで友達と対戦</small></button>
     </div>
-    <div class="menu"><button class="btn" id="openGacha">ガチャ</button><button class="btn sub" id="openInv">持ち物</button><button class="btn sub" id="openSettings">設定</button><button class="btn sub" id="openControls">操作方法</button></div>
+    <div class="menu"><button class="btn" id="openGacha">ガチャ</button><button class="btn sub" id="openQuests">クエスト</button><button class="btn sub" id="openMarket">マーケット</button><button class="btn sub" id="openInv">持ち物</button><button class="btn sub" id="openSettings">設定</button><button class="btn sub" id="openControls">操作方法</button></div>
+    <div class="title-foot">${POLICY_LINK}</div>
   </div>`);
+  document.querySelectorAll<HTMLElement>('.policy-link').forEach(a => a.onclick = e => e.stopPropagation());
+  on('openAcct', () => showAccount(showTitle));
+  on('openQuests', () => showQuests(showTitle));
+  on('openMarket', () => showMarket(showTitle));
   on('goSolo', showSolo);
   on('goOnline', () => showOnline());
   on('openGacha', () => showGacha(showTitle));
@@ -216,8 +224,8 @@ function showSolo() {
     <h2 class="h">一人で遊ぶ</h2>
     ${mapPickHTML(settings, false, 'マップ', true)}
     <div class="modes">
-      <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは撃ち合い（ステージは守る側が選ぶ）</small></button>
-      <button class="mode" id="goDuel"><b>撃ち合い</b><small>好きな駒どうしで 1 対 1</small></button>
+      <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは一騎打ち（ステージは守る側が選ぶ）</small></button>
+      <button class="mode" id="goDuel"><b>一騎打ち</b><small>好きな駒どうしで 1 対 1</small></button>
     </div>
     <div class="menu"><button class="btn sub" id="back">戻る</button></div>
   </div>`);
@@ -227,7 +235,7 @@ function showSolo() {
   on('back', showTitle);
 }
 
-// ================= 駒選択（撃ち合い） =================
+// ================= 駒選択（一騎打ち） =================
 // 駒の紹介カード
 export function pieceCard(k) {
   const p = PIECES[k], w = WEAPONS[p.weapon];
@@ -255,7 +263,7 @@ export function bindPieceSelect() {
 function showPieceSelect() {
   gs.state = 'title';
   overlay(`<div class="screen wide">
-    <h2 class="h">撃ち合い</h2>
+    <h2 class="h">一騎打ち</h2>
     ${pieceSelectHTML()}
     <div class="menu"><button class="btn sub" id="back">戻る</button><button class="btn" id="go">対局開始</button></div>
   </div>`, true);

@@ -1,3 +1,4 @@
+import { initAccount } from './account';
 // メインループ
 import { Gadgets } from './gadgets';
 import { P } from './palette';
@@ -190,6 +191,7 @@ function warmUp() {
 
 resetMatch();
 warmUp();
+initAccount();
 showTitle();
 requestAnimationFrame(loop);
 

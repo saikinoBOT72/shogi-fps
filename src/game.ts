@@ -16,6 +16,7 @@ import { PERSONAS, aiHear, damagePlayer } from './ai';
 import { initPips, killBot, showHitmarker } from './hud';
 import { Replay } from './replay';
 import { Net, r2, vec } from './net';
+import { questEvent } from './quests';
 import { equippedRef, paintGun, skinKey, validRef } from './loadout';
 import { skinMaterials } from './guns/skins';
 import { eyeOf, surfOf, hasLOS, act, moveEntity, tryJump } from './game/move';
@@ -30,7 +31,7 @@ gs.stateT = 0;
 gs.timeScale = 1;
 gs.slowmoT = 0;
 export let player, bot, playerActor, botActor, stats;
-gs.matchCtx = null;   // 将棋モードの撃ち合い中：{ myType, foeType, playerIsAttacker }
+gs.matchCtx = null;   // 将棋モードの一騎打ち中：{ myType, foeType, playerIsAttacker }
 export const view: any = { yaw: 0, pitch: 0, shake: 0, fov: 70.5, bobPhase: 0, dip: 0, dipV: 0, roll: 0 };
 export const isPlaying = () => (gs.state === 'countdown' || gs.state === 'fight') && !gs.paused;
 
@@ -210,6 +211,7 @@ export function useSkill(e, i, dir, force = false) {
     SFX.play('guardUp', e.isBot ? e.pos : null);
     if (!e.isBot) view.shake = Math.max(view.shake, 0.12);
   }
+  if (!e.isBot) questEvent('skill', 1, !!Net.on);
   return true;
 }
 // 構えを解く（撃ったとき）

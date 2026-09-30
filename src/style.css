@@ -336,7 +336,7 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .inv-list { grid-area: list; display: flex; flex-direction: column; gap: 10px; min-height: 0 }
 .inv-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
 .inv-count { margin-left: auto; font-size: 12px; color: var(--text-dim) }
-.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; overflow-y: auto; min-height: 0; align-content: start; padding: 2px }
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); grid-auto-rows: max-content; gap: 8px; overflow-y: auto; min-height: 0; align-content: start; padding: 2px }
 .inv-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 10px 10px 13px; min-width: 0; text-align: left; cursor: pointer;
   background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-s); font: inherit; overflow: hidden }
 .inv-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--rc) }
@@ -430,3 +430,74 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 #skill .sk.jam .ring { filter: grayscale(1) brightness(.6) }
 #skill .sk.jam .key { color: var(--mizu-2); text-shadow: 0 0 8px var(--mizu-1) }
 #skill .sk.jam .nm { color: var(--mizu-2) }
+
+/* ================= アカウント ================= */
+.acct-chip { position: fixed; top: 16px; left: 16px; display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font: 600 13px var(--font-ui); max-width: 60vw }
+.acct-chip small { font-size: 12px; color: var(--text-dim); letter-spacing: 1px }
+.acct-chip b { font: 800 15px var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.acct-chip:hover { filter: brightness(1.1) }
+.acct .panel p { margin: 0 0 6px; line-height: 1.7 }
+.acct .menu.col { width: 260px }
+.acct-name { display: flex; gap: 8px; align-items: center }
+.acct-name input { width: 4.5em; text-align: center; font-weight: 800; letter-spacing: .2em; text-transform: uppercase }
+.acct-ask b { display: block; font-size: 16px; margin-bottom: 6px }
+.acct-msg { margin: 0; font-size: 13px; color: var(--shu-2) }
+.btn.danger { background: var(--shu-1); border-color: var(--shu-1); color: var(--shiro-2) }
+.btn.danger-text { color: var(--shu-2) }
+.title-foot { margin-top: 4px }
+.policy-link { font-size: 12px; color: var(--text-dim); text-decoration: underline; text-underline-offset: 3px }
+.policy-link:hover { color: var(--text) }
+
+/* ================= クエスト（持ち物・ガチャの画面と同じ見出し） ================= */
+.qs { width: min(820px, 100%); display: flex; flex-direction: column; gap: 14px; text-align: left }
+.qs-head { display: flex; align-items: center; gap: 16px }
+.qs-head .h { margin-right: auto; font-family: var(--font-koma); font-size: 34px; letter-spacing: 6px }
+.qs-body { display: flex; flex-direction: column; gap: 14px }
+.qs .panel h3 { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 15px; color: var(--text); letter-spacing: 1px }
+.qs .panel h3 span { font-size: 12px; font-weight: 400; color: var(--text-dim); letter-spacing: 0 }
+.qs-off p { margin: 0 0 12px; line-height: 1.8 }
+.q-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px 56px 84px; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line) }
+.qs .panel > .q-row:last-child { border-bottom: none }
+.q-main { display: flex; flex-direction: column; gap: 6px; min-width: 0 }
+.q-text { font-size: 14px; display: flex; align-items: center; gap: 8px; min-width: 0 }
+.q-bar { height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--shiro-2) 10%, transparent); overflow: hidden }
+.q-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px }
+.q-n { font-size: 12px; color: var(--text-dim); text-align: right; font-variant-numeric: tabular-nums }
+.q-pt { font: 800 15px var(--font-ui); color: var(--accent); text-align: right; font-variant-numeric: tabular-nums }
+.q-re { justify-self: end }
+.q-row.got .q-text, .q-row.got .q-pt { color: var(--text-dim) }
+.q-row.got .q-n { color: var(--good); font-weight: 700 }
+.q-row.got .q-bar i { background: var(--good) }
+.q-all .q-text { font-weight: 700 }
+.q-tag { flex: none; font-size: 11px; padding: 1px 7px; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--text-dim) }
+.q-tag.fr { color: var(--good); border-color: color-mix(in srgb, var(--good) 50%, transparent) }
+.q-tag.cpu { color: var(--info); border-color: color-mix(in srgb, var(--info) 50%, transparent) }
+.q-login { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px }
+.q-day { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-soft) }
+.q-day small { font-size: 11px; color: var(--text-dim) }
+.q-day b { font: 800 16px var(--font-ui); font-variant-numeric: tabular-nums }
+.q-day i { position: absolute; top: 3px; right: 6px; font-style: normal; font-size: 11px; color: var(--good) }
+.q-day.got { opacity: .55 }
+.q-day.now { border-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 22%, var(--panel)) }
+.q-day.now b { color: var(--accent) }
+/* ログインボーナスの知らせ */
+.lb-get { display: flex; align-items: baseline; gap: 10px }
+.lb-get small { font-size: 15px; color: var(--text-dim) }
+.lb-get b { font: 900 56px var(--font-ui); color: var(--accent); text-shadow: var(--shade) }
+.lb-get span { font-size: 15px; color: var(--text-dim) }
+/* クエスト達成の知らせ（画面の上） */
+#questToast { position: fixed; top: 16px; left: 50%; z-index: 50; transform: translate(-50%, -12px); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+  padding: 8px 18px; border: 1px solid var(--accent); border-radius: 999px; background: var(--panel); color: var(--text); font: 700 14px var(--font-ui); white-space: nowrap; text-shadow: var(--shade) }
+#questToast.on { opacity: 1; transform: translate(-50%, 0) }
+.ga-login { color: var(--accent) }
+
+/* ================= マーケット（持ち物の画面の部品をそのまま使う） ================= */
+.mk-price { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums }
+.mk-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: var(--text-dim); font-size: 14px }
+.mk .inv-view { position: relative }
+.mk-ask { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.mk-ask span { font-weight: 700 }
+.inv-sell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px }
+.inv-sell input { width: 7em; text-align: right }
+.inv-msg { margin: 6px 0 0; font-size: 13px; color: var(--shu-2) }
+.ol-name { letter-spacing: .15em; color: var(--accent) }

@@ -12,6 +12,8 @@ import { act, bot, botActor, currentSpread, eyeOf, player, stats, view } from '.
 import { Replay } from './replay';
 import { showResult } from './screens';
 import { Net } from './net';
+import { mapId } from './world/base';
+import { questMatch } from './quests';
 
 // ================= 勝敗 =================
 export function killBot() {
@@ -34,6 +36,8 @@ export function endMatch(win) {
   if (gs.state === 'end' || gs.state === 'killcam') return;   // 相打ちで2回来たとき
   gs.state = 'end'; gs.stateT = 0; gs.mouseDown = false; gs.rightDown = false;
   stats.time = TIME_LIMIT - Math.max(0, TIME_LIMIT - stats.time);
+  // クエスト：1試合ぶんをまとめて数える（一騎打ち・将棋モードの一騎打ちの両方）
+  questMatch({ win, fr: !!Net.on, duel: !gs.matchCtx, map: mapId, me: player.type, foe: bot.type, heads: stats.heads, dmg: stats.dealt });
   showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? 'var(--kin-2)' : 'var(--shu-1)');
   if (win !== null) setTimeout(() => SFX.play(win ? 'win' : 'lose'), 600);
   const toResult = () => { if (document.pointerLockElement) document.exitPointerLock(); showResult(win); };

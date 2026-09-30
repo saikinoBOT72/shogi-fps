@@ -1,4 +1,4 @@
-// 撃ち合いの CPU：見つける・追う・撃つ・物陰から顔を出して撃つ・追い詰められたら退いて回復・見失ったら横から回り込む
+// 一騎打ちの CPU：見つける・追う・撃つ・物陰から顔を出して撃つ・追い詰められたら退いて回復・見失ったら横から回り込む
 //   見えていない相手は、最後に見た所（角の先）を狙って待つ（壁越しには狙わない）。スキルの使い方は SKILL_AI、性格は PERSONAS
 import { Gadgets } from './gadgets';
 import { gs } from './state';
@@ -173,7 +173,7 @@ export function updateBot(dt) {
       if (b.retreatT <= 0 || Math.hypot(b.retreatPt.x - b.pos.x, b.retreatPt.z - b.pos.z) < 0.8 || (!los && b.lostT > 0.6)) { b.retreatPt = null; if (!los) b.healing = true; }
     }
     b.retreating = !!b.retreatPt;
-    // 物陰から撃つ：慎重型はいつも、バランス型は傷ついたときや遠いとき。近すぎるときは撃ち合いに集中
+    // 物陰から撃つ：慎重型はいつも、バランス型は傷ついたときや遠いとき。近すぎるときは一騎打ちに集中
     const wantPeek = los && !guarding && !b.retreating && !b.coverPt && dist > 5 && b.w.kind !== 'melee'
       && (P === PERSONAS.careful || (P === PERSONAS.normal && (b.hp < b.def.hp * 0.75 || dist > 12)));
     updatePeek(b, wantPeek, pEye, dt);
@@ -383,7 +383,7 @@ export const SKILL_AI = {
     if (!ready(s)) return;
     if ((c.los && player.pos.y > b.pos.y + 2.5 && c.dist < 30) || b.stuck > 0.8) useSkill(b, i, c.toP);
   },
-  // EMP：見えている相手へ、撃ち合いの前に投げる（相手がスキルを使っている最中なら、切りに投げる）
+  // EMP：見えている相手へ、一騎打ちの前に投げる（相手がスキルを使っている最中なら、切りに投げる）
   emp(b, c, i, s) {
     if (!ready(s) || !c.los || c.dist < 4 || c.dist > 22) return;
     const busy = player.slots.some(x => x.t > 0 && ['buff', 'cloak', 'guard', 'heal'].includes(x.sk.type));
@@ -403,7 +403,7 @@ export const SKILL_AI = {
     }
   },
   // 衝撃波：近くに来た相手を吹き飛ばす
-  // タレット歩：撃ち合いが始まったら目の前に置く
+  // タレット歩：一騎打ちが始まったら目の前に置く
   turret(b, c, i, s) {
     if (ready(s) && c.los && c.dist < 30 && b.seen > 0.3) useSkill(b, i, c.toP);
   },

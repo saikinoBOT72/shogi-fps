@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>将棋FPS プライバシーポリシー・利用規約</title>
+<style>
+  :root { --bg: #1a1512; --panel: #322c28; --text: #ebe7df; --dim: #b5afa6; --line: #4d4641; --accent: #e5c68e; --shu: #fab8aa }
+  html { background: var(--bg) }
+  body { margin: 0; padding: 32px 16px 64px; color: var(--text); font: 15px/1.85 "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Meiryo", sans-serif }
+  main { max-width: 720px; margin: 0 auto }
+  h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: .05em }
+  h1 span { color: var(--accent) }
+  .date { color: var(--dim); font-size: 13px; margin: 0 0 24px }
+  nav { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px }
+  nav a { color: var(--accent) }
+  h2 { font-size: 19px; margin: 40px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); color: var(--accent) }
+  h3 { font-size: 15px; margin: 22px 0 4px }
+  p, li { margin: 6px 0 }
+  ul, ol { padding-left: 1.4em }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top }
+  th { background: var(--panel); font-weight: 700; white-space: nowrap }
+  .wrap { overflow-x: auto }
+  .box { background: var(--panel); border-radius: 10px; padding: 12px 16px; margin: 12px 0 }
+  .warn { color: var(--shu) }
+  a { color: var(--accent) }
+  small { color: var(--dim) }
+</style>
+</head>
+<body>
+<main>
+  <h1>将棋<span>FPS</span> プライバシーポリシー・利用規約</h1>
+  <p class="date">制定 2026年9月30日</p>
+  <nav><a href="#privacy">プライバシーポリシー</a><a href="#terms">利用規約</a><a href="#contact">お問い合わせ</a><a href="./">ゲームへ戻る</a></nav>
+
+  <div class="box">
+    <p>将棋FPS（<a href="https://saikinobot72.github.io/shogi-fps/">https://saikinobot72.github.io/shogi-fps/</a>、以下「このゲーム」）は、個人（以下「作者」）が友人と遊ぶために作り、<b>無料で</b>公開しているゲームです。広告と課金はありません。</p>
+    <p>このページでは、このゲームで扱う情報（プライバシーポリシー）と、遊ぶときの決まり（利用規約）を説明します。</p>
+  </div>
+
+  <h2 id="privacy">プライバシーポリシー</h2>
+
+  <h3>1. 集める情報</h3>
+  <p><b>(1) ログインしたとき（Google LLC の Firebase Authentication を使います）</b></p>
+  <div class="wrap"><table>
+    <tr><th>ログインの方法</th><th>受け取る情報</th><th>保存される場所</th></tr>
+    <tr><td>Google でログイン</td><td>Google アカウントの番号（ID）、メールアドレス、表示名、プロフィール画像の URL</td><td>Firebase Authentication（ログインの記録）だけ。<b>ゲームのデータベースには入れず、ゲームの画面にも出しません。</b></td></tr>
+    <tr><td>ゲスト</td><td>自動で作られる番号だけ</td><td>Firebase Authentication</td></tr>
+  </table></div>
+  <p>ログインの処理のため、Firebase Authentication は IP アドレスとブラウザの種類（User-Agent）を扱います。</p>
+
+  <p><b>(2) ゲームのデータベース（Google LLC の Cloud Firestore）に保存するもの</b></p>
+  <ul>
+    <li>ユーザー番号（上のログインの番号）</li>
+    <li>ゲーム内の名前（英語の大文字3文字。最初はランダム。同じ名前を1人だけにするため、名前とユーザー番号の組も保存します）</li>
+    <li>持ち物：スキン、装備、ポイント</li>
+    <li>クエストの進み具合、ログインボーナスをもらった日数</li>
+    <li>最後に保存した日時（サーバーの時刻。ログインボーナスとクエストの日付の切り替えにも使います）</li>
+  </ul>
+  <p>これ以外（メールアドレス、本名、電話番号、住所、支払い情報など）は保存しません。<span class="warn">ゲーム内の名前に、本名の頭文字など自分と分かるものは使わないでください。</span></p>
+
+  <p><b>(3) マーケットに出品したとき</b></p>
+  <p>出品すると、<b>ゲーム内の名前・スキン・値段・出品した日時</b>が、ログインしているほかのプレイヤーに見えます。売れると、買った人のユーザー番号と名前、売れた日時が出品のデータに入り、出品した人に「〇〇が買いました」と知らされます。出品のデータは、代金を受け取ったとき・取り下げたとき・期限切れで戻ったときに消えます。</p>
+
+  <p><b>(4) ほかのプレイヤーに見えるもの</b></p>
+  <p>ゲーム内の名前は、マーケットと、友達との対戦の相手に見えます。それ以外（持ち物・ポイント・クエストなど）は、ほかのプレイヤーには見えません。</p>
+
+  <p><b>(5) あなたのブラウザにだけ保存するもの（localStorage）</b></p>
+  <p>設定（感度・音量・キー設定など）、将棋モードの続き、持ち物の控え、CPU が覚えたあなたの一騎打ちの強さ。これらは外に送りません。ただし持ち物は、ログイン中はアカウントにも保存します。</p>
+
+  <p><b>(6) 友達と遊ぶとき</b></p>
+  <p>部屋のコードで相手とつなぐため、PeerJS の公開サーバー（0.peerjs.com）を使い、その後はブラウザどうしが直接通信します（WebRTC）。<b>直接通信のため、相手のブラウザにあなたの IP アドレスが伝わることがあります。</b>知らない人と部屋のコードを共有しないでください。送るのはゲームの進行に必要な情報（操作、駒の動き、装備しているスキン、ゲーム内の名前など）だけです。</p>
+
+  <p><b>(7) 集めないもの</b></p>
+  <p>アクセス解析（Google アナリティクスなど）、広告、Cookie による追跡は使いません。お金の支払いはないので、支払い情報も扱いません。</p>
+
+  <h3>2. 使う目的</h3>
+  <ol>
+    <li>ログインして、あなたのアカウントを見分けるため</li>
+    <li>持ち物を保存し、別の PC やブラウザでも同じ持ち物で遊べるようにするため</li>
+    <li>ログインボーナスとクエストの進み具合を数え、ポイントを配るため</li>
+    <li>マーケットでスキンを売り買いできるようにするため</li>
+    <li>不具合や不正な書き換えを調べて直すため</li>
+  </ol>
+  <p>これ以外の目的には使いません。</p>
+
+  <h3>3. ほかの人やサービスに渡すこと</h3>
+  <p>作者は、集めた情報をほかの人に渡したり売ったりしません（法令にもとづいて求められたときを除きます）。このゲームは次のサービスを使っていて、それぞれのサービスが自社の決まりにしたがって情報を扱います。</p>
+  <ul>
+    <li>Google LLC（Firebase Authentication・Cloud Firestore）：<a href="https://firebase.google.com/support/privacy" rel="noopener">Firebase のプライバシーとセキュリティ</a>、<a href="https://policies.google.com/privacy?hl=ja" rel="noopener">Google プライバシーポリシー</a></li>
+    <li>PeerJS（友達と遊ぶときの接続）：<a href="https://peerjs.com/" rel="noopener">peerjs.com</a></li>
+    <li>GitHub, Inc.（このゲームの配信。アクセスの記録として IP アドレスなどを扱います）：<a href="https://docs.github.com/ja/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">GitHub のプライバシーに関する声明</a></li>
+  </ul>
+
+  <h3>4. 保存する場所</h3>
+  <p>ゲームのデータベースは Google のサーバー（東京リージョン）に、ログインの記録は Google のサーバー（日本国外を含みます）に保存されます。</p>
+
+  <h3>5. 保存する期間と消し方</h3>
+  <ul>
+    <li>アカウントの情報は、アカウントがある間保存します。</li>
+    <li><b>タイトル画面の左上 → アカウント →「アカウントを消す」</b>で、ゲームのデータベースの情報（名前・持ち物・出品）とログインの記録を、あなた自身ですぐに消せます。出品中のスキンも一緒に消えます。</li>
+    <li>ゲストは、ログアウトすると同じアカウントには戻れません（持ち物も使えなくなります）。</li>
+    <li>ブラウザに保存したものは、ブラウザの「サイトデータを削除」で消えます。</li>
+    <li>自分で消せないとき、または保存されている情報を知りたいときは、<a href="#contact">お問い合わせ</a>から連絡してください。</li>
+  </ul>
+
+  <h3>6. 安全のための取り組み</h3>
+  <ul>
+    <li>データベースは、<b>本人しか読み書きできない決まり</b>にしています。ほかの人の持ち物・ポイントは読めません。ほかの人に見えるのは、上の (3)(4) のものだけです。</li>
+    <li>メールアドレスなどの個人情報はデータベースに入れません。パスワードは扱いません（Google のログインは Google 側で行います）。</li>
+  </ul>
+
+  <h3>7. お子さまの利用</h3>
+  <p>13歳未満の方は、保護者の方の同意を得てから遊んでください。Google でログインするには、Google の年齢の条件を満たす必要があります。</p>
+
+  <h3>8. このポリシーの変更</h3>
+  <p>保存する情報や使う目的を変えるときは、先にこのページを直し、ゲームの中でお知らせします。</p>
+
+  <h2 id="terms">利用規約</h2>
+
+  <h3>1. このゲームについて</h3>
+  <p>このゲームは無料です。遊んだ時点で、この規約とプライバシーポリシーに同意したものとします。</p>
+
+  <h3>2. ポイントとスキン</h3>
+  <ul>
+    <li>ポイントとスキンは、このゲームの中だけで使えるものです。<b>お金で買うことはできず、お金やほかの物に換えることもできません。</b></li>
+    <li>ポイントは、ログインボーナスとクエストでもらえます（ログインした人だけ）。もらえる量やクエストの中身は、予告なく変えることがあります。</li>
+    <li>ガチャはポイントで引く無料の遊びです。出る確率はガチャの画面に書いてあります。</li>
+  </ul>
+
+  <h3>3. マーケット</h3>
+  <ul>
+    <li>ログインした人は、スキンを1人10個まで、1〜10,000pt の値段で出品できます。手数料はかかりません。</li>
+    <li>出品したスキンは、売れるまで持ち物から外れます。いつでも取り下げられ、7日たつと自動で持ち物に戻ります。</li>
+    <li>売れた取引は取り消せません。代金は、出品した人が次にゲームを開いたときに受け取ります。</li>
+    <li>取引はプレイヤーどうしの責任で行ってください。作者は取引の内容について責任を負いません。</li>
+    <li><b>マーケットを使って、ゲームの外でお金などとやり取りすること（例：ゲームの外でお金を受け取り、安いスキンを高く買ってもらう）は禁止です。</b></li>
+  </ul>
+
+  <h3>4. してはいけないこと</h3>
+  <ol>
+    <li><b>ポイント・スキン・アカウントを、お金やお金に代わるもの（ギフト券、ほかのゲームのアイテムなど）とやり取りすること</b>（売る、買う、賭けるなど）</li>
+    <li>データの不正な書き換え、改造、チート、ほかの人のアカウントを使うこと</li>
+    <li>ほかの人を困らせる名前（悪口や差別的な言葉になる3文字など）を付けること</li>
+    <li>サーバーに大きな負担をかけること、このゲームや使っているサービスの仕組みを壊そうとすること</li>
+    <li>法律や、使っているサービス（Google・PeerJS・GitHub）の規約に反すること</li>
+  </ol>
+  <p>これらをしたときは、作者がそのデータやアカウントを消すことがあります。</p>
+
+  <h3>5. 作者の責任について</h3>
+  <ul>
+    <li>このゲームは<b>ベータ版</b>です。予告なく内容が変わったり、データが消えたり、遊べなくなったり、公開を終えたりすることがあります。</li>
+    <li>作者はデータを守るよう努めますが、それによってあなたに生じた損害について、作者の故意または重大な過失による場合を除き、責任を負いません。</li>
+  </ul>
+
+  <h3>6. 実在のものとの関係</h3>
+  <p>ゲームに出てくる武器の名前や形は、実在のものを参考にした場合があります。実在のメーカーや団体とは関係がなく、それらの許可や後援を受けたものではありません。</p>
+
+  <h2 id="contact">お問い合わせ</h2>
+  <p>作者への連絡は <a href="https://github.com/saikinoBOT72/shogi-fps/issues" rel="noopener">GitHub の Issues</a> からお願いします。<span class="warn">Issues に書いた内容は誰でも見られるので、個人情報は書かないでください。</span>作者と直接の知り合いなら、直接伝えてもかまいません。</p>
+
+  <p><small>運営：将棋FPS の作者（個人）</small></p>
+</main>
+</body>
+</html>

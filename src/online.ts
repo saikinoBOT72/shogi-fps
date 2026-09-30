@@ -1,4 +1,4 @@
-// 友達と対戦：部屋を作る・入る → 遊び方（撃ち合い・将棋モード・ブラインド将棋）とマップを決め、おたがい準備OK → 開始
+// 友達と対戦：部屋を作る・入る → 遊び方（一騎打ち・将棋モード・ブラインド将棋）とマップを決め、おたがい準備OK → 開始
 // 将棋モード・ブラインド将棋の盤の上のやりとりは boardmode.ts（ここからは届いたものを渡すだけ）
 // 対戦中は、自分の位置・向き・スキルの状態を 1 秒に 30 回送り、撃った・投げた・当てた・倒れたはその場で送る
 // 当たったかどうかは撃った側の画面で決め、ダメージは受けた側が自分の HP から引く（HP を決めるのは本人）
@@ -7,6 +7,7 @@ import { gs } from './state';
 import { $, PIECES, SKILLS, V3, WEAPONS, saveSettings, settings } from './core';
 import { SFX } from './audio';
 import { Net, hostRoom, joinRoom, leaveRoom, r2, vec } from './net';
+import { Account, NAME_RE } from './account';
 import { overlay, pieceCard, showTitle, startMatch } from './screens';
 import { bot, botActor, eyeOf, player, resetMatch, useSkill, view } from './game';
 import { Arrows } from './arrows';
@@ -24,12 +25,12 @@ const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclic
 const V = (a: number[]) => new V3(a[0], a[1], a[2]);
 const inMatch = () => gs.state === 'countdown' || gs.state === 'fight';
 
-let foe = { k: null, ready: false }, meReady = false, inLobby = false, snap = null, sendT = 0;
+let foe = { k: null, ready: false, nm: '' }, meReady = false, inLobby = false, snap = null, sendT = 0;
 let mode = 'duel';
 const room = { map: 'valley', dark: 'scary' };   // マップと暗さ（部屋を作った人が決める）
 // 部屋の設定を画面の背景にも反映
 function applyRoom() { gs.netMap = room.map; gs.netDark = room.dark; resetMatch(); applyAtmos(); }
-const sendRoom = () => Net.send({ t: 'room', map: room.map, dark: room.dark });   // 遊び方：'duel' 撃ち合い / 'board' 将棋モード（部屋を作った側が決める）
+const sendRoom = () => Net.send({ t: 'room', map: room.map, dark: room.dark });   // 遊び方：'duel' 一騎打ち / 'board' 将棋モード（部屋を作った側が決める）
 
 // ================= 部屋を作る・入る =================
 export function showOnline(msg = '') {
@@ -54,7 +55,7 @@ export function showOnline(msg = '') {
 const cb = {
   code: (c: string) => waiting(`<div class="ol-code">${c}</div><p>このコードを友達に伝えてね。入ってくるのを待っています…</p>`),
   connected: () => {
-    foe = { k: null, ready: false }; meReady = false; mode = 'duel';
+    foe = { k: null, ready: false, nm: '' }; gs.foeName = ''; meReady = false; mode = 'duel';
     if (Net.host) { room.map = pickMap(settings.map, true); room.dark = settings.dark; Net.send({ t: 'mode', m: mode }); sendRoom(); }
     applyRoom(); sendPick(); showLobby();
   },
@@ -74,7 +75,7 @@ function join() {
 }
 
 // ================= 駒選び（おたがい準備OKで開始） =================
-const sendPick = () => Net.send({ t: 'pick', k: settings.myPiece, ready: meReady, sk: equippedAll() });   // sk：装備しているスキン（武器ごとにデザインと色の番号）
+const sendPick = () => Net.send({ t: 'pick', k: settings.myPiece, ready: meReady, sk: equippedAll(), nm: Account.user ? Account.name : '' });   // sk：装備しているスキン（武器ごとにデザインと色の番号）・nm：名前（英語3文字。ログインしていなければ空）
 export function showLobby() {
   inLobby = true; gs.state = 'title';
   if (!PIECES[settings.myPiece]) settings.myPiece = 'P';
@@ -82,12 +83,12 @@ export function showLobby() {
   overlay(`<div class="screen wide">
     <h2 class="h">友達と対戦　<small>部屋 ${Net.code}</small></h2>
     <div class="panel form"><div class="row"><span>遊び方<small>${Net.host ? 'あなたが決める' : '部屋を作った人が決める'}</small></span>
-      <div class="seg" id="olMode">${[['duel', '撃ち合い'], ['board', '将棋モード'], ['blind', 'ブラインド将棋']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${Net.host ? '' : ' disabled'}>${n}</button>`).join('')}</div></div></div>
+      <div class="seg" id="olMode">${[['duel', '一騎打ち'], ['board', '将棋モード'], ['blind', 'ブラインド将棋']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${Net.host ? '' : ' disabled'}>${n}</button>`).join('')}</div></div></div>
     ${mapPickHTML(room, !Net.host)}
-    ${mode === 'blind' ? '<p class="note" style="text-align:center">始める前に、自分の3段の中で駒を並べ替えられる。対局中、相手の駒は字の無い駒に見える（打った駒・成った駒も）。<br>動きから何の駒か覚えながら戦い、撃ち合いで姿を見て答え合わせ。部屋を作った人が先手</p>'
-      : mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは撃ち合い</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
+    ${mode === 'blind' ? '<p class="note" style="text-align:center">始める前に、自分の3段の中で駒を並べ替えられる。対局中、相手の駒は字の無い駒に見える（打った駒・成った駒も）。<br>動きから何の駒か覚えながら戦い、一騎打ちで姿を見て答え合わせ。部屋を作った人が先手</p>'
+      : mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは一騎打ち</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
       <p class="detail"><b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `「${SKILLS[k].name}」${SKILLS[k].help}`).join('　')}</p></section>`}
-    <div class="ol-foe">相手：${mode !== 'duel' ? '' : f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : '<span>準備中</span>'}</div>
+    <div class="ol-foe">相手${foe.nm ? `（<b class="ol-name">${foe.nm}</b>）` : ''}：${mode !== 'duel' ? '' : f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : '<span>準備中</span>'}</div>
     <div class="menu"><button class="btn sub" id="olLeave">抜ける</button><button class="btn${meReady ? ' sub' : ''}" id="olReady">${meReady ? '準備OK を取り消す' : '準備OK'}</button></div>
   </div>`, true);
   document.querySelectorAll<HTMLElement>('#olPick button').forEach(b => b.onclick = e => {
@@ -110,7 +111,7 @@ function begin() {
   if (mode === 'board' || mode === 'blind') BoardMode.startOnline(Net.host, mode === 'blind');
   else startMatch(foe.k);
 }
-// 撃ち合いが始まるとき（将棋モードの撃ち合いでも）：前の様子を捨てる
+// 一騎打ちが始まるとき（将棋モードの一騎打ちでも）：前の様子を捨てる
 export function resetNetMatch() { snap = null; sendT = 0; }
 // 部屋から抜ける（相手にも知らせる）
 export function leave() {
@@ -133,7 +134,7 @@ addEventListener('beforeunload', () => { if (Net.on) Net.send({ t: 'bye' }); });
 Net.onClose = lost;
 Net.onMsg = (m: any) => {
   switch (m.t) {
-    case 'pick': foe.k = m.k; foe.ready = m.ready; gs.foeSkins = m.sk && typeof m.sk === 'object' ? m.sk : null; if (inLobby) { showLobby(); maybeStart(); } break;
+    case 'pick': foe.k = m.k; foe.ready = m.ready; foe.nm = gs.foeName = NAME_RE.test(m.nm || '') ? m.nm : ''; gs.foeSkins = m.sk && typeof m.sk === 'object' ? m.sk : null; if (inLobby) { showLobby(); maybeStart(); } break;
     case 'start': if (!Net.host) { mode = m.m || 'duel'; begin(); } break;
     case 'room': room.map = m.map; room.dark = m.dark; meReady = false; sendPick(); applyRoom(); if (inLobby) showLobby(); break;
     case 'mode': mode = m.m; meReady = false; sendPick(); if (inLobby) showLobby(); break;

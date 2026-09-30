@@ -9,6 +9,9 @@ import { GUN_OF_MODEL, Loadout, Owned, equipItem, itemName, itemsOf, paintGun, p
 import { VM } from './effects';
 import { paintActors } from './game';
 import { overlay } from './screens';
+import { Account } from './account';
+import { MARKET, listItem } from './market';
+import { notify } from './quests';
 
 // 並べる順（持ち替えの順と同じ：ハンドガン系 → 連射 → 重い銃 → 弓・ナイフ）
 const MODELS = ['pistol', 'burst', 'mp5', 'ak', 'm870', 'mk2', 'm79', 'bow', 'karambit'];
@@ -24,10 +27,10 @@ const baseName = (m: string) => baseSk(m)?.name || '竹と籐';
 const colorsOf = (it: Owned | null, m: string) => it ? gachaColors(it.seed, DESIGNS[it.base].colors.length) : baseSk(m) ? [baseSk(m).slide.c, baseSk(m).grip.c] : [P.kiji[1], P.sumi[1]];
 const swatch = (cols: number[]) => `<span class="inv-sw">${cols.map(c => `<i style="background:${hex(c)}"></i>`).join('')}</span>`;
 
-let cur = 'pistol', sel: number = 0, sort: 'rank' | 'new' = 'rank', favOnly = false, renaming = false, back: () => void = () => {};
+let cur = 'pistol', sel: number = 0, sort: 'rank' | 'new' = 'rank', favOnly = false, selling = false, sellMsg = '', back: () => void = () => {};
 
 export function showInventory(onBack: () => void) {
-  back = onBack; renaming = false;
+  back = onBack; selling = false; sellMsg = '';
   sel = Loadout.equip[cur] ?? 0;
   render();
 }
@@ -48,7 +51,7 @@ function render() {
     return `<button class="inv-card r-${r}${id === sel ? ' sel' : ''}${id === eq ? ' eq' : ''}" data-id="${id}">
       ${swatch(colorsOf(x, cur))}<em>${x ? r : '初期'}</em>
       <b>${esc(x ? itemName(x) : baseName(cur))}</b>
-      <small>${x ? esc(DESIGNS[x.base].name) + (x.name ? '　' + seedHex(x.seed) : '') : '最初から持っている'}</small>
+      <small>${x ? esc(DESIGNS[x.base].name)  : '最初から持っている'}</small>
       ${id === eq ? '<span class="inv-eq">装備中</span>' : ''}${x?.fav ? '<span class="inv-star">★</span>' : ''}
     </button>`;
   };
@@ -68,17 +71,19 @@ function render() {
       <div class="inv-view" id="invView"><span class="inv-hint">ドラッグで回す</span></div>
       <div class="inv-info">
         <div class="inv-rar"><b>${it ? rar : '初期'}</b><span>${it ? RARITY[rar] : '初期スキン'}</span></div>
-        <div class="inv-name">${renaming && it
-          ? `<input id="invNameIn" maxlength="20" value="${esc(it.name || '')}" placeholder="${esc(DESIGNS[it.base].name + ' ' + seedHex(it.seed))}">`
-          : `<span>${esc(it ? itemName(it) : baseName(cur))}</span>`}</div>
+        <div class="inv-name"><span>${esc(it ? itemName(it) : baseName(cur))}</span></div>
         <div class="inv-meta">${it
           ? `<span>デザイン <b>${esc(d.name)}</b></span><span>カラー ${swatch(colorsOf(it, cur))}</span><span>番号 <b>${seedHex(it.seed)}</b></span><span>${new Date(it.at).toLocaleDateString('ja-JP')} に入手</span>`
           : `<span>${wName(cur)}の最初の塗装</span>`}</div>
         <div class="inv-acts">
           <button class="btn" id="invEquip"${sel === eq ? ' disabled' : ''}>${sel === eq ? '装備中' : '装備する'}</button>
-          ${it ? `<button class="btn sub" id="invFav">${it.fav ? '★ お気に入り' : '☆ お気に入り'}</button>
-          <button class="btn sub" id="invRename">${renaming ? '決定' : '名前を変える'}</button>` : ''}
+          ${it ? `<button class="btn sub" id="invFav">${it.fav ? '★ お気に入り' : '☆ お気に入り'}</button>` : ''}
+          ${it && Account.user && sel !== eq && !selling ? '<button class="btn sub" id="invSell">出品する</button>' : ''}
         </div>
+        ${it && selling ? `<div class="inv-sell"><span>値段</span><input id="invPrice" type="number" min="${MARKET.minPrice}" max="${MARKET.maxPrice}" step="1" value="100"><span>pt</span>
+          <button class="btn small" id="invSellOk">出品する</button><button class="btn sub small" id="invSellNo">やめる</button></div>
+          <p class="note">${MARKET.minPrice}〜${MARKET.maxPrice.toLocaleString()}pt・1人${MARKET.max}個まで・${MARKET.days}日で持ち物に戻る。売れるまで持ち物から外れます</p>` : ''}
+        ${sellMsg ? `<p class="inv-msg">${esc(sellMsg)}</p>` : ''}
       </div>
     </section>
     <section class="inv-list">
@@ -98,8 +103,8 @@ function render() {
 function bind() {
   const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
   on('invBack', () => { Stage.hide(); back(); });
-  document.querySelectorAll<HTMLElement>('.inv-gun').forEach(b => b.onclick = e => { e.stopPropagation(); cur = b.dataset.m; sel = Loadout.equip[cur] ?? 0; renaming = false; render(); });
-  document.querySelectorAll<HTMLElement>('.inv-card').forEach(b => b.onclick = e => { e.stopPropagation(); sel = +b.dataset.id; renaming = false; render(); });
+  document.querySelectorAll<HTMLElement>('.inv-gun').forEach(b => b.onclick = e => { e.stopPropagation(); cur = b.dataset.m; sel = Loadout.equip[cur] ?? 0; selling = false; sellMsg = ''; render(); });
+  document.querySelectorAll<HTMLElement>('.inv-card').forEach(b => b.onclick = e => { e.stopPropagation(); sel = +b.dataset.id; selling = false; sellMsg = ''; render(); });
   document.querySelectorAll<HTMLElement>('#invSort button').forEach(b => b.onclick = e => { e.stopPropagation(); sort = b.dataset.v as any; render(); });
   on('invFavOnly', () => { favOnly = !favOnly; render(); });
   on('invEquip', () => {
@@ -109,23 +114,24 @@ function bind() {
   });
   const it = Loadout.items.find(x => x.id === sel);
   on('invFav', () => { it.fav = !it.fav; saveLoadout(); render(); });
-  const commit = () => {
-    const v = ($('invNameIn') as HTMLInputElement)?.value.trim();
-    if (v !== undefined) { it.name = v || undefined; saveLoadout(); }
-    renaming = false; render();
-  };
-  on('invRename', () => { if (renaming) commit(); else { renaming = true; render(); } });
-  const inp = $('invNameIn') as HTMLInputElement;
-  if (inp) {
-    inp.focus(); inp.select();
-    inp.onclick = e => e.stopPropagation();
-    inp.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') { renaming = false; render(); } };
-  }
+  on('invSell', () => { selling = true; sellMsg = ''; render(); });
+  on('invSellNo', () => { selling = false; render(); });
+  on('invSellOk', async () => {
+    const price = Math.floor(+($('invPrice') as HTMLInputElement).value);
+    const name = itemName(it);
+    const r = await listItem(it, price).catch(e => { console.warn(e); return 'fail' as const; });
+    selling = false;
+    sellMsg = r === 'ok' ? '' : r === 'max' ? `出品できるのは${MARKET.max}個までです` : r === 'price' ? `値段は ${MARKET.minPrice}〜${MARKET.maxPrice.toLocaleString()}pt にしてください` : r === 'equipped' ? '装備中のスキンは出品できません' : '出品できませんでした。通信を確かめてください';
+    if (r === 'ok') { sel = Loadout.equip[cur] ?? 0; notify(`「${name}」を ${price.toLocaleString()}pt で出品しました`); }
+    render();
+  });
+  const pin = $('invPrice') as HTMLInputElement;
+  if (pin) { pin.onclick = e => e.stopPropagation(); pin.onkeydown = e => e.stopPropagation(); pin.focus(); pin.select(); }
 }
 
 // ================= 真ん中で銃を回して見せる =================
 // ゲームの画面とは別の小さな描画。画面を開いている間だけ動かす
-const Stage = (() => {
+export const Stage = (() => {
   let renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, pivot: THREE.Group, gun: any = null, running = false;
   const guns: Record<string, any> = {};
   let listening = false;
@@ -169,9 +175,9 @@ const Stage = (() => {
     const m = ms[Math.floor(Math.random() * ms.length)], pa = m.geometry.attributes.position;
     return out.fromBufferAttribute(pa, Math.floor(Math.random() * pa.count)).applyMatrix4(m.matrixWorld);
   };
-  function show(m: string, it: Owned | null) {
+  function show(m: string, it: Owned | null, hostId = 'invView') {
     if (!renderer) init();
-    const host = $('invView'); if (!host) return;
+    const host = $(hostId); if (!host) return;
     host.appendChild(renderer.domElement);
     const g = modelFor(m);
     paintGun(g, it ? [it.base, it.seed] : null);

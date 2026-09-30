@@ -1,0 +1,66 @@
+rules_version = '2';
+// 将棋FPS のデータベースの決まり（Firebase コンソール → Firestore → ルール に貼る）
+//   users/番号：自分のデータだけ読み書きできる
+//   names/名前：名前の早い者勝ち（英語の大文字3文字）。作った人だけが手放せる
+//   market/番号：出品。ログインした人は誰でも見られる。出品・取り下げは本人だけ、買うのは本人以外
+//   ほかは誰も読めない・書けない
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function nameOk(n) { return n is string && n.matches('^[A-Z]{3}$'); }
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function namePath(n) { return /databases/$(database)/documents/names/$(n); }
+
+    match /users/{uid} {
+      allow read, delete: if signedIn() && me() == uid;
+      allow create, update: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['name', 'loadout', 'updatedAt'])
+        && nameOk(request.resource.data.name)
+        && getAfter(namePath(request.resource.data.name)).data.uid == uid
+        && request.resource.data.loadout is map
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    match /names/{name} {
+      allow read: if signedIn();
+      allow create: if signedIn() && nameOk(name)
+        && request.resource.data.keys().hasOnly(['uid']) && request.resource.data.uid == me();
+      allow delete: if signedIn() && resource.data.uid == me();
+    }
+
+    match /market/{id} {
+      allow read: if signedIn();
+      // 出品：自分の名前で、値段は 1〜10000
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['seller', 'sellerName', 'base', 'seed', 'price', 'at', 'status'])
+        && request.resource.data.seller == me()
+        && request.resource.data.sellerName == get(userPath(me())).data.name
+        && request.resource.data.base is string && request.resource.data.base.size() <= 40
+        && request.resource.data.seed is int
+        && request.resource.data.price is int && request.resource.data.price >= 1 && request.resource.data.price <= 10000
+        && request.resource.data.status == 'open'
+        && request.resource.data.at == request.time;
+      allow update: if signedIn() && (
+        // 買う：出品中・7日以内・自分以外。売れた印と買った人だけ書ける
+        (resource.data.status == 'open' && resource.data.seller != me()
+          && request.time < resource.data.at + duration.value(7, 'd')
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'buyer', 'buyerName', 'soldAt'])
+          && request.resource.data.status == 'sold'
+          && request.resource.data.buyer == me()
+          && request.resource.data.buyerName == get(userPath(me())).data.name
+          && request.resource.data.soldAt == request.time)
+        // 名前を変えたとき：出品中の札の名前だけ変えられる
+        || (resource.data.seller == me() && resource.data.status == 'open'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sellerName'])
+          && request.resource.data.sellerName == getAfter(userPath(me())).data.name)
+      );
+      // 取り下げ・代金の受け取り・期限切れの片付け：出品した本人だけ
+      allow delete: if signedIn() && resource.data.seller == me();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

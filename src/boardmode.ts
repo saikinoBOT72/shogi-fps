@@ -1,11 +1,12 @@
-// 将棋モード：盤で駒を動かし、駒を取るときは撃ち合いで決着。相手の玉を撃ち合いで取れば勝ち
+// 将棋モード：盤で駒を動かし、駒を取るときは一騎打ちで決着。相手の玉を一騎打ちで取れば勝ち
 // ブラインド将棋（友達と対戦のときだけ）：始める前に自分の3段の中で駒を並べ替えられる。対局中、相手の駒は字の無い駒に見え
-//   （持ち駒から打った駒・成った駒も）、撃ち合いが始まって相手の姿を見るまで何の駒か分からない。決着したら全部表に返す
+//   （持ち駒から打った駒・成った駒も）、一騎打ちが始まって相手の姿を見るまで何の駒か分からない。決着したら全部表に返す
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
 import { $, BH, C, LIGHT, PIECES, Q, TIME_LIMIT, V3, rand, settings } from './core';
 import { MAP_LIST, pickMap, selectableMaps } from './world';
+import { questEvent } from './quests';
 import { SFX } from './audio';
 import { PIECE_DEPTH, boardTex, canvasTex, darkWoodTex, pieceGeo, renderer, speckle, toon } from './render';
 import { pieceSolidMats } from './physics';
@@ -75,7 +76,7 @@ export const BoardMode = (() => {
 
   // ---------- 対局の状態（ルールそのものは shogi/rules.ts、CPU の指し手は shogi/cpu.ts） ----------
   let board, hands, turn, selected, targets, lastMove, preview, busy, over, anim = null;
-  let contest = null;   // 撃ち合いの最中：{ fx, fy, tx, ty, att: 挑んだ駒 }
+  let contest = null;   // 一騎打ちの最中：{ fx, fy, tx, ty, att: 挑んだ駒 }
   let blind = false, setup = false, setupSel = null, hostSide = true;   // ブラインド将棋：setup = 並べ替えの最中
   // この駒を字の無い駒に見せるか（ブラインドの相手の駒。決着したら見せる）
   const hidden = p => blind && !over && p.owner === 1;
@@ -161,7 +162,7 @@ export const BoardMode = (() => {
       if (contest && contest.fx === x && contest.fy === y) continue;   // 挑んでいる駒は相手のマスに描く
       const g = pieceMesh(p);
       g.position.copy(sq(x, y));
-      // 撃ち合いの最中：1マスに両方の駒を並べて見せる（守る駒は左、挑んだ駒は右）
+      // 一騎打ちの最中：1マスに両方の駒を並べて見せる（守る駒は左、挑んだ駒は右）
       if (contest && contest.tx === x && contest.ty === y) {
         g.scale.setScalar(0.72); g.position.x -= S * 0.24;
         const a = pieceMesh(contest.att); a.scale.setScalar(0.72); a.position.copy(sq(x, y)); a.position.x += S * 0.24; a.position.y += 0.02;
@@ -292,7 +293,7 @@ export const BoardMode = (() => {
   }
   function setupMsg() { setMsg('ブラインド将棋：自分の3段の中で並べ替えられます（動かす駒 → 置きたいマス）'); }
 
-  // ---------- 撃ち合いへ ----------
+  // ---------- 一騎打ちへ ----------
   let battleDone = null;
   function battle(att, def, playerIsAttacker) {
     return new Promise(resolve => {
@@ -314,10 +315,10 @@ export const BoardMode = (() => {
           : stage ? `<p>ステージ：<b>${mapName(stage)}</b>（${meDef ? 'あなた' : '相手'}が選んだ）</p>` : '<p>相手がステージを選んでいます…</p>';
         overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
         <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted && !hideFoe ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
-        <p>${hideFoe ? (playerIsAttacker ? '勝てば相手の駒を取れる（何の駒かは、撃ち合いで姿を見るまで分からない）' : '守り切れば攻めてきた駒を取れる（何の駒かは、撃ち合いで姿を見るまで分からない）') : playerIsAttacker ? `勝てば相手の「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}` : `守り切れば攻めてきた「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}`}。負けるとあなたの「${mn}」は${me.cracked ? 'ひび入りなので割れて消える' : '取られる'}</p>
-        ${me.promoted || (foe.promoted && !hideFoe) ? '<p style="opacity:.7">※成駒の撃ち合いはまだ元の駒の性能です</p>' : ''}
+        <p>${hideFoe ? (playerIsAttacker ? '勝てば相手の駒を取れる（何の駒かは、一騎打ちで姿を見るまで分からない）' : '守り切れば攻めてきた駒を取れる（何の駒かは、一騎打ちで姿を見るまで分からない）') : playerIsAttacker ? `勝てば相手の「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}` : `守り切れば攻めてきた「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}`}。負けるとあなたの「${mn}」は${me.cracked ? 'ひび入りなので割れて消える' : '取られる'}</p>
+        ${me.promoted || (foe.promoted && !hideFoe) ? '<p style="opacity:.7">※成駒の一騎打ちはまだ元の駒の性能です</p>' : ''}
         ${stageHTML}
-        ${online ? '' : '<button class="btn" id="bmFight">撃ち合い開始</button>'}${keysHTML()}`, true);
+        ${online ? '' : '<button class="btn" id="bmFight">一騎打ち開始</button>'}${keysHTML()}`, true);
         if (!online) $('bmFight').onclick = e => { e.stopPropagation(); gs.boardMap = stage; startMatch(); };
         if (meDef && !sent) bindMapPick((k, v) => { if (k === 'map') { stage = gs.boardMap = v; draw(); } });
         if (online && meDef && !sent) $('bmStage').onclick = e => { e.stopPropagation(); sent = true; gs.boardMap = stage; Net.send({ t: 'bstage', v: stage }); draw(); ready(); };
@@ -328,12 +329,13 @@ export const BoardMode = (() => {
       if (online && !meDef) waitNet('bstage').then(v => { if (battleDone !== done) return; stage = gs.boardMap = v; draw(); ready(); });
     });
   }
-  // 撃ち合いの結果（win: プレイヤーの勝ち true / 負け false）
+  // 一騎打ちの結果（win: プレイヤーの勝ち true / 負け false）
   function battleResult(win) {
     const ctx = gs.matchCtx;
     const attackerWon = win === null ? false : (win === true) === ctx.playerIsAttacker;
     const playerWon = win === null ? !ctx.playerIsAttacker : win;
     if (!online && win !== null) recordBattle(ctx.myType, ctx.foeType, ctx.playerIsAttacker, playerWon);
+    if (playerWon) questEvent('capture', 1, online);   // 攻めて勝っても守り切っても、相手の駒が1つ盤から消える
     $('hud').style.display = 'none';
     overlay(`<div class="res" style="color:${playerWon ? 'var(--kin-2)' : 'var(--shu-1)'}">${
       ctx.playerIsAttacker ? (attackerWon ? '駒を取った！' : '取り返された…') : (attackerWon ? '駒を取られた…' : '守り切った！')}</div>
@@ -416,7 +418,7 @@ export const BoardMode = (() => {
   }
   function nextTurn() {
     if (!online) { if (turn === 1) aiTurn(); else turnMsg(); return; }
-    if (turn === 1) { setMsg('相手の番…'); pump(); } else turnMsg();
+    if (turn === 1) { setMsg(`${gs.foeName || '相手'} の番…`); pump(); } else turnMsg();
   }
   async function aiTurn() {
     if (over) return;
@@ -447,7 +449,7 @@ export const BoardMode = (() => {
     if (i >= 0) return Promise.resolve(inbox.splice(i, 1)[0].v);
     return new Promise(r => waiters.push({ t, r }));
   }
-  // 相手の手：自分の番の途中（撃ち合いの結果画面など）なら、盤に戻るまで取っておく
+  // 相手の手：自分の番の途中（一騎打ちの結果画面など）なら、盤に戻るまで取っておく
   function pump() {
     if (!online || over || busy || turn !== 1 || gs.state !== 'board') return;
     const i = inbox.findIndex(x => x.t === 'bm');
@@ -475,7 +477,7 @@ export const BoardMode = (() => {
     return new Promise(res => {
       overlay(`<div class="res" style="font-size:46px">成りますか？</div>
         <div class="vs-line"><b class="bm-koma">${label(p)}</b><em>→</em><b class="bm-koma" style="color:var(--shu-0)">${PRO[p.type]}</b></div>
-        <p>成ると盤上の動きが変わります（撃ち合いの性能はまだ元の駒のままです）</p>
+        <p>成ると盤上の動きが変わります（一騎打ちの性能はまだ元の駒のままです）</p>
         <div style="display:flex;gap:14px;justify-content:center"><button class="btn" id="bmPro">成る</button><button class="btn ghost" id="bmNoPro">成らない</button></div>`, true);
       $('bmPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(true); };
       $('bmNoPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(false); };
@@ -485,6 +487,8 @@ export const BoardMode = (() => {
   // winner: 0 あなた / 1 相手 / -1 引き分け。why: 決着の理由（なければ玉を取った）
   function gameOver(winner, why = '') {
     over = true; busy = true;
+    questEvent('shogi', 1, online);
+    if (winner === 0) questEvent('shogiWin', 1, online);
     if (blind) { setup = false; refresh(); why = (why || (winner === 0 ? '相手の玉を討ち取った！' : 'あなたの王が討たれた…')) + '（相手の駒を表に返しました）'; }
     clearSave();
     if (winner >= 0) SFX.play(winner === 0 ? 'win' : 'lose');
@@ -505,7 +509,7 @@ export const BoardMode = (() => {
     <div class="bm-panel bm-p"><h4>あなたの持ち駒（クリックで打つ）</h4><div id="bmHandP"></div></div>
     <div class="bm-btns"><button class="small" id="bmResign">投了</button></div>
     <div class="bm-setup" id="bmSetup"><button class="small" id="bmSetupReset">元の並びに戻す</button><button class="btn" id="bmSetupDone">並べ終わった</button></div>
-    <div class="bm-help">駒をクリック → 光ったマスへ。赤いマスは相手の駒：撃ち合いで勝てば取れる、負けると取られる。取った駒を打つとひび入りになり、次に負けると割れて消える</div>`;
+    <div class="bm-help">駒をクリック → 光ったマスへ。赤いマスは相手の駒：一騎打ちで勝てば取れる、負けると取られる。取った駒を打つとひび入りになり、次に負けると割れて消える</div>`;
   document.body.appendChild(ui);
   function showUI(v) { ui.style.display = v ? 'block' : 'none'; }
   $('bmSetupDone').onclick = e => { e.stopPropagation(); if (setup) finishSetup(); };
@@ -530,7 +534,7 @@ export const BoardMode = (() => {
     gen++; if (online) Net.send({ t: 'bresign' }); gameOver(1, '投了');
   };
   $('bmQuit').onclick = e => { e.stopPropagation(); quit(); };
-  // 対局の途中でタイトルへ（相手の番・撃ち合いの前後でも）
+  // 対局の途中でタイトルへ（相手の番・一騎打ちの前後でも）
   async function quit() {
     if (!over && !(await askYesNo('対局をやめますか？', 'タイトルへ戻る', '続ける', online ? '友達との部屋からも抜けます' : '途中の対局は保存されているので、あとで続きから遊べます'))) return;
     battleDone = null; hideOverlay();
@@ -578,7 +582,7 @@ export const BoardMode = (() => {
     showUI(false);
     resetMatch(); showTitle();
   }
-  // 将棋モードの撃ち合いを途中でやめたとき
+  // 将棋モードの一騎打ちを途中でやめたとき
   function abort() { gs.matchCtx = null; battleDone = null; showUI(false); over = true; gen++; }
 
   let t = 0;

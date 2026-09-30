@@ -1,16 +1,16 @@
 // 将棋モードの CPU（奥 = owner 1）：先を読んで指す
 //   1手目はすべての手を浅く調べ、良さそうな手だけ「あなたの一番いい返し」まで読む（2手読み）
-//   駒を取る手は撃ち合いで決まるので、勝った場合と負けた場合を、勝ちやすさで重みをつけて足す（期待値）
+//   駒を取る手は一騎打ちで決まるので、勝った場合と負けた場合を、勝ちやすさで重みをつけて足す（期待値）
 //   盤の評価：駒の値打ち（ひび入りは割り引く）・持ち駒・次に取れそうな駒・玉のまわりの守りと攻め・駒の動ける広さ
-//   王手放置ありなので、玉が狙われていても「撃ち合いで取られる見込み」として点数に入る
-// 撃ち合いの勝ちやすさは駒の強さから見積もり、あなたの実際の勝ち負けを覚えて少しずつ合わせる（skill）
+//   王手放置ありなので、玉が狙われていても「一騎打ちで取られる見込み」として点数に入る
+// 一騎打ちの勝ちやすさは駒の強さから見積もり、あなたの実際の勝ち負けを覚えて少しずつ合わせる（skill）
 import { PIECES, settings } from '../core';
 import { Board, Hands, Move, Piece, allMoves, canPromote, inZone, rawMoves } from './rules';
 
-// ---------- 撃ち合いの勝ちやすさ ----------
+// ---------- 一騎打ちの勝ちやすさ ----------
 const SKILL_KEY = 'shogiFps.skill';
-let skill = (() => { try { const v = +localStorage.getItem(SKILL_KEY); return v > 0 ? v : 1; } catch (e) { return 1; } })();   // あなたの撃ち合いの強さ（1 = 駒の強さどおり）
-const DIFF_K = { easy: 1.4, normal: 1, hard: 0.75 };   // 撃ち合いの CPU の強さ（かんたんほど、あなたが勝ちやすい）
+let skill = (() => { try { const v = +localStorage.getItem(SKILL_KEY); return v > 0 ? v : 1; } catch (e) { return 1; } })();   // あなたの一騎打ちの強さ（1 = 駒の強さどおり）
+const DIFF_K = { easy: 1.4, normal: 1, hard: 0.75 };   // 一騎打ちの CPU の強さ（かんたんほど、あなたが勝ちやすい）
 const fpsVal = (t: string) => Math.pow(t === 'K' ? 12 : PIECES[t].value, 0.6);
 const youK = () => skill * (DIFF_K[settings.diff] || 1);
 // attOwner の駒 att が def に挑んだとき、挑んだ側が勝つ見込み
@@ -18,7 +18,7 @@ export function pWin(att: string, def: string, attOwner: number) {
   const a = fpsVal(att) * (attOwner === 0 ? youK() : 1), d = fpsVal(def) * (attOwner === 0 ? 1 : youK());
   return a / (a + d);
 }
-// 撃ち合いの結果を覚える（一人のときだけ）：思ったより勝てていれば、あなたを強く見積もる
+// 一騎打ちの結果を覚える（一人のときだけ）：思ったより勝てていれば、あなたを強く見積もる
 export function recordBattle(yourType: string, cpuType: string, youAttacked: boolean, youWon: boolean) {
   const expect = youAttacked ? pWin(yourType, cpuType, 0) : 1 - pWin(cpuType, yourType, 1);
   skill = Math.min(3, Math.max(0.35, skill * Math.exp(0.35 * ((youWon ? 1 : 0) - expect))));
@@ -33,7 +33,7 @@ const WIN = KING;
 const worth = (p: Piece) => (p.type === 'K' ? KING : (p.promoted ? PROM[p.type] : BASE[p.type]) * (p.cracked ? 0.8 : 1));
 const handWorth = (t: string) => BASE[t] * 0.92;   // 打つとひび入りになるが、どこにでも打てる
 
-// ---------- 手を指したあとの形（撃ち合いは勝ち・負けの2通り） ----------
+// ---------- 手を指したあとの形（一騎打ちは勝ち・負けの2通り） ----------
 type Outcome = { b: Board; h: Hands; p: number; win?: number };
 const copyH = (h: Hands): Hands => [h[0].slice(), h[1].slice()];
 function outcomes(b: Board, h: Hands, m: Move, o: number): Outcome[] {

@@ -20,6 +20,7 @@ import { paintActors } from './game';
 import { overlay } from './screens';
 import { gs } from './state';
 import { showInventory } from './inventory';
+import { questEvent, questsActive } from './quests';
 import { RAR_COL, RAR_CH, RANK, hex, esc, rarOf, wait, rand, flow } from './gacha/common';
 import { Scene } from './gacha/scene';
 
@@ -36,6 +37,7 @@ export function showGacha(onBack: () => void) {
         <button class="btn ga-pull ten" id="gaTen"${canSpend(PULL_COST[10]) ? '' : ' disabled'}><b>10連</b><small>${PULL_COST[10]} ポイント</small></button>
       </div>
       <p class="note">形はデザインから、色は毎回まったくのランダム。強さには関わりません</p>
+      ${questsActive() ? '' : '<p class="note ga-login">ポイントは、ログインするとログインボーナスとクエストでもらえます</p>'}
     </div>`);
   on('gaOne', () => start(1));
   on('gaTen', () => start(10));
@@ -61,6 +63,7 @@ const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclic
 async function start(n: 1 | 10) {
   const got = pull(n);
   if (!got) return;
+  questEvent('gacha', n);
   results = got; lastN = n;
   // レア度の低い順に見せる（高い物ほど後で）。結果の画面は、いちばん良い物を見せて始める
   const order = results.map((_, i) => i).sort((a, b) => RANK[rarOf(results[a])] - RANK[rarOf(results[b])]);

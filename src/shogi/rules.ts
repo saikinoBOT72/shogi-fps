@@ -1,11 +1,11 @@
-// 将棋モードのルール（盤の表示・撃ち合い・通信とは切り離した、中身だけ）
+// 将棋モードのルール（盤の表示・一騎打ち・通信とは切り離した、中身だけ）
 //   盤は board[y][x]。y = 0 が奥（相手の陣の一番奥）、y = 8 が手前。駒は { type, owner, promoted?, cracked? }
 //   owner 0 = 手前（あなた）、1 = 奥（CPU・友達）。持ち駒は hands[owner] に駒の種類（'P' など）を並べる
-// この将棋のルール：撃ち合いで逆転できるので、王手放置・千日手はあり。詰みでは終わらない（玉は撃ち合いで取る）
+// この将棋のルール：一騎打ちで逆転できるので、王手放置・千日手はあり。詰みでは終わらない（玉は一騎打ちで取る）
 //   反則は「打ち歩詰め」だけ（歩を打って、相手が王手をかわす手が1つもない形にする）
 //   二歩は打てるが、打つとその筋の自分の駒が（打った歩も王も）爆発四散して消える
-//   駒を取るときは撃ち合い：勝てば相手の駒を取り（持ち駒になる）、負けると挑んだ駒を相手に取られる
-//   取った駒を打つと「ひび入り」になり、次に撃ち合いで負けると割れて消える（相手の持ち駒にならない）
+//   駒を取るときは一騎打ち：勝てば相手の駒を取り（持ち駒になる）、負けると挑んだ駒を相手に取られる
+//   取った駒を打つと「ひび入り」になり、次に一騎打ちで負けると割れて消える（相手の持ち駒にならない）
 import { PIECES } from '../core';
 
 export type Piece = { type: string; owner: number; promoted?: boolean; cracked?: boolean };
@@ -14,7 +14,7 @@ export type Hands = string[][];
 export type Move = { kind: 'move' | 'drop'; fx?: number; fy?: number; tx: number; ty: number; type?: string; lost?: boolean; quiet?: boolean };
 
 export const HAND_ORDER = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
-// 成駒の字（赤）。成駒は盤上の動きが変わる（撃ち合いの性能は元の駒のまま）
+// 成駒の字（赤）。成駒は盤上の動きが変わる（一騎打ちの性能は元の駒のまま）
 export const PRO = { P: 'と', L: '杏', N: '圭', S: '全', R: '龍', B: '馬' };
 export const label = (p: Piece) => (p.promoted ? PRO[p.type] : p.type === 'K' && p.owner === 1 ? '玉' : PIECES[p.type].name);
 export const canPromote = (p: Piece) => !p.promoted && !!PRO[p.type];
@@ -64,7 +64,7 @@ export const deadEnd = (t: string, o: number, y: number) => ((t === 'P' || t ===
 // 二歩になるか（その筋に自分の成っていない歩がある）
 export const nifu = (b: Board, owner: number, x: number) => b.some(row => row[x] && row[x].type === 'P' && !row[x].promoted && row[x].owner === owner);
 
-// 手を指したあとの盤（撃ち合いの結果は考えない：挑んだ駒がそのマスへ進んだ形）。元の盤は変えない
+// 手を指したあとの盤（一騎打ちの結果は考えない：挑んだ駒がそのマスへ進んだ形）。元の盤は変えない
 export function simulate(b: Board, m: Move, owner: number): Board {
   const nb = b.map(r => r.slice());
   if (m.kind === 'drop') nb[m.ty][m.tx] = { type: m.type, owner };

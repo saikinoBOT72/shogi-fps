@@ -1,4 +1,4 @@
-// 持ち物（ガチャで引いたスキン）と、武器ごとの装備。この PC のブラウザに保存する
+// 持ち物（ガチャで引いたスキン）と、武器ごとの装備。この PC のブラウザに保存し、ログイン中はアカウント（account.ts）にも保存する
 // スキン1つは「デザイン・色の番号」だけで決まる（色は番号から毎回同じに作れる）
 import { DESIGNS, SKINS, gachaSkin } from './guns/skins';
 import { WEAPONS } from './core';
@@ -8,7 +8,7 @@ export const weaponName = (m: string) => (Object.values(WEAPONS) as any[]).find(
 // ゲームの武器の見た目（model）→ スキンのデザインの銃の名前
 export const GUN_OF_MODEL: Record<string, string> = { pistol: 'pistol', burst: 'b93r', karambit: 'karambit', mp5: 'mp5', bow: 'yumi', mk2: 'mk2', ak: 'ak', m79: 'm79', m870: 'm870' };
 export type SkinRef = [string, number];   // [デザイン, 色の番号]
-export type Owned = { id: number; base: string; seed: number; at: number; fav?: boolean; name?: string };
+export type Owned = { id: number; base: string; seed: number; at: number; fav?: boolean };
 
 const KEY = 'shogifps-skins';
 export const Loadout = {
@@ -16,13 +16,34 @@ export const Loadout = {
   equip: {} as Record<string, number>,   // model → 持ち物の id
   nextId: 1,
   points: 0,                              // ガチャを引くポイント
+  owner: undefined as string | undefined, // この持ち物がどのアカウントのものか（別の人がログインしたときに持ち物が混ざらないように）
+  econ: 0,                                // ポイントの仕組みの版。ECON と違えば持ち物とポイントを最初からにする
+  quest: undefined as any,                // クエストの進み具合（quests.ts）
 };
+// 1：ポイント無限のテストを終えて、ログインボーナス・クエストで稼ぐ形にした版（テストで引いたスキンは全員消す）
+export const ECON = 1;
 try { Object.assign(Loadout, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
-export const saveLoadout = () => { try { localStorage.setItem(KEY, JSON.stringify(Loadout)); } catch (e) {} };
+if (Loadout.econ !== ECON) Object.assign(Loadout, { items: [], equip: {}, nextId: 1, points: 0, econ: ECON, quest: undefined });
+const saveLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(Loadout)); } catch (e) {} };
+let cloudSave: (() => void) | null = null;
+export const setCloudSave = (fn: (() => void) | null) => { cloudSave = fn; };
+export const saveLoadout = () => { saveLocal(); cloudSave?.(); };
+// アカウントに保存する中身と、アカウントから読んだ中身への入れ替え
+export const loadoutData = () => ({ items: Loadout.items, equip: Loadout.equip, nextId: Loadout.nextId, points: Loadout.points, econ: Loadout.econ, quest: Loadout.quest ?? null });
+export function replaceLoadout(d: any, owner: string | undefined) {
+  Loadout.items = Array.isArray(d?.items) ? d.items : [];
+  Loadout.equip = d?.equip && typeof d.equip === 'object' ? d.equip : {};
+  Loadout.nextId = Number.isFinite(d?.nextId) ? d.nextId : Loadout.items.reduce((m: number, x: Owned) => Math.max(m, x.id + 1), 1);
+  Loadout.points = Number.isFinite(d?.points) ? d.points : 0;
+  Loadout.econ = d?.econ ?? 0;
+  Loadout.quest = d?.quest || undefined;
+  Loadout.owner = owner;
+  saveLocal();
+}
 
 // ================= ポイント =================
-// ガチャは 1連 100・10連 1000。テスト中はポイントが無限（残りは ∞ と表示）。対戦でもらえる量はテストが終わってから決める
-export const POINTS_UNLIMITED = true;
+// ガチャは 1連 100・10連 1000。ポイントはログインボーナスとクエストでもらう（quests.ts）
+export const POINTS_UNLIMITED = false;
 export const PULL_COST = { 1: 100, 10: 1000 };
 export const pointsText = () => (POINTS_UNLIMITED ? '∞' : Loadout.points.toLocaleString());
 export const canSpend = (n: number) => POINTS_UNLIMITED || Loadout.points >= n;
@@ -34,9 +55,9 @@ export function spendPoints(n: number) {
 export function addPoints(n: number) { Loadout.points += n; saveLoadout(); }
 
 // ================= 持ち物 =================
-// 表示する名前：自分で付けた名前、無ければ「デザイン名 #番号」
+// 表示する名前：「デザイン名 #番号」（名前は付けられない）
 export const seedHex = (seed: number) => '#' + (seed >>> 0).toString(16).toUpperCase().padStart(8, '0');
-export const itemName = (it: Owned) => it.name || (DESIGNS[it.base]?.name || '?') + ' ' + seedHex(it.seed);
+export const itemName = (it: Owned) => (DESIGNS[it.base]?.name || '?') + ' ' + seedHex(it.seed);
 export const itemsOf = (model: string) => Loadout.items.filter(it => DESIGNS[it.base]?.gun === GUN_OF_MODEL[model]);
 export function equipItem(model: string, id: number | null) {
   if (id === null) delete Loadout.equip[model]; else Loadout.equip[model] = id;
@@ -75,18 +96,6 @@ export function paintGun(gun: any, r: SkinRef | null, lite = false) {
   const id = r ? skinKey(r, lite) : gun.baseSkin;
   if (gun.skin !== id) gun.setSkin(id);   // 同じなら塗り直さない
 }
-
-// 試し用（開発者メニュー）：全部の武器に、ランダムなデザインと色のスキンを持たせて装備する
-export function devEquipRandom(rarity?: string) {
-  for (const m of Object.keys(GUN_OF_MODEL)) {
-    const ds = Object.keys(DESIGNS).filter(k => DESIGNS[k].gun === GUN_OF_MODEL[m] && (!rarity || DESIGNS[k].rarity === rarity));
-    if (!ds.length) continue;
-    const it: Owned = { id: Loadout.nextId++, base: ds[Math.floor(Math.random() * ds.length)], seed: (Math.random() * 4294967296) >>> 0, at: Date.now() };
-    Loadout.items.push(it); Loadout.equip[m] = it.id;
-  }
-  saveLoadout();
-}
-export function devUnequipAll() { Loadout.equip = {}; saveLoadout(); }
 
 // ================= ガチャを引く =================
 // 1回ごとに レア度 → 武器（9武器から同じ確率）→ 色の番号（完全にランダム）の順に決める
