@@ -100,19 +100,30 @@ export const BoardMode = (() => {
   const SIZE = { K: 0.98, R: 0.93, B: 0.93, G: 0.88, S: 0.88, N: 0.84, L: 0.8, P: 0.76 };
   // ひび（相手から取った駒）：表面に重ねる黒いひびの模様
   const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
-  const crackM = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(128, 128, (g, w) => {
+  // 割れ方は何通りか作っておき、駒ごとに選ぶ（全部同じだと不自然なので）
+  const crackMats = [0, 1, 2, 3, 4, 5].map(v => new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(128, 128, (g, w) => {
     g.strokeStyle = rgba(P.sumi[0], 0.85); g.lineCap = 'round';
-    const branch = (x, y, a, len, width, depth) => {
+    const branch = (x, y, a, len, width, depth, wob = 0.6) => {
       if (depth <= 0 || len < 4) return;
       g.lineWidth = width; g.beginPath(); g.moveTo(x, y);
       const n = 3 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < n; i++) { a += rand(-0.6, 0.6); x += Math.cos(a) * len / n; y += Math.sin(a) * len / n; g.lineTo(clampN(x, 14, w - 14), clampN(y, 14, w - 14)); }
+      for (let i = 0; i < n; i++) { a += rand(-wob, wob); x += Math.cos(a) * len / n; y += Math.sin(a) * len / n; g.lineTo(clampN(x, 14, w - 14), clampN(y, 14, w - 14)); }
       g.stroke();
-      branch(x, y, a + rand(0.5, 1.1), len * 0.55, width * 0.7, depth - 1);
-      branch(x, y, a - rand(0.5, 1.1), len * 0.5, width * 0.7, depth - 1);
+      branch(x, y, a + rand(0.5, 1.1), len * 0.55, width * 0.7, depth - 1, wob);
+      branch(x, y, a - rand(0.5, 1.1), len * 0.5, width * 0.7, depth - 1, wob);
     };
-    for (let k = 0; k < 3; k++) branch(w / 2 + rand(-10, 10), w / 2 + rand(-10, 10), k * 2.1 + rand(0, 1), 46, 3.2, 3);
-  }) });
+    const c = w / 2, side = Math.random() < 0.5 ? 1 : -1;
+    if (v === 0) for (let k = 0; k < 3; k++) branch(c + rand(-10, 10), c + rand(-10, 10), k * 2.1 + rand(0, 1), 46, 3.2, 3);   // 真ん中から放射状
+    if (v === 1) { branch(c, c, -2.4 + rand(-0.3, 0.3), 60, 3.4, 2, 0.35); branch(c, c, 0.7 + rand(-0.3, 0.3), 60, 3.4, 2, 0.35); }   // 斜めに一本、割れ目が走る
+    if (v === 2) { const x = c + side * 44, y = c + 44; for (let k = 0; k < 2; k++) branch(x, y, (side > 0 ? -2.4 : -0.7) + rand(-0.5, 0.5), 64, 3.2, 3); }   // 角から入ったひび
+    if (v === 3) { branch(16, c + rand(-20, 20), rand(-0.3, 0.3), 52, 3, 3); branch(w - 16, c + rand(-20, 20), Math.PI + rand(-0.3, 0.3), 52, 3, 3); }   // 両側から入って真ん中で止まる
+    if (v === 4) {   // 蜘蛛の巣：細かい放射＋輪
+      const n = 6, r = [14, 28];
+      for (let k = 0; k < n; k++) branch(c, c, k * Math.PI * 2 / n + rand(-0.2, 0.2), 44, 2.4, 2, 0.25);
+      g.lineWidth = 1.6; for (const rr of r) { g.beginPath(); for (let k = 0; k <= n; k++) { const a = k * Math.PI * 2 / n, q = rr * rand(0.85, 1.15); k ? g.lineTo(c + Math.cos(a) * q, c + Math.sin(a) * q) : g.moveTo(c + Math.cos(a) * q, c + Math.sin(a) * q); } g.stroke(); }
+    }
+    if (v === 5) { branch(c + side * 46, 18, Math.PI / 2 + side * 0.5 + rand(-0.2, 0.2), 70, 3.6, 3, 0.45); branch(c - side * 30, w - 18, -Math.PI / 2 + rand(-0.4, 0.4), 30, 2.4, 2); }   // 上の端から欠けるように
+  }) }));
   function pieceMesh(p) {
     const hide = hidden(p);
     const g = new THREE.Group(), z = hide ? 0.88 : SIZE[p.type];
@@ -123,7 +134,8 @@ export const BoardMode = (() => {
     if (p.cracked && !hide) {
       m.updateMatrixWorld(true);
       const b = new THREE.Box3().setFromObject(m), sz = b.getSize(new V3());
-      const c = new THREE.Mesh(new THREE.PlaneGeometry(sz.x * 0.8, sz.z * 0.8), crackM);
+      if (p.crackV == null) p.crackV = Math.floor(Math.random() * crackMats.length);   // 盤の駒は一度決めた割れ方のまま
+      const c = new THREE.Mesh(new THREE.PlaneGeometry(sz.x * 0.8, sz.z * 0.8), crackMats[p.crackV % crackMats.length]);
       c.rotation.x = -Math.PI / 2; c.position.set((b.min.x + b.max.x) / 2, b.max.y + 0.004, (b.min.z + b.max.z) / 2); g.add(c);
     }
     return g;
@@ -185,14 +197,14 @@ export const BoardMode = (() => {
       let i = 0;
       const order = blind && !over && o === 1 ? hands[o].map((t, k) => ({ t, k })) : null;
       if (order) for (const { t } of order) {
-        const g = pieceMesh({ type: t, owner: o, cracked: true });
+        const g = pieceMesh({ type: t, owner: o, cracked: true, crackV: i * 5 + o });
         const col = i % 3, row = Math.floor(i / 3);
         g.position.set(-(BW / 2 + 1.4 + col * 0.8), -0.95, -(2.2 + row * 0.9)); g.scale.setScalar(0.8);
         handGroup.add(g); i++;
       }
       if (!order) HAND_ORDER.forEach(t => {
         for (let n = 0; n < (counts[t] || 0); n++) {
-          const g = pieceMesh({ type: t, owner: o, cracked: true });   // 持ち駒は相手から取った駒なので、ひび入り
+          const g = pieceMesh({ type: t, owner: o, cracked: true, crackV: i * 5 + o });   // 持ち駒は相手から取った駒なので、ひび入り
           const col = i % 3, row = Math.floor(i / 3);
           const sx = o === 0 ? 1 : -1;
           g.position.set(sx * (BW / 2 + 1.4 + col * 0.8), -0.95, sx * (2.2 + row * 0.9) * (o === 0 ? 1 : 1));
@@ -283,11 +295,8 @@ export const BoardMode = (() => {
     if (setupDone) return;
     const g = gen;
     setupDone = true; setupSel = null;
-    if (!online) {   // CPU と：CPU も自分の3段をばらばらに並べ替えて始める（あなたが先手）
-      for (let i = 0; i < 24; i++) {
-        const ax = Math.floor(Math.random() * 9), ay = Math.floor(Math.random() * 3), bx = Math.floor(Math.random() * 9), by = Math.floor(Math.random() * 3);
-        const t = board[ay][ax]; board[ay][ax] = board[by][bx]; board[by][bx] = t;
-      }
+    if (!online) {   // CPU と：CPU も自分の3段を並べ替えて始める（あなたが先手）
+      cpuSetup();
       setup = false; turn = 0; SFX.play('battle'); refresh(); nextTurn(); return;
     }
     Net.send({ t: 'bsetup', v: [6, 7, 8].map(y => board[y].map(p => (p ? p.type : null))) });
@@ -298,6 +307,33 @@ export const BoardMode = (() => {
     setup = false; turn = hostSide ? 0 : 1;
     SFX.play('battle');
     refresh(); nextTurn();
+  }
+  // CPU の並べ方：玉の場所を散らし（端寄りが多い）、金銀で囲い、歩は筋ごとに1枚（たまに1段下げる）、
+  // 飛は玉と反対側に寄せ、残りの角・桂・香は空いたマスへ。ときどき玉の定位置に金を置いてごまかす
+  function cpuSetup() {
+    const rnd = n => Math.floor(Math.random() * n);
+    const pick = (arr, w) => { let s = w.reduce((a, b) => a + b, 0) * Math.random(); for (let i = 0; i < arr.length; i++) if ((s -= w[i]) < 0) return arr[i]; return arr[arr.length - 1]; };
+    const cells = []; for (let y = 0; y < 3; y++) for (let x = 0; x < 9; x++) { board[y][x] = null; cells.push([x, y]); }
+    const free = () => cells.filter(([x, y]) => !board[y][x]);
+    const put = ([x, y], type) => { board[y][x] = { type, owner: 1 }; };
+    // 玉：端寄り（穴熊・美濃っぽい）が多く、真ん中もある。たまに2段目
+    const kx = pick([0, 1, 2, 3, 4, 5, 6, 7, 8], [3, 5, 4, 2, 2, 2, 4, 5, 3]), ky = Math.random() < 0.75 ? 0 : 1;
+    put([kx, ky], 'K');
+    // 歩：筋ごとに1枚。ふつうは3段目、ときどき2段目に下げて形を崩す
+    for (let x = 0; x < 9; x++) put(!board[1][x] && Math.random() < 0.18 ? [x, 1] : [x, 2], 'P');
+    // 金銀：玉の近く（近いほど選ばれやすい）
+    for (const t of ['G', 'G', 'S', 'S']) {
+      const f = free(), w = f.map(([x, y]) => { const d = Math.max(Math.abs(x - kx), Math.abs(y - ky)); return d <= 1 ? 6 : d === 2 ? 2 : 0.15; });
+      put(pick(f, w), t);
+    }
+    // 飛：玉と反対側に寄せる
+    { const f = free(); put(pick(f, f.map(([x]) => 1 + Math.abs(x - kx) ** 1.5)), 'R'); }
+    for (const t of ['B', 'N', 'N', 'L', 'L']) { const f = free(); put(f[rnd(f.length)], t); }
+    // ときどき：玉がいそうな真ん中の奥に金を置いて、本物の玉は端に
+    if (Math.abs(kx - 4) >= 2 && Math.random() < 0.3 && board[0][4]?.type !== 'G') {
+      const g = cells.find(([x, y]) => board[y][x]?.type === 'G' && !(x === 4 && y === 0));
+      if (g) { const t = board[0][4]; board[0][4] = board[g[1]][g[0]]; board[g[1]][g[0]] = t; }
+    }
   }
   function setupMsg() { setMsg('ブラインド将棋：自分の3段の中で並べ替えられます（動かす駒 → 置きたいマス）'); }
 
