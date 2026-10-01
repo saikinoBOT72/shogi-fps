@@ -156,7 +156,7 @@ export let WATER_Y = GROUND + 0.4;
 export let FLOW: ((x: number, z: number) => [number, number]) | null = null;
 export let mapId = '';
 // 3つ目の値が true のマップは未公開（開発者メニューで「未公開マップ」をオンにした人だけ選べる）
-export const MAP_LIST: [string, string, boolean?][] = [['valley', '谷と二つの丘'], ['temple', '山寺の石段'], ['onsen', '雪の温泉街'], ['desert', '三つのピラミッド'], ['gorge', '霧の渓谷', true], ['yashiki', '忍びの屋敷', true]];
+export const MAP_LIST: [string, string, boolean?][] = [['valley', '谷と二つの丘'], ['temple', '山寺の石段'], ['onsen', '雪の温泉街'], ['desert', '三つのピラミッド'], ['gorge', '霧の渓谷', true], ['yashiki', '忍びの屋敷', true], ['boss1', '仮想空間１', true]];
 export const devMapsOn = () => !!(settings as any).dev?.hiddenMaps;
 export const selectableMaps = () => MAP_LIST.filter(m => !m[2] || devMapsOn());
 // 自分で選ぶマップ：未公開のマップを選んだままオフにしたときは、最初のマップにする
@@ -291,6 +291,8 @@ export const glowTex = canvasTex(64, 64, (g, w) => {
 export const glowM = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
 // (x, z) が障害物の中か。y はその場所に立つ高さ（それより低い段や盤は乗れるので障害物扱いしない）
 export function insideCollider(x, z, R, y = 0) {
+  // 浮島のマップ（void）：島の外（足もとに床が無い所）も入れない所として扱う（CPU が隠れ場所に選ばないように）
+  if (MAPS[mapId]?.void && groundAt(x, z) < y - 3) return true;
   return Math.abs(x) > H - R || Math.abs(z) > H - R || colliders.some(c => {
     const top = colTop(c, x, z), bottom = c.kind === 'cyl' ? c.y0 : c.min.y;
     if (top <= y + 0.4 || bottom >= y + 1.8) return false;

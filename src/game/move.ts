@@ -202,7 +202,7 @@ export function leapLand(e, sk) {
   const d = Math.hypot(foe.pos.x - e.pos.x, foe.pos.z - e.pos.z);
   if (d > sk.radius || Math.abs(foe.pos.y - e.pos.y) > 2.5) return;
   const dmg = sk.dmg * (1 - d / sk.radius * 0.5) * skillDamageMul(foe, e.pos);
-  foe.vel.add(foe.pos.clone().sub(e.pos).setY(0).normalize().multiplyScalar(10)); foe.vy = 6; foe.onGround = false;
+  foe.vel.add(foe.pos.clone().sub(e.pos).setY(0).normalize().multiplyScalar(10)); foe.vy = 6; foe.onGround = false; foe.pushedT = 0.8;
   if (foe.isBot) damageBot({ dmg, head: false, point: eyeOf(foe) }); else damagePlayer(dmg, e.pos);
 }
 export function onLand(e, v) {

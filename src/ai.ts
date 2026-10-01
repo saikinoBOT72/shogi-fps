@@ -5,23 +5,35 @@ import { gs } from './state';
 import { DIFFS, V3, clamp, lerp, rand, settings } from './core';
 import { SFX } from './audio';
 import { cam } from './render';
-import { insideCollider, propMeshes } from './world';
+import { MAPS, groundAt, insideCollider, mapId, propMeshes } from './world';
 import { Nav } from './nav';
 import { Smoke } from './grenades';
 import { act, bot, botActor, canFire, eyeOf, fire, fireGrenade, hasLOS, moveEntity, player, ray, regenTick, shootArrow, skillTick, startReload, stats, tryJump, useSkill, view, weaponTick } from './game';
 import { addDamageDir, hud, killPlayer } from './hud';
 
 // ================= CPU =================
+// 浮島のマップで、(x, z) の足もとに床が無い（落ちたら負け）か
+const overVoid = (x, z, y) => !!MAPS[mapId]?.void && groundAt(x, z) < y - 3;
 export function steer(e, dir) {
   if (dir.lengthSq() < 1e-6) return dir;
   const o = new V3(e.pos.x, e.pos.y + 0.5, e.pos.z);
-  const free = d => { ray.set(o, d); ray.far = 1.8; const h = ray.intersectObjects(propMeshes, true).length === 0; ray.far = Infinity; return h; };
+  const free = d => {
+    if (overVoid(e.pos.x + d.x * 1.2, e.pos.z + d.z * 1.2, e.pos.y)) return false;   // 島の縁の先へは進まない
+    ray.set(o, d); ray.far = 1.8; const h = ray.intersectObjects(propMeshes, true).length === 0; ray.far = Infinity; return h;
+  };
   if (free(dir)) return dir;
   for (const a of [0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) {
     const d = dir.clone().applyAxisAngle(new V3(0, 1, 0), a * (e.strafe || 1));
     if (free(d)) return d;
   }
-  return dir;
+  return overVoid(e.pos.x + dir.x * 1.2, e.pos.z + dir.z * 1.2, e.pos.y) ? new V3() : dir;
+}
+// 浮島のマップ：CPU が自分の動き（歩き・突進・跳び）で島の外へ出そうなら、縁で止める
+//   爆風・体当たり・桂跳びの着地で飛ばされた時（knockT・pushedT）は止めない（落とせる）
+function edgeBrake(b, dt) {
+  b.pushedT = Math.max(0, (b.pushedT || 0) - dt);
+  if ((b.knockT || 0) > 0 || b.pushedT > 0 || b.prevX === undefined) return;
+  if (overVoid(b.pos.x, b.pos.z, b.pos.y) && !overVoid(b.prevX, b.prevZ, b.pos.y)) { b.pos.x = b.prevX; b.pos.z = b.prevZ; b.vel.x = b.vel.z = 0; }
 }
 // まっすぐ歩いて行けるか
 export function reachable(e, from, to) {
@@ -232,6 +244,7 @@ export function updateBot(dt) {
     // 行き止まりの壁や、相手が高い所にいるときは壁を登る
     b.wantClimb = !!(b.wallN && steered.dot(b.wallN) < -0.2 && (b.stuck > 0.2 || player.pos.y > b.pos.y + 0.8));
     moveEntity(b, steered, dt);
+    edgeBrake(b, dt);
     b.stuck = (wish.lengthSq() > 0 && b.pos.distanceTo(b.lastPos) < b.def.speed * 0.25 * dt) ? b.stuck + dt : 0;
     b.lastPos.copy(b.pos);
 
@@ -456,7 +469,7 @@ export function checkRam(a, b, onHit) {
   const d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
   if (d > a.radius + b.radius + 0.35) return;
   s.rammed = true; s.t = 0; a.vel.multiplyScalar(-0.2);
-  b.vel.copy(s.dir).multiplyScalar(14); b.vy = 5; b.onGround = false;
+  b.vel.copy(s.dir).multiplyScalar(14); b.vy = 5; b.onGround = false; b.pushedT = 0.8;   // pushedT：CPU が縁で踏みとどまらない（浮島から落とせる）
   SFX.play('ram');
   view.shake = Math.max(view.shake, 0.6);
   onHit(s.sk.ram);

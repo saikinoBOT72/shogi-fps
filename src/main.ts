@@ -28,14 +28,14 @@ import { updateVsCut } from './vscut';
 import { $, Q, TIME_LIMIT, V3, clamp, settings } from './core';
 import { SFX } from './audio';
 import { SUN_DIR, cam, renderer, scene, sky, sun } from './render';
-import { clouds, mapId } from './world';
+import { LV, clouds, mapId } from './world';
 import { PHYS } from './physics';
 import { DmgNums, Particles, Tracers, vmCam, vmScene } from './effects';
 import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
 import { bot, botActor, damageBot, eyeOf, player, playerActor, resetMatch, separate, stats, updatePlayer } from './game';
 import { checkRam, damagePlayer, updateBot } from './ai';
-import { endMatch, showCenter, updateHUD } from './hud';
+import { endMatch, killBot, killPlayer, showCenter, updateHUD } from './hud';
 import { animateActor, updateCamera } from './camera';
 import { Replay } from './replay';
 import { showTitle } from './screens';
@@ -113,6 +113,11 @@ export function loop(now) {
     separate(player, bot);
     // 忍びの屋敷：回転扉（押し付けると半回転して運ばれる。向きはそのままなので、出たら部屋の中を向いている）
     if (mapId === 'yashiki') updateYashiki(dt, [[player, true], [bot, !Net.on]], { turn: () => {}, start: p => { SFX.play('donden', p); aiHear(p, 25); } });
+    // 浮島のマップ：島から落ちて LV.KILL より下へ行ったら負け（オンラインの相手は、相手の画面で判定して届く）
+    if (LV.KILL !== undefined && gs.state === 'fight') {
+      if (!player.dead && player.pos.y < LV.KILL) { player.hp = 0; killPlayer(); }
+      if (!Net.on && !bot.dead && bot.pos.y < LV.KILL) { bot.hp = 0; killBot(); }
+    }
     if (gs.state === 'fight') {
       checkRam(player, bot, dmg => damageBot({ dmg, head: false, point: eyeOf(bot), kv: [bot.vel.x, bot.vy, bot.vel.z] }));
       if (!Net.on) checkRam(bot, player, dmg => damagePlayer(dmg, bot.pos));

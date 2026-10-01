@@ -93,6 +93,8 @@ export const SFX = (() => {
       every(6, 14, () => { const d = out(null, 0.5, 6000, bus), n = 2 + Math.floor(Math.random() * 3), f = rand(3800, 4600); for (let j = 0; j < n; j++) T(d, { at: j * rand(0.12, 0.2), f0: f, f1: f * 0.78, dur: 0.06, g: 0.008, atk: 0.004 }); });   // 雀（ちゅん）
       every(22, 45, () => { const d = out(null, 0.8, 7000, bus), n = 1 + Math.floor(Math.random() * 3); for (let j = 0; j < n; j++) { const at = j * rand(0.25, 0.5); P(d, at, 2150, 1.4, 0.004); P(d, at, 5370, 0.6, 0.0015); } });   // 遠くの風鈴（ちりん）
       every(25, 55, () => { const d = out(null, 0.6, 1500, bus); N(d, { dur: 0.45, type: 'bandpass', f0: 420, f1: 330, q: 7, g: 0.02, atk: 0.06 }); });   // 家鳴り（ぎしっ）
+    } else if (id === 'boss1') {
+      // 仮想空間１：試聴して「今のまま（無音）」に決定（川や小鳥を鳴らさない）
     } else {
       loop('lowpass', 700, 0.8, 0.013);                   // 川のせせらぎ
       every(8, 18, () => { const d = out(null, 0.5, 5000, bus), f = rand(2800, 3800); for (let j = 0; j < 3; j++) T(d, { at: j * 0.1, f0: f, f1: f * 1.25, dur: 0.06, g: 0.012 }); });   // 小鳥

@@ -9,6 +9,7 @@ import { buildOnsen } from './maps/onsen';
 import { buildDesert } from './maps/desert';
 import { buildGorge } from './maps/gorge';
 import { buildYashiki } from './maps/yashiki';
+import { buildBoss1 } from './maps/boss1';
 export * from './world/base';
 
 buildValley();
@@ -17,6 +18,7 @@ buildOnsen();
 buildDesert();
 buildGorge();
 buildYashiki();
+buildBoss1();
 useMap(settings.map);
 // 背景・地面など動かない物も、毎フレームの位置の計算を省く
 for (const o of scene.children) if (o !== sky && !clouds.includes(o) && (o as any).isMesh && !(o as any).userData.phys) { o.matrixAutoUpdate = false; o.updateMatrix(); }

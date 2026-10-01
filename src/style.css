@@ -89,8 +89,8 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 8px; border: 1px soli
 .form .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; font-size: 15px; border-bottom: 1px solid var(--line) }
 .form .row:last-child { border-bottom: none }
 .form .row small { display: block; font-size: 11px; color: var(--text-dim) }
-.seg { display: flex; gap: 4px }
-.seg button { background: color-mix(in srgb, var(--shiro-2) 8%, transparent); color: var(--text); border: 1px solid var(--line-strong); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: 600 13px var(--font-ui) }
+.seg { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px }
+.seg button { background: color-mix(in srgb, var(--shiro-2) 8%, transparent); color: var(--text); border: 1px solid var(--line-strong); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: 600 13px var(--font-ui); white-space: nowrap }
 .seg button.on { background: var(--accent); color: var(--sumi-0); border-color: var(--accent); font-weight: 800 }
 input[type=range] { width: 180px; accent-color: var(--accent) }
 
