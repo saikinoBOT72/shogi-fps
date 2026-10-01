@@ -5,7 +5,7 @@ import { BH, C, GROUND, H, LIGHT, V3, clamp, rand, settings } from '../core';
 import { gs } from '../state';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SUN_DIR, boardTex, canvasTex, darkWoodTex, flatGeo, flatten, hemi, kanjiMat, makePiece, mat, planeGeo, scene, sky, sun, toon } from '../render';
-import { G0, M4, beginMap, bellM, boxMesh, clouds, cur, deco, earthM, finishMap, glowM, land, lanternLitM, moonStoneM, place, plasterM, rock, roofM, sides, solidBox, stairsAt, stoneM, topM, tree, woodSideM } from '../world/base';
+import { G0, M4, beginMap, bellM, boxMesh, clouds, cur, deco, earthM, finishMap, glowM, land, lanternLitM, moonStoneM, place, plasterM, rock, roofM, sides, solidBox, skyWall, stairsAt, stoneM, topM, tree, woodSideM } from '../world/base';
 
 // ================= マップ2：山寺の石段（日暮れ・110m 四方・点対称） =================
 // 麓 LOW → 中段 MID（5m 上）→ 境内 TOP（さらに 5m 上）。真ん中に本堂。出撃は麓の隅の山門
@@ -44,6 +44,7 @@ export function buildTemple() {
   // ----- 外周の崖 -----
   solidBox(-58, 58, G0, G0 + 16, 55, 58, darkStoneM);
   solidBox(55, 58, G0, G0 + 16, -58, 58, darkStoneM);
+  skyWall(55, G0 + 16);
 
   // ----- 階段 -----
   stairsAt('z', -26.5, -37, 1, LOW, MID, 5);    // 長い石段：麓 → 中段

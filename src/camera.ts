@@ -59,7 +59,7 @@ export function updateCamera(dt, rdt) {
   view.bobX = bobX; view.bobY = bobY;   // リプレイ用に覚えておく
 
   if (gs.state === 'countdown' && gs.stateT < 1.3) {
-    const e = 1 - Math.pow(1 - gs.stateT / 1.3, 3);
+    const e = 1 - Math.pow(1 - Math.max(0, gs.stateT) / 1.3, 3);
     const hi = eye.clone().add(new V3(Math.sin(view.yaw) * 6, 10, Math.cos(view.yaw) * 6));
     cam.position.lerpVectors(hi, eye, e);
     cam.rotation.set(lerp(-0.85, view.pitch, e), view.yaw, 0);

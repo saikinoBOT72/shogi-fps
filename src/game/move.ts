@@ -6,7 +6,7 @@ import { gs } from '../state';
 import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from '../core';
 import { SFX } from '../audio';
 import { cam, scene } from '../render';
-import { LV, SPAWN, SPAWN2, WATER_Y, colTop, colliders, floorBelow, groundAt, pickMap, useMap } from '../world';
+import { FLOW, LV, SPAWN, SPAWN2, WATER_Y, colTop, colliders, floorBelow, groundAt, pickMap, useMap } from '../world';
 import { PHYS, blockers, physOf } from '../physics';
 import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from '../effects';
 import { Arrows } from '../arrows';
@@ -38,7 +38,8 @@ export function collide(e) {
     if (c.kind === 'pyr') { pyrCollide(e, c); continue; }
     if (c.kind === 'hf') { hf = c; continue; }   // なめらかな地形は、ほかの床を調べたあとで
     let cx, cz, top, bottom;
-    if (c.kind !== 'cyl') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = colTop(c, cx, cz); bottom = c.min.y; }
+    // 厚みのある板の坂（thick）は、板の厚みの所だけが当たる（下はくぐれる）
+    if (c.kind !== 'cyl') { cx = clamp(e.pos.x, c.min.x, c.max.x); cz = clamp(e.pos.z, c.min.z, c.max.z); top = colTop(c, cx, cz); bottom = c.thick ? top - c.thick : c.min.y; }
     else {
       const dx = e.pos.x - c.x, dz = e.pos.z - c.z, d = Math.hypot(dx, dz);
       if (d <= c.r) { cx = e.pos.x; cz = e.pos.z; } else { cx = c.x + dx / d * c.r; cz = c.z + dz / d * c.r; }
@@ -55,7 +56,9 @@ export function collide(e) {
     if (e.pos.y + e.height <= bottom || e.pos.y >= top) continue;
     // 天井：下から頭をぶつけた（前のフレームでは頭が下面より下にいた）ときは、頭を下面で止めるだけ
     //   （横へ押し出すと、屋根や2階の床の端まで一気に飛ばされる＝ワープしてしまうため）
-    if (bottom > e.pos.y + 0.4 && (e.prevY ?? e.pos.y) + e.height <= bottom + 0.05) {
+    //   ただし床に立ったまま頭が天井の「端」に触れた（体の中心は下に入っていない。階段を上っている途中など）ときは、
+    //   下へ押すと床（階段の坂）にめり込んで抜け落ちるので、横へ少しだけ押し出す
+    if (bottom > e.pos.y + 0.4 && (e.prevY ?? e.pos.y) + e.height <= bottom + 0.05 && !(wasGround && d2 > 1e-8)) {
       e.pos.y = bottom - e.height; if (e.vy > 0) e.vy = 0;
       continue;
     }
@@ -75,10 +78,30 @@ export function collide(e) {
   }
   // なめらかな地形：下にめり込んでいたら上へ。坂を下るときは地面に沿って下りる（ほかの床に立っていなければ）
   if (hf) {
-    const top = hf.at(e.pos.x, e.pos.z);
+    let top = hf.at(e.pos.x, e.pos.z);
+    // 急な地面（maxSlope より急）は上れない：前の場所へ戻し、壁と同じ扱いにする（壁登りはできる）
+    //   比べるのは、このフレームで動く前の足の高さ（空中でも同じ。上から落ちてきて乗るときは足が上にあるので止めない）
+    const feet = e.prevY ?? e.pos.y;
+    if (hf.maxSlope && e.prevX !== undefined && top > e.pos.y + 0.02) {
+      const bx = e.prevX - e.pos.x, bz = e.prevZ - e.pos.z, run = Math.hypot(bx, bz);
+      if (top - feet > hf.maxSlope * run + 0.03) {
+        e.pos.x = e.prevX; e.pos.z = e.prevZ;
+        if (run > 1e-6) {
+          const nx = bx / run, nz = bz / run, vn = e.vel.x * nx + e.vel.z * nz;
+          if (vn < 0) { e.vel.x -= vn * nx; e.vel.z -= vn * nz; }
+          e.wallN = new V3(nx, 0, nz); e.wallTop = top + 1;
+        }
+        top = hf.at(e.pos.x, e.pos.z);
+      }
+    }
     if (e.pos.y < top) {
       if (!(top - e.pos.y > 1.5 && (e.prevY ?? e.pos.y) < top - 1.5)) { e.pos.y = top; if (e.vy < 0) e.vy = 0; e.onGround = true; e.surf = hf.surf; }
     } else if (!e.onGround && wasGround && e.vy <= 0 && e.pos.y - top < 0.5) { e.pos.y = top; e.vy = 0; e.onGround = true; e.surf = hf.surf; }
+    if (hf.maxSlope && e.onGround && Math.abs(e.pos.y - top) < 0.05) {
+      const gx = hf.at(e.pos.x + 0.4, e.pos.z) - hf.at(e.pos.x - 0.4, e.pos.z), gz = hf.at(e.pos.x, e.pos.z + 0.4) - hf.at(e.pos.x, e.pos.z - 0.4), g = Math.hypot(gx, gz) / 0.8;
+      // 立っていられない：地面に付いたまま下へずらし、ジャンプもできない（跳んでよじ登れないように）
+      if (g > hf.maxSlope * 1.2) { const k = 0.1 / (g * 0.8); e.pos.x -= gx * k; e.pos.z -= gz * k; e.pos.y = Math.min(e.pos.y, hf.at(e.pos.x, e.pos.z)); e.onGround = false; e.airT = 1; }
+    }
   }
   const lim = H - R;
   if (Math.abs(e.pos.x) > lim) { e.pos.x = clamp(e.pos.x, -lim, lim); e.vel.x = 0; }
@@ -143,7 +166,10 @@ export function moveEntity(e, wish, dt) {
     if (dv.length() > acc) dv.setLength(acc);
     e.vel.add(dv);
   }
+  e.prevX = e.pos.x; e.prevZ = e.pos.z;   // 急な地面で押し戻すときの戻り先
   e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt;
+  // 川の流れ：水の中（足が水面より下）にいると押し流される（霧の渓谷）
+  if (FLOW && e.pos.y < WATER_Y) { const fl = FLOW(e.pos.x, e.pos.z); e.pos.x += fl[0] * dt; e.pos.z += fl[1] * dt; }
   // 壁登り：壁に向かってジャンプを押し続けると登る。登れるのは自分の身長ぶんまで。
   // 途中で離れたら、着地するまでつかみ直せない
   if (e.onGround) e.climbH = e.height;

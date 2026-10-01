@@ -17,6 +17,7 @@ import { showAccount, POLICY_LINK } from './accountScreen';
 import { showQuests, takeLoginBonus } from './questScreen';
 import { showMarket } from './marketScreen';
 import { Account, accountAvailable, onAccountChange } from './account';
+import { VS_TIME, showVsCut } from './vscut';
 
 // ================= 共通 =================
 // 画面を出す。同じ画面を描き直すとき（見出しが同じ）は、スクロールの位置を保ち、出てくる動きもつけない
@@ -328,7 +329,10 @@ export function startMatch(foeType?: string) {
   $('meName').textContent = `${player.def.name}　${player.w.name}`;
   $('foeTag').textContent = bot.def.name;
   $('center').textContent = '';
-  gs.state = 'countdown'; gs.stateT = 0; gs.paused = true;
+  gs.state = 'countdown'; gs.stateT = -VS_TIME; gs.paused = true;   // マイナスの間は VS カット
+  const hideFoe = gs.matchCtx && BoardMode.blind;   // ブラインド将棋：盤と同じく相手の駒は伏せる
+  showVsCut({ def: player.def, w: player.w, nm: Account.user ? Account.name : '' },
+    hideFoe ? { def: { name: '？' }, w: { name: '？' }, nm: gs.foeName } : { def: bot.def, w: bot.w, nm: Net.on ? gs.foeName : 'CPU' });
   playerActor.root.visible = false;
   // オンライン：相手の合図で始まるので、クリックしてから操作（カウントダウンは進む）
   if (Net.on) overlay(`<div class="screen"><h2 class="h big">まもなく開始</h2><p>画面をクリックして操作を始める</p>${keysHTML()}</div>`, true);

@@ -28,8 +28,15 @@ export function reachable(e, from, to) {
   const d = to.clone().sub(from); d.y = 0;
   const len = d.length();
   if (len < 0.01) return true;
-  ray.set(new V3(from.x, e.pos.y + 0.5, from.z), d.normalize()); ray.far = len + e.radius;
-  const hit = ray.intersectObjects(propMeshes, true).length > 0;
+  d.normalize();
+  // 体の真ん中と両肩の3本で調べる（真ん中だけだと、戸口の端を体がすり抜けられると思って引っかかる）
+  const side = new V3(-d.z, 0, d.x).multiplyScalar(e.radius * 0.9);
+  ray.far = len + e.radius;
+  let hit = false;
+  for (const k of [0, 1, -1]) {
+    ray.set(new V3(from.x + side.x * k, e.pos.y + 0.5, from.z + side.z * k), d);
+    if (ray.intersectObjects(propMeshes, true).length > 0) { hit = true; break; }
+  }
   ray.far = Infinity;
   return !hit;
 }

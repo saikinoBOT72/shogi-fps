@@ -82,6 +82,17 @@ export const SFX = (() => {
       loop('lowpass', 320, 0.7, 0.004);                     // 湯の流れる音（かすか）
       every(18, 32, () => { const d = out(null, 0.6, 1800, bus); wood(d, 0, 520, 0.05, 0.12); wood(d, 0.09, 470, 0.02, 0.1); });   // 遠くの鹿威し（こん）
       every(35, 70, () => { const d = out(null, 0.4, 900, bus); N(d, { dur: 0.35, f0: 260, f1: 90, g: 0.05, atk: 0.02 }); });   // 屋根の雪が落ちる（どさっ）
+    } else if (id === 'gorge') {
+      // 霧の渓谷：試聴で A（瀬音と小鳥）を、小さめにして選んだもの
+      loop('lowpass', 900, 0.8, 0.006, [0.23, 150]);        // さらさら流れる川（ゆっくり揺らぐ）
+      loop('bandpass', 3200, 0.9, 0.0012);                 // 水しぶきのきらめき
+      every(4, 8, () => { const d = out(null, 0.5, 6000, bus), n = 6 + Math.floor(Math.random() * 6), f = rand(4200, 5400); for (let j = 0; j < n; j++) T(d, { at: j * 0.07, f0: f * (1 + ((j % 3) - 1) * 0.08), f1: f * (1.1 + (j % 2) * 0.1), dur: 0.05, g: 0.006 }); });   // 小鳥のさえずり
+    } else if (id === 'yashiki') {
+      // 忍びの屋敷（昼・室内。試聴で「今」に決定）：低いザーザーは入れない。外の雀・遠い風鈴・家鳴り・障子越しのかすかな風
+      loop('bandpass', 2400, 0.6, 0.0015, [0.07, 400]);     // 障子越しの風（高めで、ごくかすか）
+      every(6, 14, () => { const d = out(null, 0.5, 6000, bus), n = 2 + Math.floor(Math.random() * 3), f = rand(3800, 4600); for (let j = 0; j < n; j++) T(d, { at: j * rand(0.12, 0.2), f0: f, f1: f * 0.78, dur: 0.06, g: 0.008, atk: 0.004 }); });   // 雀（ちゅん）
+      every(22, 45, () => { const d = out(null, 0.8, 7000, bus), n = 1 + Math.floor(Math.random() * 3); for (let j = 0; j < n; j++) { const at = j * rand(0.25, 0.5); P(d, at, 2150, 1.4, 0.004); P(d, at, 5370, 0.6, 0.0015); } });   // 遠くの風鈴（ちりん）
+      every(25, 55, () => { const d = out(null, 0.6, 1500, bus); N(d, { dur: 0.45, type: 'bandpass', f0: 420, f1: 330, q: 7, g: 0.02, atk: 0.06 }); });   // 家鳴り（ぎしっ）
     } else {
       loop('lowpass', 700, 0.8, 0.013);                   // 川のせせらぎ
       every(8, 18, () => { const d = out(null, 0.5, 5000, bus), f = rand(2800, 3800); for (let j = 0; j < 3; j++) T(d, { at: j * 0.1, f0: f, f1: f * 1.25, dur: 0.06, g: 0.012 }); });   // 小鳥
@@ -240,6 +251,7 @@ export const SFX = (() => {
       else if (surf === 'wood') { wood(d, 0, 105 * k, 0.14 * v, 0.1); N(d, { dur: 0.05, f0: 350, g: 0.12 * v, atk: 0.005 }); }
       else if (surf === 'gravel') { N(d, { dur: 0.09, f0: 600 * k, f1: 300, g: 0.14 * v, atk: 0.01 }); for (let i = 0; i < 8; i++) N(d, { at: Math.random() * 0.08, dur: 0.014, type: 'bandpass', f0: rand(1200, 2600), q: 2.5, g: 0.035 * v * rand(0.4, 1) }); }
       else if (surf === 'sand') { N(d, { dur: 0.11, f0: 380 * k, f1: 180, g: 0.13 * v, atk: 0.015 }); for (let i = 0; i < 4; i++) N(d, { at: Math.random() * 0.07, dur: 0.02, type: 'bandpass', f0: rand(900, 1800), q: 1.5, g: 0.02 * v * rand(0.4, 1) }); }   // 砂：さくっ
+      else if (surf === 'squeak') { wood(d, 0, 105 * k, 0.12 * v, 0.1); T(d, { type: 'triangle', f0: 1500 * k, f1: 1120 * k, dur: 0.09, g: 0.09 * v, atk: 0.012 }); T(d, { type: 'triangle', at: 0.06, f0: 1250 * k, f1: 1600 * k, dur: 0.07, g: 0.06 * v, atk: 0.01 }); }   // 鶯張り：きゅっ（試聴で「今」に決定）
       else if (surf === 'water') N(d, { dur: 0.18, f0: 500 * k, f1: 280, g: 0.13 * v, atk: 0.05 });
       else { N(d, { dur: 0.08, f0: 380 * k, f1: 180, g: 0.2 * v, atk: 0.008 }); N(d, { dur: 0.06, type: 'bandpass', f0: 1100, q: 0.8, g: 0.025 * v, atk: 0.01 }); }
     },
@@ -249,9 +261,9 @@ export const SFX = (() => {
     prop(kind, pos, v = 0.5) {
       const d = out(pos, 0.05), g = v;
       if (kind === 'barrel') { wood(d, 0, 140, 0.55 * g, 0.16); P(d, 0.01, 95, 0.25, 0.15 * g); N(d, { at: 0.05, dur: 0.25, type: 'bandpass', f0: 500, f1: 900, q: 2, g: 0.12 * g, atk: 0.05 }); }
-      else if (kind === 'bale') { N(d, { dur: 0.12, f0: 350, f1: 120, g: 0.6 * g }); for (let i = 0; i < 6; i++) N(d, { at: Math.random() * 0.08, dur: 0.014, type: 'bandpass', f0: rand(2000, 4000), q: 2.5, g: 0.04 * g }); }
-      else if (kind === 'log') { wood(d, 0, 130, 0.55 * g, 0.15); wood(d, 0.2, 125, 0.25 * g, 0.12); }
-      else if (kind === 'oke') { wood(d, 0, 480, 0.4 * g, 0.07); P(d, 0.005, 620, 0.18, 0.08 * g, 'triangle'); }
+      else if (kind === 'bale' || kind === 'tawara') { N(d, { dur: 0.12, f0: 350, f1: 120, g: 0.6 * g }); for (let i = 0; i < 6; i++) N(d, { at: Math.random() * 0.08, dur: 0.014, type: 'bandpass', f0: rand(2000, 4000), q: 2.5, g: 0.04 * g }); }
+      else if (kind === 'log' || kind === 'stump') { wood(d, 0, 130, 0.55 * g, 0.15); wood(d, 0.2, 125, 0.25 * g, 0.12); }
+      else if (kind === 'oke' || kind === 'split' || kind === 'biku') { wood(d, 0, 480, 0.4 * g, 0.07); P(d, 0.005, 620, 0.18, 0.08 * g, 'triangle'); }
       else if (kind === 'cart') { N(d, { dur: 0.6, type: 'bandpass', f0: 600, f1: 900, q: 12, g: 0.25 * g, atk: 0.2 }); wood(d, 0.1, 200, 0.2 * g, 0.1); wood(d, 0.45, 190, 0.2 * g, 0.1); }
       else if (kind === 'saisen') {
         // 箱の中で小銭がこもって鳴る
@@ -268,6 +280,8 @@ export const SFX = (() => {
       else if (kind === 'sandbag') N(d, { dur: 0.12, f0: 260, f1: 110, g: 0.6 * g, atk: 0.01 });   // 砂袋：どさっ
       else if (kind === 'jar') { P(d, 0, 520, 0.08, 0.1 * g, 'triangle'); N(d, { dur: 0.05, type: 'bandpass', f0: 1400, q: 2, g: 0.15 * g }); }
       else if (kind === 'milk') { wood(d, 0, 330, 0.3 * g, 0.08); for (let i = 0; i < 3; i++) P(d, 0.01 + i * 0.03, rand(2400, 3200), 0.12, 0.03 * g, 'triangle'); }   // 瓶がかちゃっ
+      else if (kind === 'zabuton') N(d, { dur: 0.08, f0: 220, f1: 120, g: 0.35 * g, atk: 0.01 });   // 座布団：ぽふっ
+      else if (kind === 'yunomi' || kind === 'kyusu') { P(d, 0, kind === 'yunomi' ? 2600 : 1500, 0.12, 0.06 * g, 'triangle'); N(d, { dur: 0.03, type: 'bandpass', f0: 3000, q: 2, g: 0.08 * g }); }   // 茶器：かちっ
       else wood(d, 0, 310, 0.45 * g, 0.1);   // 木箱
     },
     // 鐘楼の鐘（撃つと遠くまで響く）
@@ -275,6 +289,19 @@ export const SFX = (() => {
       const d = out(pos, 0.5);
       [[1, 0.5, 6], [2.08, 0.3, 4], [2.94, 0.22, 3], [4.1, 0.12, 2], [5.4, 0.08, 1.4]].forEach(([k, g, dur]) => { P(d, 0, 108 * k, dur, g, 'sine'); P(d, 0, 108 * k * 1.004, dur, g * 0.7, 'sine'); });
       N(d, { dur: 0.06, f0: 800, g: 0.4 });
+    },
+    // 忍びの屋敷の大太鼓（撃つと鳴る。試聴で A「どーん：低く長く、広間に響く」を選んだもの）
+    taiko(pos) {
+      const d = out(pos, 0.45);
+      N(d, { dur: 0.25, f0: 900, f1: 150, g: 0.6 });                                  // 撥の当たり
+      T(d, { f0: 150, f1: 82, dur: 1.5, g: 1 }); T(d, { type: 'triangle', f0: 290, f1: 165, dur: 0.45, g: 0.4 });   // 胴（高めの音も混ぜて、小さなスピーカーでも聞こえる）
+      N(d, { at: 0.05, dur: 1.3, f0: 500, f1: 120, g: 0.12, atk: 0.08 });             // 広間の響き
+    },
+    // 回転扉：試聴で A「ぎぃぃぃ…ばたん」を選んだもの（回り終わる 0.7 秒に重い音）
+    donden(pos) {
+      const d = out(pos, 0.4);
+      N(d, { dur: 0.75, type: 'bandpass', f0: 380, f1: 210, q: 9, g: 0.35, atk: 0.08 }); T(d, { type: 'sawtooth', f0: 180, f1: 120, dur: 0.7, g: 0.02, atk: 0.1 });
+      N(d, { at: 0.72, dur: 0.18, f0: 600, f1: 120, g: 0.6 }); wood(d, 0.72, 110, 0.6, 0.2);
     },
     // 爆発・大玉の爆発
     boom(pos) {

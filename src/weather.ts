@@ -1,3 +1,4 @@
+import { updateGorge } from './maps/gorge';
 // 雪の温泉街の天気と地面：しんしんと降る雪、露天風呂と足湯の湯けむり、雪に残る足跡（10秒で消える）
 // 砂に埋もれた神殿：ときどき来る砂嵐（霧が濃い砂色になり、砂が横に流れる。CPU も近くしか見えない）と、砂に残る足跡
 import * as THREE from 'three';
@@ -85,10 +86,12 @@ const puffs = [...Array(DN)].map(() => { const sp = new THREE.Sprite(new THREE.S
 const WIND = new V3(1, 0, 0.35).normalize();
 const stormCol = C(P.kiji[1]).lerp(C(P.daidai[2]), 0.5);
 let storm = 0;
+// 砂嵐でないときも、ほんの少し砂が舞って遠くがかすむ（見た目だけ。CPU の見える距離は砂嵐のときだけ変える）
+const HAZE = 0.16;
 function updateStorm(rdt: number, on: boolean) {
   const want = on && gs.state === 'fight' ? stormK(stats.time) : 0;
   storm += clamp(want - storm, -rdt / 1.5, rdt / 1.5);   // 急に切り替わらないように
-  const k = storm, vis = on && k > 0.01;
+  const k = storm, kv = Math.max(k, HAZE), vis = on;
   sand.visible = vis; puffs.forEach(p => p.sp.visible = vis);
   gs.stormVis = k > 0.05 ? lerp(160, 22, k) : Infinity;   // CPU が見える距離
   SFX.setStorm(on ? k : 0);
@@ -96,29 +99,30 @@ function updateStorm(rdt: number, on: boolean) {
   // 霧・空・光を砂色へ
   const a = currentAtmos(); if (!a) return;
   const f = scene.fog as THREE.Fog;
-  f.near = lerp(a.near, 2, k); f.far = lerp(a.far, 30, k); f.color.copy(a.fog).lerp(stormCol, k);
+  f.near = lerp(10, 2, k); f.far = lerp(220, 30, k); f.color.copy(a.fog).lerp(stormCol, Math.max(k, 0.4));   // ふだんも砂で少しかすむ（100m 先が半分ほど）
   const u = (sky.material as any).uniforms;
-  u.top.value.copy(a.top).lerp(stormCol, k * 0.9); u.hor.value.copy(a.hor).lerp(stormCol, k); u.bot.value.copy(a.bot).lerp(stormCol, k);
-  sun.intensity = a.sunI * lerp(1, 0.45, k) * Math.PI; hemi.intensity = a.hemiI * lerp(1, 1.3, k) * Math.PI;
+  u.top.value.copy(a.top).lerp(stormCol, kv * 0.9); u.hor.value.copy(a.hor).lerp(stormCol, kv); u.bot.value.copy(a.bot).lerp(stormCol, kv);
+  sun.intensity = a.sunI * lerp(1, 0.45, kv) * Math.PI; hemi.intensity = a.hemiI * lerp(1, 1.3, kv) * Math.PI;
   if (!vis) return;
-  sandMat.opacity = 0.85 * k;
+  sandMat.opacity = 0.85 * kv;
   const cx = cam.position.x, cy = cam.position.y, cz = cam.position.z, tt = performance.now() / 1000;
   const wrap = (v, c, n) => ((v - c + n / 2) % n + n) % n - n / 2 + c;
   for (let i = 0; i < SN; i++) {
-    const j = i * 3, gust = 16 + Math.sin(tt * 3 + i) * 5;
+    const j = i * 3, gust = (16 + Math.sin(tt * 3 + i) * 5) * lerp(0.4, 1, k);   // 砂嵐でないときは、ゆっくり漂う
     sandPos[j] = wrap(sandPos[j] + WIND.x * gust * rdt, cx, SX); sandPos[j + 1] = wrap(sandPos[j + 1] + Math.sin(tt * 5 + i * 1.7) * 0.8 * rdt, cy, SY); sandPos[j + 2] = wrap(sandPos[j + 2] + WIND.z * gust * rdt, cz, SX);
   }
   sandGeo.attributes.position.needsUpdate = true;
   for (const p of puffs) {
-    p.x = wrap(p.x + WIND.x * 9 * rdt, cx, SX); p.z = wrap(p.z + WIND.z * 9 * rdt, cz, SX);
+    p.x = wrap(p.x + WIND.x * 9 * lerp(0.4, 1, k) * rdt, cx, SX); p.z = wrap(p.z + WIND.z * 9 * lerp(0.4, 1, k) * rdt, cz, SX);
     p.sp.position.set(p.x, cy + p.y - 2, p.z); p.sp.scale.setScalar(p.s);
-    (p.sp.material as THREE.SpriteMaterial).opacity = 0.28 * k;
+    (p.sp.material as THREE.SpriteMaterial).opacity = 0.28 * kv;
   }
 }
 
 export const Weather = {
   update(rdt: number, dt: number, show: boolean) {
     updateStorm(rdt, show && mapId === 'desert');
+    if (show && mapId === 'gorge') updateGorge(rdt);   // 霧の渓谷：水車・流れの筋
     const on = show && mapId === 'onsen';
     snow.visible = on;
     fpMesh.visible = on || (show && mapId === 'desert');   // 足跡は雪と砂の上

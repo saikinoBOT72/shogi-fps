@@ -501,3 +501,25 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .inv-sell input { width: 7em; text-align: right }
 .inv-msg { margin: 6px 0 0; font-size: 13px; color: var(--shu-2) }
 .ol-name { letter-spacing: .15em; color: var(--accent) }
+
+/* ================= 戦いの前の VS カット（vscut.ts） ================= */
+#vscut { position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; background: var(--shiro-1) }
+#vscut .vs-side { position: absolute; inset: 0; animation: vsInL .45s cubic-bezier(.2,.9,.3,1) both }
+#vscut .vs-side.l { background: color-mix(in srgb, var(--shu-2) 55%, var(--shiro-1)); clip-path: polygon(0 0, 56% 0, 44% 100%, 0 100%) }
+#vscut .vs-side.r { clip-path: polygon(56% 0, 100% 0, 100% 100%, 44% 100%); animation-name: vsInR; background: color-mix(in srgb, var(--ao-2) 55%, var(--shiro-1)) }
+#vscut .vs-bar { position: absolute; left: 0; right: 0; top: 0; height: 13vh; display: flex; align-items: center; gap: 2vw; padding: 0 4vw;
+  background: color-mix(in srgb, var(--sumi-0) 80%, transparent) }
+#vscut .r .vs-bar { justify-content: flex-end; flex-direction: row-reverse }
+#vscut .vs-who { font: 900 2.2vh var(--font-ui); color: var(--shu-2) }
+#vscut .r .vs-who { color: var(--ao-2) }
+#vscut .vs-name { font: 900 6vh var(--font-koma); letter-spacing: .4em; color: var(--shiro-2) }
+#vscut .vs-koma { position: absolute; top: 24vh; width: 30vh; height: 35vh; font-size: 20vh; left: 10vw; transform: rotate(-8deg) }
+#vscut .r .vs-koma { left: auto; right: 10vw; transform: rotate(8deg) }
+#vscut .vs-sub { position: absolute; bottom: 6vh; left: 4vw; font: 700 2.6vh var(--font-ui); color: var(--sumi-1) }
+#vscut .r .vs-sub { left: auto; right: 4vw }
+#vscut .vs-sub span { color: var(--kin-0) }
+#vscut .vs-mark-big { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: italic 900 18vh/1 var(--font-ui);
+  color: var(--kin-2); -webkit-text-stroke: .6vh var(--sumi-0); animation: vsPop .5s .35s both }
+@keyframes vsInL { from { transform: translateX(-60%) } to { transform: none } }
+@keyframes vsInR { from { transform: translateX(60%) } to { transform: none } }
+@keyframes vsPop { 0% { transform: translate(-50%, -50%) scale(3); opacity: 0 } 60% { transform: translate(-50%, -50%) scale(.9); opacity: 1 } 100% { transform: translate(-50%, -50%) scale(1) } }

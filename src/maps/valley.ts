@@ -5,7 +5,7 @@ import { BH, C, GROUND, H, LIGHT, V3, clamp, rand, settings } from '../core';
 import { gs } from '../state';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SUN_DIR, boardTex, canvasTex, darkWoodTex, flatGeo, flatten, hemi, kanjiMat, makePiece, mat, planeGeo, scene, sky, sun, toon } from '../render';
-import { G0, beginMap, boxMesh, clouds, cur, earthM, finishMap, land, place, plasterM, rock, roofM, sides, solidBox, stoneM, topM, tree, turfM, wall, woodSideM } from '../world/base';
+import { G0, beginMap, boxMesh, clouds, cur, earthM, finishMap, land, place, plasterM, rock, roofM, sides, solidBox, skyWall, stoneM, topM, tree, turfM, wall, woodSideM } from '../world/base';
 
 // ================= マップ1：谷と二つの丘（132m 四方・点対称） =================
 // 高さ：川底 = GROUND、谷 V、段々 T2・T4、高台 PL、丘 HB（下の段）・HT（頂上）、吊り橋 ROPE、崖の小道 LEDGE
@@ -108,6 +108,7 @@ export function buildValley() {
     // ----- 外周の崖（高い石の壁） -----
     solidBox(-H - 3, H + 3, G0, PL + 4, H, H + 3, stoneM);
     solidBox(H, H + 3, G0, PL + 4, -H - 3, H + 3, stoneM);
+    skyWall(H, PL + 4);
   }
   finishMap();
 }

@@ -139,7 +139,9 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
       const ph = physOf(wall), tur = Gadgets.turretOfHit(wall.object);
       if (tur) Gadgets.damageTurret(tur, w.dmg * lerp(1, w.falloff[2], clamp((wallDist - w.falloff[0]) / (w.falloff[1] - w.falloff[0]), 0, 1)), shooter);
       // 鐘楼の鐘：鳴らすと遠くまで響く（居場所がばれる）
-      if (wall.object.userData.bell && performance.now() - (gs.bellT || 0) > 400) { gs.bellT = performance.now(); SFX.play('bell', wall.point); aiHear(wall.point, 60); }
+      // 忍びの屋敷の大太鼓も同じ（userData.ring に鳴らす音の名前）
+      const ring = wall.object.userData.bell ? 'bell' : wall.object.userData.ring;
+      if (ring && performance.now() - (gs.bellT || 0) > 400) { gs.bellT = performance.now(); SFX.play(ring, wall.point); aiHear(wall.point, 60); }
       if (ph) { PHYS.hit(ph, wall.point, d, w.dmg * 0.15); Particles.wood(wall.point, n, 4, 0.5); }
       else Decals.add(wall.point, n);
       if (sound) SFX.play(Math.random() < 0.3 ? 'ricochet' : 'thud', wall.point);

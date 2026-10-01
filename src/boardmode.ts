@@ -14,7 +14,7 @@ import { resetMatch } from './game';
 import { bindMapPick, hideOverlay, keysHTML, mapPickHTML, overlay, showTitle, startMatch } from './screens';
 import { Net } from './net';
 import { leave, showLobby } from './online';
-import { HAND_ORDER, PRO, attackedBy, canPromote, deadEnd, dropSquares, findKing, inCheck, inZone, initialBoard, label, nifu, rawMoves } from './shogi/rules';
+import { HAND_ORDER, PRO, allMoves, attackedBy, canPromote, deadEnd, dropSquares, findKing, inCheck, inZone, initialBoard, label, nifu, rawMoves } from './shogi/rules';
 import { chooseMove, recordBattle } from './shogi/cpu';
 
 export const BoardMode = (() => {
@@ -85,8 +85,9 @@ export const BoardMode = (() => {
 
   // 途中の対局を保存（1手ごと）。決着したら消す
   const SAVE = 'shogiFps.board';
-  const save = () => { if (online) return; try { localStorage.setItem(SAVE, JSON.stringify({ board, hands, turn, lastMove })); } catch (e) {} };
-  const clearSave = () => { try { localStorage.removeItem(SAVE); } catch (e) {} };
+  // ブラインド将棋（CPU）は途中保存しない（ふつうの将棋の続きを消さないように）
+  const save = () => { if (online || blind) return; try { localStorage.setItem(SAVE, JSON.stringify({ board, hands, turn, lastMove })); } catch (e) {} };
+  const clearSave = () => { if (blind) return; try { localStorage.removeItem(SAVE); } catch (e) {} };
   function loadSave() {
     try { const d = JSON.parse(localStorage.getItem(SAVE) || 'null'); return d && d.board && d.hands ? d : null; } catch (e) { return null; }
   }
@@ -282,6 +283,13 @@ export const BoardMode = (() => {
     if (setupDone) return;
     const g = gen;
     setupDone = true; setupSel = null;
+    if (!online) {   // CPU と：CPU も自分の3段をばらばらに並べ替えて始める（あなたが先手）
+      for (let i = 0; i < 24; i++) {
+        const ax = Math.floor(Math.random() * 9), ay = Math.floor(Math.random() * 3), bx = Math.floor(Math.random() * 9), by = Math.floor(Math.random() * 3);
+        const t = board[ay][ax]; board[ay][ax] = board[by][bx]; board[by][bx] = t;
+      }
+      setup = false; turn = 0; SFX.play('battle'); refresh(); nextTurn(); return;
+    }
     Net.send({ t: 'bsetup', v: [6, 7, 8].map(y => board[y].map(p => (p ? p.type : null))) });
     setMsg('相手が並べ終わるのを待っています…'); refresh();
     const v = await waitNet('bsetup');
@@ -429,15 +437,23 @@ export const BoardMode = (() => {
     if (g !== gen) return;
     await sleep(30);   // 考える前に「相手の番…」を画面に出す
     if (g !== gen) return;
-    const m = chooseMove(board, hands);
+    const m = blind ? blindMove() : chooseMove(board, hands);
     if (!m) { gameOver(0, '相手が指せる手がなくなった'); return; }
     preview = m; paint();
     if (m.kind === 'move' && board[m.ty][m.tx]) {
-      setMsg(`相手の「${label(board[m.fy][m.fx])}」が、あなたの「${label(board[m.ty][m.tx])}」を取りに来た！`);
+      setMsg(`相手の${blind ? '駒' : `「${label(board[m.fy][m.fx])}」`}が、あなたの「${label(board[m.ty][m.tx])}」を取りに来た！`);
       await sleep(1400);
     } else await sleep(350);
     if (g !== gen) return;
     await doMove(m, 1);
+  }
+  // ブラインド将棋の CPU：あなたの駒が何かは知らない（盤の上のあなたの駒を、全部「歩」だと思って考える）。
+  //   選んだ手は本当の盤で指せるか確かめ、だめなら（打ち歩詰めなど）ふつうに考え直す
+  function blindMove() {
+    const masked = board.map(row => row.map(p => (p && p.owner === 0 ? { ...p, type: 'P', promoted: false } : p)));
+    const m = chooseMove(masked, hands);
+    const same = x => x.kind === m.kind && x.tx === m.tx && x.ty === m.ty && (x.kind === 'drop' ? x.type === m.type : x.fx === m.fx && x.fy === m.fy);
+    return m && allMoves(board, hands, 1, true).some(same) ? m : chooseMove(board, hands);
   }
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // ---------- 友達と対戦：届いたもの ----------
@@ -553,19 +569,21 @@ export const BoardMode = (() => {
 
   // タイトルから：途中の対局があれば「続きから／最初から」を選ぶ
   function open() {
-    if (!loadSave()) { start(); return; }
-    overlay(`<div class="screen"><h2 class="h">将棋モード</h2><p>前回の対局の途中があります</p>
-      <div class="menu"><button class="btn sub" id="bmNew">最初から</button><button class="btn" id="bmCont">続きから</button></div>
+    const has = !!loadSave();
+    overlay(`<div class="screen"><h2 class="h">将棋モード</h2>${has ? '<p>前回の対局の途中があります</p>' : ''}
+      <div class="menu">${has ? '<button class="btn" id="bmCont">続きから</button>' : ''}<button class="btn${has ? ' sub' : ''}" id="bmNew">${has ? '最初から' : 'ふつうの将棋'}</button><button class="btn sub" id="bmBlind">ブラインド将棋</button></div>
+      <p class="note" style="max-width:560px">ブラインド将棋：始める前に、自分の3段の中で駒を並べ替えられる。CPU の駒は字の無い駒に見える（CPU もあなたの駒が何かは知らない）。あなたが先手。途中保存はしない</p>
       <div class="menu"><button class="btn ghost" id="bmBackT">戻る</button></div></div>`, true);
-    $('bmCont').onclick = e => { e.stopPropagation(); start(true); };
+    if (has) $('bmCont').onclick = e => { e.stopPropagation(); start(true); };
     $('bmNew').onclick = e => { e.stopPropagation(); clearSave(); start(); };
+    $('bmBlind').onclick = e => { e.stopPropagation(); start(false, false, true); };
     $('bmBackT').onclick = e => { e.stopPropagation(); showTitle(); };
   }
   function start(resume = false, net = false, blindMode = false) {
     SFX.init();
     gen++;
     online = net; inbox = []; waiters = []; meWait = foeWait = false;
-    blind = net && blindMode; setup = blind; setupSel = null; setupDone = false;
+    blind = blindMode; setup = blind; setupSel = null; setupDone = false;
     initBoard();
     const d = resume && loadSave();
     if (d) { board = d.board; hands = d.hands; turn = d.turn; lastMove = d.lastMove; }
@@ -575,7 +593,7 @@ export const BoardMode = (() => {
     hideOverlay(); $('hud').style.display = 'none';
     showUI(true);
     refresh();
-    if (!setup) nextTurn();
+    if (setup) setupMsg(); else nextTurn();
   }
   function exit() {
     gs.matchCtx = null; gs.boardMap = null; over = true; gen++;

@@ -8,7 +8,7 @@ import { BH, G, GROUND, clamp, rand } from './core';
 const G0 = GROUND;
 import { SFX } from './audio';
 import { PIECE_DEPTH, canvasTex, mat, pieceGeo, pieceWoodMat, scene, toon, woodGrain } from './render';
-import { colliders, insideCollider, mapId, mapLV, onMapChange, propMeshes } from './world';
+import { FLOW, MAPS, WATER_Y, colliders, insideCollider, mapId, mapLV, onMapChange, propMeshes } from './world';
 
 // ================= 物理演算（cannon.js）：撃つ・押す・体当たりで動く小物 =================
 export const physMeshes = [];
@@ -408,9 +408,105 @@ export const PHYS: any = (() => {
     for (const x of [-35, -31, -27]) addBody('log', new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, x * s, HB + 0.3, 32.2 * s, lying, 0.7);
   });
 
+  // 霧の渓谷の小物（置き場所は maps/gorge.ts が地面の高さと一緒に決める。木の物は川に浮いて流される）
+  //   切り株（重い）・割った薪・炭俵（重い物陰）・魚籠・竿・浮き。丸太・水桶・木箱は今ある物を使う
+  const strawDarkM = mat(P.kiji[0]), bambooM = mat(P.ki[0]), redM = mat(P.shu[1]), whiteM = mat(P.shiro[2]);
+  const stumpObj = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.6, 9), barkM));
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.02, 9), cutM); top.position.y = 0.3; g.add(top);
+    return g;
+  };
+  const splitObj = () => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.5), cutM)); const b = new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.06, 0.5), barkM); b.position.y = 0.04; g.add(b); return g; };
+  const tawaraObj = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.8, 9), strawDarkM));
+    for (const y of [-0.25, 0.25]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.06, 9), ropeM); r.position.y = y; g.add(r); }
+    for (const y of [-0.4, 0.4]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 0.05, 9), strawM); c.position.y = y; g.add(c); }
+    return g;
+  };
+  const bikuObj = () => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.36, 8), bambooM)); const n = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.06, 8), barkM); n.position.y = 0.2; g.add(n); return g; };
+  const saoObj = () => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.03, 3, 5).rotateX(Math.PI / 2), bambooM)); return g; };
+  const ukiObj = () => { const g = new THREE.Group(); const a = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 7), redM); a.position.y = 0.04; g.add(a); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 7), whiteM); b.position.y = -0.04; g.add(b); return g; };
+  kinds.stump = { geo: bake(stumpObj()), mat: vcM, items: [] };
+  kinds.split = { geo: bake(splitObj()), mat: vcM, items: [] };
+  kinds.tawara = { geo: bake(tawaraObj()), mat: vcM, items: [] };
+  kinds.biku = { geo: bake(bikuObj()), mat: vcM, items: [] };
+  kinds.sao = { geo: bake(saoObj()), mat: vcM, items: [] };
+  kinds.uki = { geo: bake(ukiObj()), mat: vcM, items: [] };
+  function placeGorge() {
+    const g = MAPS.gorge?.gorgePhys; if (!g) return;
+    placing = 'gorge';
+    const alongZ = new CANNON.Quaternion(); alongZ.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);   // 円柱を寝かせて z に沿わせる
+    const float = it => { it.floats = it.settle = true; return it; };   // settle：最初にそのマップを出したとき、物理で落ち着かせてから置き場所にする
+    [1, -1].forEach(s => {
+      for (const [x, z, y] of g.logs) float(addBody('log', new CANNON.Cylinder(0.3, 0.3, 3, 8), 6, x * s, y + 0.32, z * s, alongZ, 0.7));
+      { const [x, z, y] = g.chop;
+        float(addBody('stump', new CANNON.Cylinder(0.39, 0.39, 0.6, 9), 30, x * s, y + 0.3, z * s, null, 0.6));
+        float(addDynamic('split', [0.065, 0.065, 0.25], 0.8, x * s, y + 0.67, z * s, 0.4, 1.2));   // 切り株の上に1本
+        for (let row = 0; row < 2; row++) for (let i = 0; i < 4; i++)   // 割った薪を井桁に2段
+          float(addDynamic('split', [0.065, 0.065, 0.25], 0.8, (x - 1.3 + (row ? 0 : (i - 1.5) * 0.16)) * s, y + 0.07 + row * 0.135, (z + (row ? (i - 1.5) * 0.16 : 0)) * s, row ? Math.PI / 2 : 0, 1.2));   // 下の段は z 向きを x に並べ、上の段は x 向きを z に並べる
+      }
+      { const [x, z, y] = g.tawara;
+        for (const dx of [-0.34, 0.34]) float(addBody('tawara', new CANNON.Cylinder(0.3, 0.3, 0.8, 9), 22, (x + dx) * s, y + 0.3, z * s, alongZ, 0.6));
+        float(addBody('tawara', new CANNON.Cylinder(0.3, 0.3, 0.8, 9), 22, x * s, y + 0.86, z * s, alongZ, 0.6));
+      }
+      for (const [x, z, y] of g.oke) float(addBody('oke', new CANNON.Cylinder(0.26, 0.26, 0.36, 10), 0.6, x * s, y + 0.18, z * s, null, 1.4));
+      { const [x, z, y] = g.crate;
+        for (const dz of [-0.62, 0.62]) float(addDynamic('crate', [cs / 2, cs / 2, cs / 2], 10, x * s, y + cs / 2, (z + dz) * s, 0, 0.65));
+        float(addDynamic('crate', [cs / 2, cs / 2, cs / 2], 10, x * s, y + cs * 1.5, z * s, 0.3, 0.65));
+      }
+      for (const [x, z, y] of g.biku) float(addBody('biku', new CANNON.Cylinder(0.17, 0.17, 0.36, 8), 0.5, x * s, y + 0.18, z * s, null, 1.3));
+      for (const [x, z, y] of g.sao) float(addDynamic('sao', [0.03, 0.03, 1.5], 0.4, x * s, y + 0.03, z * s, 0.05, 1.6));
+      for (const [x, z, y] of g.uki) float(addBody('uki', new CANNON.Cylinder(0.05, 0.05, 0.16, 7), 0.05, x * s, y + 0.08, z * s, null, 1.8));
+    });
+  }
+
+  // ----- 忍びの屋敷：座布団の山（押すと崩れる）と茶器（撃つと飛ぶ） -----
+  const zabutonObj = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.55), mat(P.fuji[0])));
+    const t = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.085, 0.05), mat(P.kin[1])); g.add(t);   // 真ん中の房
+    return g;
+  };
+  const yunomiObj = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.036, 0.08, 9), mat(P.seiji[1])));
+    const tea = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.005, 9), mat(P.moegi[0])); tea.position.y = 0.035; g.add(tea);
+    return g;
+  };
+  const kyusuObj = () => {
+    const g = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.085, 1), mat(P.daidai[0])); b.scale.y = 0.75; g.add(b);
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.02, 0.08, 6), mat(P.daidai[0])); sp.position.set(0.09, 0.01, 0); sp.rotation.z = -1; g.add(sp);
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.1, 6), mat(P.daidai[0])); h.position.set(0, 0, -0.1); h.rotation.x = 1.4; g.add(h);   // 横の取っ手
+    const k = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.025, 6), mat(P.daidai[0])); k.position.y = 0.07; g.add(k);
+    return g;
+  };
+  kinds.zabuton = { geo: bake(zabutonObj()), mat: vcM, items: [] };
+  kinds.yunomi = { geo: bake(yunomiObj()), mat: vcM, items: [] };
+  kinds.kyusu = { geo: bake(kyusuObj()), mat: vcM, items: [] };
+  function placeYashiki() {
+    const d = MAPS.yashiki?.yashikiPhys; if (!d) return;
+    placing = 'yashiki';
+    [1, -1].forEach(s => {
+      // 座布団の山：6枚を少しずつずらして積む
+      for (const [x, z, y] of d.zabuton) for (let i = 0; i < 6; i++)
+        addDynamic('zabuton', [0.275, 0.04, 0.275], 0.5, x * s + (i % 2 ? 0.02 : -0.02), y + 0.04 + i * 0.081, z * s, ((i * 0.37) % 0.3) - 0.15, 0.8).settle = true;
+      // 茶器：急須1つと湯呑み2つ（座卓の向きに合わせる）
+      for (const [x, z, y, rot] of d.tea) {
+        const at = (a, b) => (rot ? [x + b, z + a] : [x + a, z + b]);
+        { const [px, pz] = at(0.25, 0.05); addBody('kyusu', new CANNON.Cylinder(0.08, 0.08, 0.12, 8), 0.5, px * s, y + 0.065, pz * s, null, 1.2).settle = true; }
+        for (const [a, b] of [[-0.2, -0.15], [-0.28, 0.17]]) { const [px, pz] = at(a, b); addBody('yunomi', new CANNON.Cylinder(0.042, 0.036, 0.08, 8), 0.15, px * s, y + 0.042, pz * s, null, 1.6).settle = true; }
+      }
+    });
+  }
+
   placeTemple();
   placeOnsen();
   placeDesert();
+  placeGorge();
+  placeYashiki();
 
   // スキル「木箱」で置く木箱（両者 6 個ずつ、足りなければ古いものから使い回す）
   const pool = [];
@@ -470,6 +566,7 @@ export const PHYS: any = (() => {
   }
   sync();
   // マップを切り替える：動かない障害物を作り直し、そのマップの小物だけを世界に入れる
+  const settled = new Set<string>();
   function setMap(id) {
     buildStatics();
     for (const it of items) {
@@ -478,6 +575,14 @@ export const PHYS: any = (() => {
       if (off === it.off) continue;
       it.off = off;
       if (off) world.removeBody(it.body); else if (!it.broken) world.addBody(it.body);
+    }
+    // 地形がでこぼこのマップの小物：初めて出したときに 4 秒ぶん物理で落ち着かせ、その姿を置き場所（home）にする
+    const mine = items.filter(it => it.settle && it.map === id);
+    if (mine.length && !settled.has(id)) {
+      settled.add(id);
+      for (const it of mine) { it.body.position.copy(it.home.p); it.body.quaternion.copy(it.home.q); it.body.velocity.set(0, 0, 0); it.body.angularVelocity.set(0, 0, 0); it.body.wakeUp(); }
+      for (let i = 0; i < 240; i++) world.step(1 / 60);
+      for (const it of mine) { it.home.p.copy(it.body.position); it.home.q.copy(it.body.quaternion); }
     }
   }
   return {
@@ -509,6 +614,17 @@ export const PHYS: any = (() => {
         if (tilt < 0.05 || tilt > 1.45) continue;
         Y.cross(up, ax); ax.normalize();
         it.body.angularVelocity.x += ax.x * 16 * dt; it.body.angularVelocity.z += ax.z * 16 * dt;
+      }
+      // 川に浮いて流される（流れのあるマップだけ）：水に沈んだ深さに応じて押し上げ、流れの速さに近づける
+      if (FLOW && dt > 0) for (const it of items) {
+        if (it.off || it.broken || !it.floats) continue;
+        const b = it.body, depth = WATER_Y + 0.1 - b.position.y;
+        if (depth <= 0) continue;
+        b.wakeUp();
+        b.force.y += b.mass * G * 1.5 * clamp(depth / 0.3, 0, 1);
+        const fl = FLOW(b.position.x, b.position.z), k = Math.min(1, 1.5 * dt);
+        b.velocity.x += (fl[0] - b.velocity.x) * k; b.velocity.z += (fl[1] - b.velocity.z) * k;
+        b.velocity.y *= 1 - Math.min(1, 2 * dt); b.angularVelocity.scale(1 - Math.min(1, 1.5 * dt), b.angularVelocity);
       }
       if (dt > 0) world.step(1 / 60, dt, 4);
       while (breakQueue.length) breakIt(breakQueue.pop());

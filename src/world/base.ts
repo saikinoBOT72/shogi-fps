@@ -152,9 +152,11 @@ export const SPAWN = { x: -34, z: 9 };
 // 攻め守りの形のマップ用：もう一方の出撃（無いマップは点対称の場所。今は使っているマップなし）
 export const SPAWN2 = { x: 0, z: 0, on: false };
 export let WATER_Y = GROUND + 0.4;
+// 川の流れ（水の中で押し流される速さ [x, z] m/秒）。無いマップは null
+export let FLOW: ((x: number, z: number) => [number, number]) | null = null;
 export let mapId = '';
 // 3つ目の値が true のマップは未公開（開発者メニューで「未公開マップ」をオンにした人だけ選べる）
-export const MAP_LIST: [string, string, boolean?][] = [['valley', '谷と二つの丘'], ['temple', '山寺の石段'], ['onsen', '雪の温泉街'], ['desert', '三つのピラミッド']];
+export const MAP_LIST: [string, string, boolean?][] = [['valley', '谷と二つの丘'], ['temple', '山寺の石段'], ['onsen', '雪の温泉街'], ['desert', '三つのピラミッド'], ['gorge', '霧の渓谷', true], ['yashiki', '忍びの屋敷', true]];
 export const devMapsOn = () => !!(settings as any).dev?.hiddenMaps;
 export const selectableMaps = () => MAP_LIST.filter(m => !m[2] || devMapsOn());
 // 自分で選ぶマップ：未公開のマップを選んだままオフにしたときは、最初のマップにする
@@ -218,6 +220,15 @@ export const solidBox = (x0, x1, y0, y1, z0, z1, mats, walk = false, both = true
     addSolid(m, null, walk);
   }
 };
+// 外周の壁の上に、見えない当たり判定を空高くまで伸ばす（グレネードの爆風で越えないように）
+//   inner：壁の内側の端（|x|, |z| がこれより外は入れない）、y0：壁のてっぺん
+export function skyWall(inner, y0) {
+  const T = 6, Y1 = 400;
+  for (const s of [1, -1]) {
+    cur.colliders.push({ kind: 'box', min: new THREE.Vector3(-inner - T, y0 - 0.5, s > 0 ? inner : -inner - T), max: new THREE.Vector3(inner + T, Y1, s > 0 ? inner + T : -inner), walk: false });
+    cur.colliders.push({ kind: 'box', min: new THREE.Vector3(s > 0 ? inner : -inner - T, y0 - 0.5, -inner - T), max: new THREE.Vector3(s > 0 ? inner + T : -inner, Y1, inner + T), walk: false });
+  }
+}
 // 地面から top までの土地（歩ける）
 export const land = (x0, x1, z0, z1, top, mats, both = true) => solidBox(x0, x1, G0, top, z0, z1, mats, true, both);
 // 上面の色で高さが分かるように（横は土や石）
@@ -226,8 +237,8 @@ export const sides = (side, top) => [side, side, top, side, side, side];
 // 坂（昔の階段と同じ場所・長さ。1m 進むと 0.42m 以下しか上がらないので、歩いてそのまま上り下りできる）
 // axis: 'z' なら x=at の位置で z 方向に上る。edge: 高い段の縁、hi: 高い側の向き
 // 当たり判定は kind: 'ramp'（lo〜hi の間で高さが y0〜y1 へまっすぐ変わる）
-export const stairsAt = (axis, at, edge, hi, yLow, yHigh, width, m = stoneM) => {
-  const run = Math.ceil((yHigh - yLow) / 0.42 - 1e-6);
+//   run：坂の長さ（省くと 1m で 0.42m 上がる長さ。屋内の急な階段は短くする）
+export const stairsAt = (axis, at, edge, hi, yLow, yHigh, width, m = stoneM, run = Math.ceil((yHigh - yLow) / 0.42 - 1e-6)) => {
   for (const s of [1, -1]) {
     const A = at * s, E = edge * s, lo = E - hi * s * run, a0 = Math.min(lo, E), a1 = Math.max(lo, E), len = a1 - a0, hgt = yHigh - G0;
     const geo = axis === 'z' ? new THREE.BoxGeometry(width, hgt, len) : new THREE.BoxGeometry(len, hgt, width);
@@ -344,7 +355,7 @@ export function applyAtmos() {
   const f = scene.fog as THREE.Fog;
   f.color.copy(a.fog); f.near = a.near; f.far = a.far;
   for (const c of clouds) c.visible = a.clouds;
-  farMeadow.visible = farScenery.visible = !a.desert;
+  farMeadow.visible = farScenery.visible = !a.desert && !a.noScenery;   // 遠くの草原・山を隠す（砂漠・渓谷）
   baseProps[0].visible = !a.desert && !a.noGround;   // 足もとの草を隠す（床を別に敷くマップ）   // 砂漠は草原・木・山・足もとの草を隠す（足もとの地面は弾の判定には残す）
 }
 // 今のマップの空・光・霧（砂嵐で一時的に変えるときの元の値）
@@ -358,7 +369,7 @@ export function useMap(id: string) {
   colliders.length = 0; colliders.push(...m.colliders);
   for (const k of Object.keys(LV)) delete LV[k];
   Object.assign(LV, m.lv);
-  SPAWN.x = m.spawn.x; SPAWN.z = m.spawn.z; WATER_Y = m.water;
+  SPAWN.x = m.spawn.x; SPAWN.z = m.spawn.z; WATER_Y = m.water; FLOW = m.flow || null;
   SPAWN2.on = !!m.spawn2; if (m.spawn2) { SPAWN2.x = m.spawn2.x; SPAWN2.z = m.spawn2.z; }
   hmap = null;
   applyAtmos();

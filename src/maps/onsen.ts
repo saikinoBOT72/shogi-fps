@@ -5,7 +5,7 @@ import { BH, C, GROUND, H, LIGHT, V3, clamp, rand, settings } from '../core';
 import { gs } from '../state';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SUN_DIR, boardTex, canvasTex, darkWoodTex, flatGeo, flatten, hemi, kanjiMat, makePiece, mat, planeGeo, scene, sky, sun, toon } from '../render';
-import { G0, beginMap, boxMesh, clouds, cur, deco, finishMap, glowM, land, lanternLitM, moonStoneM, place, plasterM, rock, roofM, sides, solidBox, stairsAt, stoneM, topM, tree, woodSideM } from '../world/base';
+import { G0, beginMap, boxMesh, clouds, cur, deco, finishMap, glowM, land, lanternLitM, moonStoneM, place, plasterM, rock, roofM, sides, solidBox, skyWall, stairsAt, stoneM, topM, tree, woodSideM } from '../world/base';
 
 // ================= マップ3：雪の温泉街（夜・110m 四方・点対称） =================
 // 外側が高い盆地。高さ：露天風呂の底 = GROUND、広場 L、町 U（出撃もここ）
@@ -42,6 +42,7 @@ export function buildOnsen() {
   // 外周の崖
   solidBox(-58, 58, G0, G0 + 16, 55, 58, sides(cliffM, snowTop));
   solidBox(55, 58, G0, G0 + 16, -58, 58, sides(cliffM, snowTop));
+  skyWall(55, G0 + 16);
 
   // ----- 露天風呂：石の底、湯（半透明）、縁の岩、真ん中の大岩（登れる） -----
   {

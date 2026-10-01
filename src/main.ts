@@ -24,6 +24,7 @@ import './replay';
 import './screens';
 import './boardmode';
 import { gs } from './state';
+import { updateVsCut } from './vscut';
 import { $, Q, TIME_LIMIT, V3, clamp, settings } from './core';
 import { SFX } from './audio';
 import { SUN_DIR, cam, renderer, scene, sky, sun } from './render';
@@ -42,6 +43,8 @@ import { BoardMode } from './boardmode';
 import { Net } from './net';
 import { Online } from './online';
 import { Weather } from './weather';
+import { updateYashiki } from './maps/yashiki';
+import { aiHear } from './ai';
 
 // ================= メインループ =================
 export let last = performance.now(), titleT = 0, lastBeep = -1;
@@ -58,6 +61,7 @@ export function loop(now) {
   SFX.ambience(gs.state === 'board' ? null : mapId);   // 環境音（盤面では流さない）
   Weather.update(rdt, gs.paused && !Net.on ? 0 : dt, gs.state !== 'board');   // 雪の温泉街の雪・湯けむり・足跡
 
+  updateVsCut();
   clouds.forEach(c => { c.position.x += dt * 2; if (c.position.x > 450) c.position.x = -450; });
 
   // 将棋モードの盤面
@@ -107,6 +111,8 @@ export function loop(now) {
     updatePlayer(dt);
     if (Net.on) { Online.tick(dt); Online.updateRemote(dt); } else updateBot(dt);
     separate(player, bot);
+    // 忍びの屋敷：回転扉（押し付けると半回転して運ばれる。向きはそのままなので、出たら部屋の中を向いている）
+    if (mapId === 'yashiki') updateYashiki(dt, [[player, true], [bot, !Net.on]], { turn: () => {}, start: p => { SFX.play('donden', p); aiHear(p, 25); } });
     if (gs.state === 'fight') {
       checkRam(player, bot, dmg => damageBot({ dmg, head: false, point: eyeOf(bot), kv: [bot.vel.x, bot.vy, bot.vel.z] }));
       if (!Net.on) checkRam(bot, player, dmg => damagePlayer(dmg, bot.pos));

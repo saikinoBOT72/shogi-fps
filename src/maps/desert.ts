@@ -5,7 +5,7 @@ import { BH, C, GROUND, H, LIGHT, V3, clamp, rand, settings } from '../core';
 import { gs } from '../state';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SUN_DIR, boardTex, canvasTex, darkWoodTex, flatGeo, flatten, hemi, kanjiMat, makePiece, mat, planeGeo, scene, sky, sun, toon } from '../render';
-import { G0, M4, beginMap, boxMesh, clouds, cur, deco, finishMap, lambertVC, land, mergeParts, place, rock, sides, solidBox, stairsAt, stoneM, topM, trunkM, woodSideM } from '../world/base';
+import { G0, M4, beginMap, boxMesh, clouds, cur, deco, finishMap, lambertVC, land, mergeParts, place, rock, sides, solidBox, skyWall, stairsAt, stoneM, topM, trunkM, woodSideM } from '../world/base';
 
 // ================= マップ4：三つのピラミッド（真昼・110m 四方・点対称） =================
 // 真ん中に大ピラミッド（高さ 20m・51°、南北に抜ける盗掘の穴と玄室）、左下と右上に小ピラミッド（中に小部屋）
@@ -172,6 +172,7 @@ export function buildDesert() {
   // 外周の崖（砂岩）と外壁（ところどころ低い）
   solidBox(-58, 58, G0, B + 10, 55, 58, sides(sandSideM, sandTopM));
   solidBox(55, 58, G0, B + 10, -58, 58, sides(sandSideM, sandTopM));
+  skyWall(55, B + 10);
   for (const [a, b, h] of [[-53, -20, 3], [-20, -12, 1.3], [-12, 53, 3]]) {
     solidBox(a, b, B, B + h, -55, -53, brickM, true);
     solidBox(-55, -53, B, B + h, a, b, brickM, true);
