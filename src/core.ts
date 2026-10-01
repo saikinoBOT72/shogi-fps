@@ -64,9 +64,9 @@ export const WEAPONS = {
     rate: 0.15, spread: 0.002, drawSpread: 0.03, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.012, air: 0.03, ads: 0.6, mag: 1, reload: 0.45, auto: false, recoil: 0.012, falloff: [999, 1000, 1], pref: 16,
   },
-  // 覗き込むとスコープ（zoom: 覗いたときの視野）。覗かないとほぼ当たらない
+  // 覗き込むとスコープ（zoom: 覗いたときの視野）。覗かないとほぼ当たらない（hip：覗いていないときだけ足すブレ）
   sniper: {
-    name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1, adsSpeed: 10, spread: 0.08, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1.3, adsSpeed: 10, spread: 0.08, hip: 0.04, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.06, air: 0.15, ads: 0.02, zoom: 22, mag: 5, reload: 2.4, auto: false, recoil: 0.07, falloff: [999, 1000, 1], pref: 26,
   },
   // 万能の連射銃（王向け）
@@ -125,7 +125,7 @@ export const SKILLS = {
   missile: { name: 'ミサイル', type: 'missile', cooldown: 48, duration: 0, dmg: 75, radius: 4, knock: 10, lift: 6, self: 0.4, speed: 24, height: 60, life: 8, damageTaken: 1,
     help: '空から降るミサイルを操作して当てる（自分は無防備）・もう一度押すと戻る' },
   // 連射：次に放つと、同じ引きの強さで続けて合計 count 本（gap 秒おき）
-  volley: { name: '連射', type: 'volley', cooldown: 36, duration: 10, count: 5, gap: 0.09, damageTaken: 1, help: '次に放つと、続けて合計5本の矢が飛ぶ' },
+  volley: { name: '連射', type: 'volley', cooldown: 36, duration: 10, count: 3, gap: 0.09, damageTaken: 1, help: '次に放つと、続けて合計3本の矢が飛ぶ' },
   // 木箱：目の前に物理で動く木箱を3つ置く（撃つと崩れる遮蔽。dist: 置く距離）
   boxes: { name: '木箱', type: 'boxes', cooldown: 36, duration: 0, count: 3, dist: 2.4, damageTaken: 1, help: '目の前に木箱を3つ置く（撃つと崩れる遮蔽）' },
   // 鉤縄：狙った壁や高台に縄を掛けて一気に引き寄せられる（range: 届く距離 / speed: 引かれる速さ）
