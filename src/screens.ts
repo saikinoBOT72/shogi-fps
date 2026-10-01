@@ -42,6 +42,7 @@ export function settingsHTML() {
     <div class="row"><span>CPUの強さ</span>${seg('diffSeg', Object.entries(DIFFS).map(([k, d]: any) => [k, d.name]), settings.diff)}</div>
     <div class="row"><span>マウス感度<small>VALORANT と同じ数値</small> <input id="sensV" type="number" min="0.01" max="10" step="0.001" value="${settings.sens}" style="width:5.5em"></span><input id="sens" type="range" min="0.05" max="2" step="0.005" value="${settings.sens}"></div>
     <div class="row"><span>画質<small>重いときは「低」</small></span>${seg('qSeg', Object.entries(QUALITIES).map(([k, q]: any) => [k, q.name]), settings.quality)}</div>
+    <div class="row"><span>自動で解像度を下げる<small>重いとき画面を粗くして FPS を保つ。良い PC なら OFF</small></span>${seg('autoResSeg', [['1', 'ON'], ['0', 'OFF']], settings.autoRes ? '1' : '0')}</div>
     <div class="row"><span>FPS表示</span>${seg('fpsSeg', [['1', 'ON'], ['0', 'OFF']], settings.showFps ? '1' : '0')}</div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
   </div>`;
@@ -53,6 +54,7 @@ export function bindSettings() {
   });
   segBind('diffSeg', v => { settings.diff = v; });
   segBind('qSeg', v => { settings.quality = v; if (gs.state === 'title') location.reload(); });   // 画質は作り直しが必要なので再読み込み
+  segBind('autoResSeg', v => { settings.autoRes = v === '1'; });   // OFF にしたら、下がっていた解像度は perfTick ですぐ元に戻る
   segBind('fpsSeg', v => { settings.showFps = v === '1'; if (!settings.showFps) $('fps').textContent = ''; });
   $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').value = String(settings.sens); saveSettings(); };
   $('sensV').oninput = e => { const v = +e.target.value; if (!(v > 0)) return; settings.sens = v; $('sens').value = String(v); saveSettings(); };

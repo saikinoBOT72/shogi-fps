@@ -164,7 +164,7 @@ export const DIFFS = {
 export const H = 66, BH = 22, GROUND = -1.5, G = 22, TIME_LIMIT = 120;
 
 // ---------- 設定 ----------
-export const settings = { sens: 1, diff: 'normal', vol: 0.7, quality: 'mid', showFps: false, myPiece: 'P', foePiece: 'P', map: 'valley', dark: 'scary' };
+export const settings = { sens: 1, diff: 'normal', vol: 0.7, quality: 'mid', autoRes: true, showFps: false, myPiece: 'P', foePiece: 'P', map: 'valley', dark: 'scary' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('shogifps') || '{}')); } catch (e) {}
 // キー割り当て（e.code）。マウスの撃つ・覗き込みは固定
 export const KEY_ACTIONS: [string, string][] = [

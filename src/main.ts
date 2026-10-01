@@ -147,6 +147,12 @@ export function perfTick(rdt) {
   perf.t = 0; perf.n = 0;
   if (settings.showFps) $("fps").textContent = `${Math.round(fps)} FPS  x${(Q.pr * gs.resScale).toFixed(2)}`;
   if (document.hidden) return;
+  // 設定で「自動で解像度を下げる」を OFF にしているときは、いつも画質設定のままの解像度
+  if (!settings.autoRes) {
+    perf.low = perf.high = 0;
+    if (gs.resScale !== 1) { gs.resScale = 1; renderer.setPixelRatio(Q.pr); renderer.setSize(innerWidth, innerHeight); }
+    return;
+  }
   // 2回続けて 50FPS 未満なら解像度を下げ、しばらく 58FPS 以上なら少し戻す
   // 解像度を変えると一瞬止まるので、ゆっくり判断する（1.5秒続けて重いなら下げ、10秒余裕が続いたら戻す）
   perf.low = fps < 45 ? perf.low + 1 : 0;
