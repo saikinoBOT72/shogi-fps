@@ -192,6 +192,8 @@ function updateWaves(dt: number) {
     // 相手の分身に当たったら消す（斬撃も消える）
     const ci = Clones.pointHit(W.pos, W.r, T);
     if (ci >= 0) { Clones.pop(T, ci, W.owner === player); done(); continue; }
+    // 決着したあと・撃った側が倒れたあとの斬撃は当たらない（見た目だけ消える）
+    if (hit && (gs.state !== 'fight' || W.owner.dead)) { done(); continue; }
     if (hit) {
       Particles.wood(hit, W.dir.clone().negate(), 8);
       SFX.play('waveHit', hit);
@@ -350,6 +352,10 @@ function assist(e, st: Stage, dt: number) {
 function tick(e, dt: number, local: boolean) {
   const sw = e.sw;
   if (!sw || !sw.stage) return;
+  // 倒れたら振っている途中でもやめる（倒れたあとに刀・斬撃・踏み込みが出ないように）
+  if (e.dead) { sw.stage = 0; e.lungeT = 0; return; }
+  // 当たり・斬撃・踏み込みは試合中だけ（決着したあとの一撃が入らないように）
+  if (gs.state !== 'fight') local = false;
   const st = STAGES[sw.stage - 1], prev = sw.t;
   sw.t += dt;
   assist(e, st, dt);

@@ -47,12 +47,14 @@ export class GunAnimator {
   has(name: string) { return this.active.some(a => a.name === name); }
   clear() { this.active = []; }
   // 元の位置を覚え直す（構えの向き・大きさを変える前に呼ぶ）
-  rebase() { for (const [o, b] of this.base) { o.position.copy(b.p); o.rotation.copy(b.r); o.visible = b.v; } this.base.clear(); }
+  //   銃全体（root）の見える・見えないは持ち替え（VM.setWeapon）が決めるので、ここでは戻さない
+  //   （戻すと、画面の大きさが変わったとき＝全画面の切り替えで、前に持った武器が全部見えてしまう）
+  rebase() { for (const [o, b] of this.base) { o.position.copy(b.p); o.rotation.copy(b.r); if (o !== this.parts.root) o.visible = b.v; } this.base.clear(); }
 
   update(dt: number) {
     // 元の位置を覚える（組み立てたあと最初に動かすとき）
     if (!this.base.size) for (const o of Object.values(this.parts)) this.base.set(o, { p: o.position.clone(), r: o.rotation.clone(), v: o.visible });
-    for (const [o, b] of this.base) { o.position.copy(b.p); o.rotation.copy(b.r); o.visible = b.v; }
+    for (const [o, b] of this.base) { o.position.copy(b.p); o.rotation.copy(b.r); if (o !== this.parts.root) o.visible = b.v; }
     for (let i = this.active.length - 1; i >= 0; i--) {
       const a = this.active[i], prev = a.t;
       a.t = Math.min(a.clip.dur, a.t + dt * a.speed);
