@@ -200,8 +200,11 @@ export function updateBot(dt) {
     }
     b.retreating = !!b.retreatPt;
     // 物陰から撃つ：慎重型はいつも、バランス型は傷ついたときや遠いとき。近すぎるときは一騎打ちに集中
+    //   遠くから撃たれたら（underFireT）、どの性格も物陰へ（突撃型はかなり遠いときだけ）
+    if (los && b.hurtT > 1.1 && dist > 9) b.underFireT = 4;
+    b.underFireT = Math.max(0, (b.underFireT || 0) - dt);
     const wantPeek = los && !guarding && !b.retreating && !b.coverPt && dist > 5 && b.w.kind !== 'melee'
-      && (P === PERSONAS.careful || (P === PERSONAS.normal && (b.hp < b.def.hp * 0.75 || dist > 12)));
+      && (P === PERSONAS.careful || (P === PERSONAS.normal && (b.hp < b.def.hp * 0.75 || dist > 12)) || (b.underFireT > 0 && (P !== PERSONAS.rush || dist > 15)));
     updatePeek(b, wantPeek, pEye, dt);
     const peekIn = wantPeek && b.anchor && b.peekIn;
     if (peekIn && b.w.kind !== 'bow' && b.ammo < b.w.mag * 0.7 && !b.reloading) startReload(b);   // 引っ込んでいる間にリロード
@@ -258,6 +261,7 @@ export function updateBot(dt) {
     // 照準：プレイヤーの位置を遅れて追いかけるので、横移動していると当てにくい
     const seenAt = los ? T.pos : b.lastKnown;
     const chest = new V3(seenAt.x, seenAt.y + player.height * 0.62, seenAt.z);
+    if (los && D.pred && T.vel) chest.addScaledVector(new V3(T.vel.x, 0, T.vel.z), D.pred / D.track);   // 追いかける遅れのぶん先を狙う
     b.aimPt.lerp(chest, 1 - Math.exp(-D.track * dt));
     weaponTick(b, dt);
     b.fireDelay -= dt;

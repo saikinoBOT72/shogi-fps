@@ -29,7 +29,7 @@ export function currentSpread(e) {
   if (e.moving) s += w.move * clamp(Math.hypot(e.vel.x, e.vel.z) / e.def.speed, 0, 1);
   if (!e.onGround) s += w.air;
   if (!e.isBot) s = (s + (w.hip || 0) * (1 - (e.adsT || 0))) * lerp(1, w.ads, e.adsT || 0);   // hip：覗いていない時だけ足すブレ（覗き切ると 0）
-  else if (w.zoom) s *= w.ads;
+  else s *= w.ads;   // CPU はいつも覗き込んでいる扱い
   return s;
 }
 export const canFire = e => e.cd <= 0 && e.reloading <= 0 && e.ammo > 0 && !e.dead;

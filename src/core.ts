@@ -182,10 +182,10 @@ export const SKILLS = {
 };
 export const skillType = e => SKILLS[e.def.skill].type;
 export const DIFFS = {
-  // react: 見つけてから撃つまで / err: 狙いのブレ / track: 照準の追従の速さ / gap: 撃つ間隔の追加ランダム / lead: 矢の偏差撃ちの正確さ / dps: 1発が重い武器の撃つペースの上限（1秒あたりのダメージの目安）
+  // react: 見つけてから撃つまで / err: 狙いのブレ / track: 照準の追従の速さ / gap: 撃つ間隔の追加ランダム / lead: 矢の偏差撃ちの正確さ / pred: 動く相手への照準の遅れを先読みで埋める割合 / dps: 1発が重い武器の撃つペースの上限（1秒あたりのダメージの目安）
   easy:   { name: 'かんたん',   react: 0.7,  err: 0.13,  track: 3.5, gap: [0.35, 0.7], lead: 0.3, dps: 18 },
   normal: { name: 'ふつう',     react: 0.45, err: 0.09,  track: 5.5, gap: [0.22, 0.5], lead: 0.65, dps: 28 },
-  hard:   { name: 'むずかしい', react: 0.28, err: 0.06,  track: 9,   gap: [0.08, 0.3], lead: 0.9, dps: 40 },
+  hard:   { name: 'むずかしい', react: 0.18, err: 0.035, track: 14,  gap: [0.04, 0.18], lead: 1, dps: 55, pred: 1 },
 };
 // H: アリーナ全体の半分の広さ / BH: 中央の将棋盤の半分の広さ / GROUND: 外周の地面の高さ（盤の上は 0）
 export const H = 66, BH = 22, GROUND = -1.5, G = 22, TIME_LIMIT = 120;

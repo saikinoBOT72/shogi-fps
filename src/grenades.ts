@@ -144,6 +144,7 @@ export const Smoke = (() => {
   function blocks(a, b) {
     for (const c of clouds) {
       if (!(c.eff > 0.3)) continue;
+      if (a.distanceTo(c.pos) < c.eff && b.distanceTo(c.pos) < c.eff) continue;   // 両方が同じ煙の中なら、中では見える
       const ab = b.clone().sub(a), t = clamp(c.pos.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1);
       if (a.clone().addScaledVector(ab, t).distanceTo(c.pos) < c.eff) return true;
     }
