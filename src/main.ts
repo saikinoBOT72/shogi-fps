@@ -45,6 +45,8 @@ import { Online } from './online';
 import { Weather } from './weather';
 import { updateYashiki } from './maps/yashiki';
 import { aiHear } from './ai';
+import { Sword } from './sword';
+import { Clones } from './clones';
 
 // ================= メインループ =================
 export let last = performance.now(), titleT = 0, lastBeep = -1;
@@ -52,7 +54,8 @@ export function loop(now) {
   requestAnimationFrame(loop);
   const rdt = clamp((now - last) / 1000, 0, 0.05); last = now;   // 時計が戻っても壊れないよう 0 未満にしない
   if (gs.slowmoT > 0) { gs.slowmoT -= rdt; if (gs.slowmoT <= 0) gs.timeScale = 1; }
-  const dt = rdt * gs.timeScale;
+  const dt = rdt * Math.min(gs.timeScale, Sword.slowTick(rdt));   // 刀で斬ったときの白黒スローも
+  Sword.frame(rdt);
   perfTick(rdt);
   // 影の範囲をプレイヤーの周りに（広いマップでも影をくっきり）
   const sc = gs.state === 'title' || !player ? new V3() : player.pos;
@@ -127,7 +130,7 @@ export function loop(now) {
   animateActor(botActor, bot, pdt, bot.dead ? null : bot.aimPt || player.pos);
  
   PHYS.step(pdt, [['player', player], ['bot', bot]]);
-  if (run) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); Gadgets.update(dt); }
+  if (run) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); Gadgets.update(dt); Sword.update(dt); Clones.update(dt); }
  
   if (run && (gs.state === 'fight' || gs.state === 'end')) Replay.record(dt);
  
@@ -217,10 +220,10 @@ if (import.meta.env.DEV) {
   Promise.all([
     import('./core'), import('./game'), import('./ai'), import('./hud'), import('./screens'), import('./input'), import('./boardmode'),
     import('./physics'), import('./effects'), import('./world'), import('./nav'), import('./camera'), import('./grenades'), import('./arrows'),
-    import('./render'), import('./replay'), import('./state'), import('./audio'), import('./gadgets'),
-  ]).then(([core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, state, audio, gadgets]) => {
+    import('./render'), import('./replay'), import('./state'), import('./audio'), import('./gadgets'), import('./sword'), import('./clones'),
+  ]).then(([core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, state, audio, gadgets, sword, clones]) => {
     (window as any).dev = {
-      core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, audio, gadgets, gs: state.gs,
+      core, game, ai, hud, screens, input, boardmode, physics, effects, world, nav, camera, grenades, arrows, render, replay, audio, gadgets, sword, clones, gs: state.gs,
       // 画面が非表示でも、テストからゲームを n フレーム進められるように
       step(n: number, each?: (i: number) => void, ms = 1000 / 60) { for (let i = 0; i < n; i++) { loop(last + ms); if (each) each(i); } },
     };

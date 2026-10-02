@@ -7,6 +7,7 @@ import { cam, sky } from './render';
 import { HIP, Particles, VM, updateGunLod, vmCam, vmFlashLight } from './effects';
 import { act, bot, botActor, eyeOf, player, playerActor, surfOf, view } from './game';
 import { keys } from './input';
+import { Sword } from './sword';
 
 // ================= カメラ・銃の動き =================
 const VAL_RAD = 0.07 * Math.PI / 180;   // VALORANT の感度 1 で 1カウントあたりに回る角度
@@ -73,14 +74,17 @@ export function updateCamera(dt, rdt) {
     cam.position.y += bobY + view.dip;
     cam.rotation.set(view.pitch + sy, view.yaw + sx, sr);
   }
-  const dashing = !!act(p, 'dash'), guarding = !!act(p, 'guard');
-  const targetFov = 2 * Math.atan(Math.tan(hipFov() / 2 * D2R) * zoomK) / D2R + (dashing ? 14 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
+  const dashing = !!act(p, 'dash'), guarding = !!act(p, 'guard'), blinking = !!act(p, 'blink');
+  const targetFov = 2 * Math.atan(Math.tan(hipFov() / 2 * D2R) * zoomK) / D2R + (dashing ? 14 : 0) + (blinking ? 26 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
   // すり足：ステップした方向へ少し傾く
   view.stepRoll = damp(view.stepRoll || 0, 0, 6, rdt);
   if (act(p, 'step')) cam.rotation.z += (view.stepRoll || 0) * 0.06;
-  view.fov = damp(view.fov, targetFov, dashing ? 20 : 12, rdt);
+  // 刀を振った瞬間：振る向きへ傾いて揺れ、視野が少し狭まる（sword.ts が決める）
+  view.swRoll = damp(view.swRoll || 0, 0, 7, rdt); view.swYaw = damp(view.swYaw || 0, 0, 7, rdt); view.swFov = damp(view.swFov || 0, 0, 6, rdt);
+  cam.rotation.z += view.swRoll; cam.rotation.y += view.swYaw;
+  view.fov = damp(view.fov, targetFov, dashing || blinking ? 22 : 12, rdt);
   if (!Number.isFinite(view.fov)) view.fov = Number.isFinite(targetFov) ? targetFov : 70;   // 画面の大きさが一瞬 0 になったときなどに壊れたままにならないように
-  cam.fov = view.fov; cam.updateProjectionMatrix();
+  cam.fov = view.fov + (view.swFov || 0); cam.updateProjectionMatrix();
   sky.position.copy(cam.position);
   SFX.listener(cam);
 
@@ -126,6 +130,7 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   );
   const ar = VM.pist.adsRot || [0, 0];   // 覗き込むと銃口をまっすぐ前へ
   r.rotation.set(VM.kick * 0.22 - rl * 0.55 - VM.equip * 0.6 - VM.dash * 0.3 + ar[0] * ads, VM.sway.x * 1.5 + ar[1] * ads, VM.sway.x * 1.2 + rl * 0.45 + VM.dash * 0.35);
+  if (VM.pist.isSword) Sword.poseVM(p, rdt);   // 刀：振る動きは sword.ts が決める
   if (!VM.pist.anim) VM.pist.slide.position.z = VM.pist.slideZ + VM.slideT * VM.pist.slideAmt;
   // 盾（守りの構え）：下からせり上がる
   VM.shield.visible = VM.guard > 0.02;
@@ -188,8 +193,8 @@ export function animateActor(A, e, dt, lookAt) {
   A.body.position.y = Math.abs(Math.sin(e.stepPhase)) * 0.14 * mk;
   A.wood.emissive.multiplyScalar(Math.max(0, 1 - dt * 10));
   // 透明化：体と銃を隠して、うっすらした影だけ
-  const cloaked = !!act(e, 'cloak');
-  A.piece.visible = !cloaked; A.gun.g.visible = !cloaked; A.ghost.visible = cloaked;
+  const cloaked = !!act(e, 'cloak'), hid = Sword.hidden(e);   // 葉隠れで止まっている間は影も含めて全く見えない
+  A.piece.visible = !cloaked && !hid; A.gun.g.visible = !cloaked && !hid; A.ghost.visible = cloaked && !hid;
   updateGunLod(A, cam.position);
   e.flashT -= dt;
   A.flash.visible = e.flashT > 0;

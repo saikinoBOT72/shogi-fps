@@ -3,7 +3,7 @@ import { Gadgets } from './gadgets';
 import { P } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
-import { $, TIME_LIMIT, V3, keyName, settings } from './core';
+import { $, SKILLS, TIME_LIMIT, V3, keyName, saveSettings, settings } from './core';
 import { SFX } from './audio';
 import { cam } from './render';
 import { PHYS } from './physics';
@@ -14,6 +14,7 @@ import { showResult } from './screens';
 import { Net } from './net';
 import { mapId } from './world/base';
 import { questMatch } from './quests';
+import { Sword } from './sword';
 
 // ================= 勝敗 =================
 export function killBot() {
@@ -42,7 +43,7 @@ export function endMatch(win) {
   if (win !== null) setTimeout(() => SFX.play(win ? 'win' : 'lose'), 600);
   const toResult = () => { if (document.pointerLockElement) document.exitPointerLock(); showResult(win); };
   // 決着がついたら、決めた側の視点で直前を再生してから結果へ（時間切れは再生なし）
-  setTimeout(() => { if (win === null || !Replay.start(win, toResult)) toResult(); }, win === false ? 1700 : 1900);
+  setTimeout(() => { if (win === null || !Replay.start(win, toResult)) toResult(); }, (win === false ? 1700 : 1900) + (win && Sword.finishPending() ? 1400 : 0));   // 刀のとどめは納刀して真っ二つになるまで待つ
 }
 
 // ================= HUD =================
@@ -71,7 +72,7 @@ const skillKey = i => keyName((settings as any).keys[i === 0 ? 'skill' : 'skill2
 const statusEl = document.createElement('div'); statusEl.id = 'status'; $('hud').appendChild(statusEl);
 const empFx = document.createElement('div'); empFx.id = 'empfx'; $('hud').prepend(empFx);     // EMP を受けている：画面が青くちらつく（HP などの字より下に敷く）
 const buffFx = document.createElement('div'); buffFx.id = 'bufffx'; $('hud').prepend(buffFx);  // 身体強化中：画面の縁が金色に（字より下に敷く）
-const BUFFS = ['buff', 'guard', 'cloak', 'xray', 'heal', 'homing', 'bigshot', 'volley'];
+const BUFFS = ['buff', 'guard', 'cloak', 'xray', 'heal', 'homing', 'bigshot', 'volley', 'hagakure'];
 function statusesOf(e, me: boolean) {
   const out = [];
   for (const s of e.slots) if (s.t > 0 && BUFFS.includes(s.sk.type) && s.sk.duration >= 1) out.push({ cls: 'buff', name: s.sk.name, k: s.t / s.sk.duration, t: s.t });
@@ -99,9 +100,10 @@ export function initPips() {
   hud.ammo = -1; hud.cache.clear();
   initSkills();
   $('pips').innerHTML = '';
-  if (player.w.kind !== 'melee') for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
+  if (player.w.kind !== 'melee' && player.w.kind !== 'sword') for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
   // 武器の名前：今持っている方を明るく
   const K = (settings as any).keys, knife = player.w.kind === 'melee';
+  if (player.mainW.kind === 'sword') { $('wepName').innerHTML = `<span class="on">${player.mainW.name}</span>`; return; }   // 侍は刀だけ
   $('wepName').innerHTML = `<span class="${knife ? 'on' : ''}">${keyName(K.weapon1)} ナイフ</span>　<span class="${knife ? '' : 'on'}">${keyName(K.weapon2)} ${player.mainW.name}</span>`;
 }
 export function updateHUD(dt) {
@@ -125,7 +127,8 @@ export function updateHUD(dt) {
   if (ck >= 0) setStyle($('cdBar').firstChild, 'transform', `scaleX(${Math.max(0, ck).toFixed(2)})`);
   setStyle($('scope'), 'display', VM.scoped ? 'block' : 'none');
   // 弓の引き具合のリング
-  const dr = p.w.kind === 'bow' && !p.dead ? p.draw || 0 : 0;
+  // 瞬を溜めている間も同じリングで溜め具合を見せる
+  const dr = p.dead ? 0 : p.w.kind === 'bow' ? p.draw || 0 : p.blinkCh != null ? p.blinkCh / SKILLS.blink.chargeMax : 0;
   setStyle($('drawRing'), 'opacity', dr > 0 ? '1' : '0');
   const dp = (dr * 100).toFixed(0) + '%';
   if (changed('drawP', dp)) $('drawRing').style.setProperty('--p', dp);
@@ -154,7 +157,7 @@ export function updateHUD(dt) {
   hud.hurt = Math.max(0, hud.hurt - dt * 2.2); setStyle($('hurt'), 'opacity', hud.hurt.toFixed(2));
   hud.dash = act(p, 'dash') ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
 
-  if (p.w.kind === 'melee') {
+  if (p.w.kind === 'melee' || p.w.kind === 'sword') {
     setHTML('ammoNum', '—');
     setStyle($('reloadTxt'), 'opacity', '0');
   } else if (p.w.kind === 'bow') {
@@ -167,7 +170,7 @@ export function updateHUD(dt) {
     $('ammoNum').classList.toggle('low', p.ammo <= 3);
     [...$('pips').children].forEach((c, i) => c.classList.toggle('e', i >= p.ammo));
   }
-  if (p.w.kind !== 'bow' && p.w.kind !== 'melee') {
+  if (p.w.kind !== 'bow' && p.w.kind !== 'melee' && p.w.kind !== 'sword') {
     setStyle($('reloadTxt'), 'opacity', p.reloading > 0 ? '1' : (p.ammo === 0 ? (0.7 + Math.sin(performance.now() / 120) * 0.3).toFixed(2) : '0'));
     setText('reloadTxt', p.reloading > 0 ? 'リロード中' : 'R でリロード');
   }
@@ -182,14 +185,14 @@ export function updateHUD(dt) {
     if (changed('skj' + i, jam)) el.classList.toggle('jam', jam);
     const ready = (s.charges > 0 || !!again) && !jam;
     if (changed('skr' + i, ready)) el.classList.toggle('ready', ready);
-    const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak', 'volley'].includes(sk.type);   // 鉤縄・投げ物はすぐ終わるので出さない
+    const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak', 'volley', 'hagakure'].includes(sk.type);   // 鉤縄・投げ物はすぐ終わるので出さない
     const name = sk.type === 'c4' && Gadgets.c4Of(p) ? 'C4 起爆' : sk.type === 'missile' && Gadgets.ctrlOf(p) ? '戻る'
-      : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' || sk.type === 'buff' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
+      : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' || sk.type === 'buff' || sk.type === 'hagakure' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
     const nm = el.querySelector('.nm'), txt = jam ? `${sk.name} 封じ ${p.empT.toFixed(1)}` : name + (max > 1 ? ` ×${s.charges}` : '');
     if (changed('skn' + i, txt)) nm.textContent = txt;
   });
   // 透明化中は画面の縁が青白く、ミサイル操作中は案内
-  setStyle(cloakFx, 'opacity', act(p, 'cloak') ? '1' : '0');
+  setStyle(cloakFx, 'opacity', act(p, 'cloak') || Sword.hidden(p) ? '1' : '0');   // 葉隠れで見えなくなっている間も
   drawStatus(statusEl, p.dead ? [] : statusesOf(p, true), 'stMe');
   setStyle(empFx, 'opacity', p.empT > 0 && !p.dead ? Math.min(1, p.empT * 2).toFixed(2) : '0');
   setStyle(buffFx, 'opacity', act(p, 'buff') && !p.dead ? '1' : '0');

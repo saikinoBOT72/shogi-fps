@@ -3,7 +3,7 @@ import { Gadgets } from './gadgets';
 import { P } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
-import { G, GROUND, H, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, settings } from './core';
+import { G, GROUND, H, NORMAL_PIECES, PIECES, RULES, SKILLS, V3, WEAPONS, clamp, damp, lerp, rand, pieceUsable, settings, specialOn } from './core';
 import { SFX } from './audio';
 import { cam, scene } from './render';
 import { LV, SPAWN, SPAWN2, WATER_Y, colTop, colliders, floorBelow, groundAt, pickMap, useMap } from './world';
@@ -21,6 +21,8 @@ import { equippedRef, paintGun, skinKey, validRef } from './loadout';
 import { skinMaterials } from './guns/skins';
 import { eyeOf, surfOf, hasLOS, act, moveEntity, tryJump } from './game/move';
 import { currentSpread, canFire, startReload, weaponTick, facingOf, skillDamageMul, fire } from './game/weapons';
+import { Sword } from './sword';
+import { Clones } from './clones';
 export * from './game/move';
 export * from './game/weapons';
 
@@ -76,17 +78,17 @@ export function paintFoe(full: boolean) {
   paintGun(botActor.gun, r, !full);
   if (r && !full) skinMaterials(skinKey(r));   // リプレイで使う材質も先に作っておく（リプレイの始まりで止まらないように）
 }
-export const pieceKeys = () => Object.keys(PIECES);
-export const resolveMe = () => (settings.myPiece === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : PIECES[settings.myPiece] ? settings.myPiece : 'P');
+export const pieceKeys = NORMAL_PIECES;
+export const resolveMe = () => (settings.myPiece === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : pieceUsable(settings.myPiece) ? settings.myPiece : 'P');
 export function resolveFoe() {
   const k = settings.foePiece;
-  return k === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : (PIECES[k] ? k : 'P');
+  return k === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : (PIECES[k] && (!PIECES[k].special || specialOn()) ? k : 'P');   // 特殊駒は開発者メニューでオンのときだけ
 }
 
 export function resetMatch(foeType?, myPick?: string) {   // myPick：対局の始めに決めた自分の駒（ランダムのとき）
   // 将棋モードでは守る側が選んだマップ、オンラインでは部屋を作った人が選んだマップ（未公開でもそのまま遊べる）
   useMap(gs.boardMap || gs.netMap || pickMap(settings.map, !!myPick));
-  const myType = gs.matchCtx ? gs.matchCtx.myType : myPick || (settings.myPiece === 'random' ? (player && player.type) || 'P' : PIECES[settings.myPiece] ? settings.myPiece : 'P');
+  const myType = gs.matchCtx ? gs.matchCtx.myType : myPick || (settings.myPiece === 'random' ? (player && player.type) || 'P' : pieceUsable(settings.myPiece) ? settings.myPiece : 'P');
   foeType = foeType || (gs.matchCtx && gs.matchCtx.foeType) || (settings.foePiece === 'random' ? (bot && bot.type) || 'P' : resolveFoe());
   ensureActors(myType, foeType);
   player = makeEntity(myType, false);
@@ -108,7 +110,7 @@ export function resetMatch(foeType?, myPick?: string) {   // myPick：対局の�
   botActor.body.rotation.set(0, 0, 0); botActor.body.position.y = 0; botActor.dead = null; botActor.root.visible = true;
   playerActor.body.rotation.set(0, 0, 0); playerActor.dead = null;
   Replay.clear();
-  Arrows.clear(); Grenades.clear(); Smoke.clear(); Gadgets.clear();
+  Arrows.clear(); Grenades.clear(); Smoke.clear(); Gadgets.clear(); Sword.clear(); Clones.clear();
   botActor.wood.emissive.setHex(0);
   Decals.clear();
   PHYS.reset();
@@ -124,7 +126,7 @@ export function skillTick(e, dt) {
   for (const s of e.slots) {
     const sk = s.sk;
     // 動くスキル（突撃・すり足・桂跳び）の時間は moveEntity で進める
-    if (s.t > 0 && !['dash', 'step', 'leap', 'grapple'].includes(sk.type)) {
+    if (s.t > 0 && !['dash', 'step', 'leap', 'grapple', 'blink'].includes(sk.type)) {
       s.t -= dt;
       if (sk.type === 'heal' && !e.dead) {
         e.hp = Math.min(e.def.hp, e.hp + sk.amount / sk.duration * dt);
@@ -147,7 +149,7 @@ export function useSkill(e, i, dir, force = false) {
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
   if (!force && e.empT > 0) { if (!e.isBot) SFX.play('empty'); return false; }   // EMP を受けている間はスキルが使えない
   if (!force && (s.charges <= 0 || s.t > 0)) return false;
-  if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
+  if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple', 'blink'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
   // 狙っている向き（上下も含む）
   const aim = e.isBot && e.skillAim ? e.skillAim.clone() : e.isBot && e.netAim ? e.netAim.clone() : e.isBot ? new V3(player.pos.x, player.pos.y + player.height * 0.6, player.pos.z).sub(eyeOf(e)).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   // 鉤縄は掛ける所が無ければ使わない（回数も減らさない）
@@ -157,7 +159,25 @@ export function useSkill(e, i, dir, force = false) {
   s.charges--; if (s.cd <= 0) s.cd = sk.cooldown;
   s.t = sk.duration; s.rammed = false;
   const t = sk.type;
-  if (t === 'step') {
+  if (t === 'blink') {
+    // 瞬：溜めた分（e.blinkK 0〜1）だけ遠くへ、見ている向き（上下も）へ飛ぶ。前に相手がいたら手前で止まる
+    const k = clamp(e.blinkK ?? 1, 0, 1), d3 = aim.clone().normalize();
+    let dist = lerp(sk.minDist, sk.maxDist, k), full = dist;
+    const foe = e === player ? bot : player, to = foe.pos.clone().sub(e.pos).setY(0), h = Math.hypot(d3.x, d3.z);
+    if (!foe.dead && h > 0.3 && to.length() > 0.01 && to.clone().normalize().dot(new V3(d3.x, 0, d3.z).normalize()) > 0.8)
+      dist = Math.min(dist, Math.max(0, to.length() - e.radius - foe.radius - sk.gap) / h);
+    s.dir3 = d3; s.sp = sk.speed; s.t = Math.max(0.02, dist / sk.speed); s.capped = dist < full;   // 相手の手前で止めるときは勢いを残さない
+    e.onGround = false; e.airT = 1; e.jumped = true;
+    SFX.play('blink', e.isBot ? e.pos : null, k);
+    Particles.dust(e.pos, 10, 1.4);
+    if (!e.isBot) view.shake = Math.max(view.shake, 0.2);
+    Sword.blinkStart(e, k);
+  } else if (t === 'hagakure') {
+    if (!e.isBot) SFX.play('skCloak');
+    Sword.leaves(e);
+  } else if (t === 'clone') {
+    Clones.spawn(e);
+  } else if (t === 'step') {
     SFX.play('skStep', e.isBot ? e.pos : null);
     Particles.dust(e.pos, 5, 0.9);
     if (!e.isBot) { view.shake = Math.max(view.shake, 0.15); view.stepRoll = s.dir.dot(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw))) > 0 ? -1 : 1; }
@@ -234,6 +254,23 @@ export function updatePlayer(dt) {
     p.skillHeld = p.skillHeld || [];
     p.slots.forEach((s, i) => {
       const k = down(i === 0 ? 'skill' : 'skill2');
+      // 瞬：1回押すと溜め始め（足が遅くなる。溜めきったらそのまま待つ）、もう1回押すと飛ぶ
+      if (s.sk.type === 'blink') {
+        const press = k && !p.skillHeld[i];
+        if (press && p.blinkCh == null) {
+          if (s.charges > 0 && !(s.t > 0) && !(p.empT > 0)) { p.blinkCh = 0; p.blinkLv = 0; SFX.play('blinkTick', 0); }
+        } else if (p.blinkCh != null && !press) {
+          p.blinkCh = Math.min(s.sk.chargeMax, p.blinkCh + dt);
+          const lv = Math.floor(p.blinkCh / s.sk.chargeMax * 3 + 1e-6);   // 1/3 ごとに音が上がる
+          if (lv > p.blinkLv) { p.blinkLv = lv; SFX.play('blinkTick', lv); }
+        } else if (press && p.blinkCh != null) {
+          p.blinkK = p.blinkCh / s.sk.chargeMax; p.blinkCh = null;
+          const a = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
+          if (useSkill(p, i, fwd) && Net.on) Net.send({ t: 'skill', i, d: vec(fwd), a: vec(a), k: r2(p.blinkK) });
+        }
+        p.skillHeld[i] = k;
+        return;
+      }
       if (k && !p.skillHeld[i]) {
         // すり足は A/D の方向（押していなければ右）、他は前
         let sdir = fwd;
@@ -247,13 +284,13 @@ export function updatePlayer(dt) {
     p.inspectHeld = down('inspect');
   }
   gs.jumpPressed -= dt;
-  const guardOrDash = p.slots.some(s => s.t > 0 && ['guard', 'dash', 'step', 'leap', 'grapple'].includes(s.sk.type)) || !!Gadgets.ctrlOf(p);   // 覗き込めないスキル中
-  p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash && p.w.kind !== 'melee' ? 1 : 0, p.w.adsSpeed || 14, dt);
+  const guardOrDash = p.slots.some(s => s.t > 0 && ['guard', 'dash', 'step', 'leap', 'grapple', 'blink'].includes(s.sk.type)) || !!Gadgets.ctrlOf(p);   // 覗き込めないスキル中
+  p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash && p.w.kind !== 'melee' && p.w.kind !== 'sword' ? 1 : 0, p.w.adsSpeed || 14, dt);
   // 壁に向かってジャンプ長押しで登る
   p.wantClimb = !!(down('jump') && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
   if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('climb'); p.climbSnd = 0.22; }
   p.running = down('run');
-  p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1) * (p.w.moveMul || 1);
+  p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1) * (p.w.moveMul || 1) * (p.blinkCh != null ? 0.5 : 1) * (p.swGuard ? 0.35 : 1);   // 瞬を溜めている間は遅い・刀で守っている間はかなり遅い
   moveEntity(p, wish, dt);
   skillTick(p, dt);
   regenTick(p, dt);
@@ -266,7 +303,9 @@ export function updatePlayer(dt) {
   }
 
   weaponTick(p, dt);
-  if (gs.state !== 'fight' || p.dead || gs.paused || Gadgets.ctrlOf(p)) return;
+  if (gs.state !== 'fight' || p.dead || gs.paused || Gadgets.ctrlOf(p)) { if (p.w.kind === 'sword') Sword.input(p, false, false); return; }
+  // 刀：連打で1段目・長押しで4段目まで（sword.ts）
+  if (p.w.kind === 'sword') { Sword.input(p, !!gs.mouseDown, !!gs.rightDown); return; }
   // 弓：押している間は引き絞り、離したら放つ
   if (p.w.kind === 'bow') {
     if (gs.mouseDown && p.cd <= 0) {
@@ -294,7 +333,7 @@ export function updatePlayer(dt) {
 export function switchWeapon(e, which) {
   const isKnife = e.w.kind === 'melee';
   const toKnife = which === 'toggle' ? !isKnife : which === 'knife';
-  if (toKnife === isKnife || e.dead) return;
+  if (toKnife === isKnife || e.dead || e.mainW.kind === 'sword') return;   // 侍は刀だけ
   if (toKnife) { e.mainAmmo = e.ammo; e.w = WEAPONS.knife; e.ammo = 1; }
   else { e.w = e.mainW; e.ammo = e.mainAmmo; }
   e.reloading = 0; e.draw = 0; e.drawing = false; e.burstLeft = 0; e.bloom = 0;

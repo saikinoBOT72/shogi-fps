@@ -335,7 +335,7 @@ export function buildActor(ch, size, model = 'pistol'): any {
   const gun = buildGun(model);
   gun.g.traverse(o => { o.castShadow = false; });   // 駒が持つ銃は影を落とさない（小さくてほとんど見えないため）
   // 相手から見て分かりやすいよう、銃と手は大きめ（1.4倍）。体の正面は +z なので、右手は -x 側
-  gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3 }[model] || 2.2) * 1.4 * size); gun.g.rotation.y = Math.PI;
+  gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3, katana: 0.62 }[model] || 2.2) * 1.4 * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(-w * 0.55, h * 0.5, t + 0.16);
   body.add(gun.g);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));

@@ -105,13 +105,14 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .skills td:nth-child(2) { white-space: nowrap; color: var(--text-dim) }
 
 /* 駒選択 */
-.pick { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center }
-.pick button { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 78px; padding: 8px 4px; border-radius: var(--r-s); cursor: pointer;
+/* 駒が増えても1列に収まるように小さめ（狭い画面では折り返す） */
+.pick { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center }
+.pick button { display: flex; flex-direction: column; align-items: center; gap: 1px; width: 66px; padding: 6px 2px; border-radius: var(--r-s); cursor: pointer;
   background: var(--panel-soft); color: var(--text); border: 2px solid var(--line); font: 11px var(--font-ui); transition: border-color .15s }
 .pick button:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent) }
 .pick button.on { border-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 25%, var(--panel-soft)) }
-.pick .koma { margin-bottom: 3px }
-.pick span { color: var(--text-dim); white-space: nowrap }
+.pick .koma { margin-bottom: 2px; width: 32px; height: 37px; font-size: 21px }
+.pick span { font-size: 10px; color: var(--text-dim); text-align: center; line-height: 1.25 }   /* 長い武器の名前は折り返す */
 .pick .val { color: var(--accent); font-weight: 700 }
 .detail { margin: 12px 0 0; font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
 .detail b { color: var(--text) }

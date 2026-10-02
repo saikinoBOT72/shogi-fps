@@ -4,7 +4,7 @@
 // 当たったかどうかは撃った側の画面で決め、ダメージは受けた側が自分の HP から引く（HP を決めるのは本人）
 import { P } from './palette';
 import { gs } from './state';
-import { $, PIECES, SKILLS, V3, WEAPONS, saveSettings, settings } from './core';
+import { $, PIECES, SKILLS, V3, WEAPONS, pieceUsable, saveSettings, settings } from './core';
 import { SFX } from './audio';
 import { Net, hostRoom, joinRoom, leaveRoom, r2, vec } from './net';
 import { Account, NAME_RE } from './account';
@@ -20,6 +20,9 @@ import { BoardMode } from './boardmode';
 import { bindMapPick, mapPickHTML } from './screens';
 import { applyAtmos, pickMap } from './world';
 import { equippedAll } from './loadout';
+import { Sword } from './sword';
+import { Replay } from './replay';
+import { Clones } from './clones';
 
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
 const V = (a: number[]) => new V3(a[0], a[1], a[2]);
@@ -78,7 +81,7 @@ function join() {
 const sendPick = () => Net.send({ t: 'pick', k: settings.myPiece, ready: meReady, sk: equippedAll(), nm: Account.user ? Account.name : '' });   // sk：装備しているスキン（武器ごとにデザインと色の番号）・nm：名前（英語3文字。ログインしていなければ空）
 export function showLobby() {
   inLobby = true; gs.state = 'title';
-  if (!PIECES[settings.myPiece]) settings.myPiece = 'P';
+  if (!pieceUsable(settings.myPiece)) settings.myPiece = 'P';
   const me = PIECES[settings.myPiece], f = foe.k && PIECES[foe.k];
   overlay(`<div class="screen wide">
     <h2 class="h">友達と対戦　<small>部屋 ${Net.code}</small></h2>
@@ -86,7 +89,7 @@ export function showLobby() {
       <div class="seg" id="olMode">${[['duel', '一騎打ち'], ['board', '将棋モード'], ['blind', 'ブラインド将棋']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${Net.host ? '' : ' disabled'}>${n}</button>`).join('')}</div></div></div>
     ${mapPickHTML(room, !Net.host)}
     ${mode === 'blind' ? '<p class="note" style="text-align:center">始める前に、自分の3段の中で駒を並べ替えられる。対局中、相手の駒は字の無い駒に見える（打った駒・成った駒も）。<br>動きから何の駒か覚えながら戦い、一騎打ちで姿を見て答え合わせ。部屋を作った人が先手</p>'
-      : mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは一騎打ち</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
+      : mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは一騎打ち</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).filter(pieceUsable).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
       <p class="detail"><b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `「${SKILLS[k].name}」${SKILLS[k].help}`).join('　')}</p></section>`}
     <div class="ol-foe">相手${foe.nm ? `（<b class="ol-name">${foe.nm}</b>）` : ''}：${mode !== 'duel' ? '' : f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : '<span>準備中</span>'}</div>
     <div class="menu"><button class="btn sub" id="olLeave">抜ける</button><button class="btn${meReady ? ' sub' : ''}" id="olReady">${meReady ? '準備OK を取り消す' : '準備OK'}</button></div>
@@ -143,6 +146,9 @@ Net.onMsg = (m: any) => {
     case 's': snap = m; break;
     case 'fire': if (inMatch()) remoteFire(m); break;
     case 'melee': if (inMatch()) SFX.play('knife', bot.pos); break;
+    case 'sw': if (inMatch()) Sword.remoteSwing(m.s | 0); break;   // 刀を振った（段）
+    case 'wv': if (inMatch()) Sword.remoteWave(m.p, m.d); break;   // 斬撃が飛んだ
+    case 'slow': if (inMatch() || gs.state === 'end') Sword.remoteSlow(m.s | 0); break;   // 刀が当たった：2人とも白黒スロー
     case 'arrow':
       if (!inMatch()) break;
       Arrows.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, head: m.hd, gravity: m.g, drag: m.dr || 0, homing: !!m.hm, turn: m.tu || 0, full: !!m.fu });
@@ -156,7 +162,7 @@ Net.onMsg = (m: any) => {
       break;
     case 'skill':
       if (!inMatch() || bot.dead) break;
-      bot.netAim = V(m.a);
+      bot.netAim = V(m.a); bot.blinkK = m.k ?? 1;   // k：瞬の溜め具合
       useSkill(bot, m.i, V(m.d), true);
       break;
     case 'hit':
@@ -165,6 +171,8 @@ Net.onMsg = (m: any) => {
       if (m.kv) { player.vel.x = m.kv[0]; player.vel.z = m.kv[2]; player.vy = m.kv[1]; player.onGround = false; player.airT = 1; player.knockT = 0.6; }
       break;
     case 'dead': if (inMatch() && !bot.dead) { bot.hp = 0; killBot(); } break;
+    case 'cpop': if (inMatch()) Clones.pop(player, m.i | 0); break;   // 相手が自分の影分身を消した
+    case 'kcskip': Replay.foeSkip(); break;   // 勝った相手がリプレイをスキップした
     case 'thit': if (inMatch()) Gadgets.damageTurret(Gadgets.myTurret(), m.dmg, bot, true); break;   // 自分のタレット歩が撃たれた
   }
 };
@@ -192,7 +200,7 @@ export const Online = {
     const p = player, M = Gadgets.ctrlOf(p);
     Net.send({
       t: 's', p: vec(p.pos), v: [r2(p.vel.x), r2(p.vy), r2(p.vel.z)], yw: Math.round(view.yaw * 1000) / 1000, pt: Math.round(view.pitch * 1000) / 1000,
-      hp: r2(p.hp), k: p.w.kind === 'melee' ? 1 : 0, st: p.slots.map(s => r2(s.t)), g: p.onGround ? 1 : 0, dr: r2(p.draw || 0),
+      hp: r2(p.hp), k: p.w.kind === 'melee' ? 1 : 0, st: p.slots.map(s => r2(s.t)), g: p.onGround ? 1 : 0, dr: r2(p.draw || 0), gd: p.swGuard ? 1 : 0,
       ms: M ? [...vec(M.pos), ...vec(M.dir)] : 0,
     });
   },
@@ -207,7 +215,7 @@ export const Online = {
     b.aimPt = eyeOf(b).addScaledVector(dir, 20);
     b.hp = s.hp;
     s.st.forEach((t, i) => { if (b.slots[i]) b.slots[i].t = t; });
-    b.draw = s.dr;
+    b.draw = s.dr; b.swGuard = !!s.gd;   // 刀の守りの構え
     const knife = !!s.k;
     if (knife !== (b.w.kind === 'melee')) b.w = knife ? WEAPONS.knife : b.mainW;
     b.netMis = s.ms ? { p: new V3(s.ms[0], s.ms[1], s.ms[2]), d: new V3(s.ms[3], s.ms[4], s.ms[5]) } : null;

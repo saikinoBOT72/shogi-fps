@@ -1,7 +1,7 @@
 // 持ち物（ガチャで引いたスキン）と、武器ごとの装備。この PC のブラウザに保存し、ログイン中はアカウント（account.ts）にも保存する
 // スキン1つは「デザイン・色の番号」だけで決まる（色は番号から毎回同じに作れる）
 import { DESIGNS, SKINS, gachaSkin } from './guns/skins';
-import { WEAPONS } from './core';
+import { UNLOCKED, WEAPONS } from './core';
 // 武器の見た目（model）の名前。どの画面でも WEAPONS の名前にそろえる
 export const weaponName = (m: string) => (Object.values(WEAPONS) as any[]).find(w => w.model === m)?.name || m;
 
@@ -18,18 +18,21 @@ export const Loadout = {
   points: 0,                              // ガチャを引くポイント
   owner: undefined as string | undefined, // この持ち物がどのアカウントのものか（別の人がログインしたときに持ち物が混ざらないように）
   econ: 0,                                // ポイントの仕組みの版。ECON と違えば持ち物とポイントを最初からにする
+  unlocks: [] as string[],                // 使えるようになった特殊駒（'SA' 侍。今は手に入れる方法なし＝開発者メニューで試す）。ECON が変わっても消さない
   quest: undefined as any,                // クエストの進み具合（quests.ts）
 };
 // 1：ポイント無限のテストを終えて、ログインボーナス・クエストで稼ぐ形にした版（テストで引いたスキンは全員消す）
 export const ECON = 1;
 try { Object.assign(Loadout, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
 if (Loadout.econ !== ECON) Object.assign(Loadout, { items: [], equip: {}, nextId: 1, points: 0, econ: ECON, quest: undefined });
+const syncUnlocks = () => { if (!Array.isArray(Loadout.unlocks)) Loadout.unlocks = []; UNLOCKED.clear(); for (const k of Loadout.unlocks) UNLOCKED.add(k); };
+syncUnlocks();
 const saveLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(Loadout)); } catch (e) {} };
 let cloudSave: (() => void) | null = null;
 export const setCloudSave = (fn: (() => void) | null) => { cloudSave = fn; };
 export const saveLoadout = () => { saveLocal(); cloudSave?.(); };
 // アカウントに保存する中身と、アカウントから読んだ中身への入れ替え
-export const loadoutData = () => ({ items: Loadout.items, equip: Loadout.equip, nextId: Loadout.nextId, points: Loadout.points, econ: Loadout.econ, quest: Loadout.quest ?? null });
+export const loadoutData = () => ({ items: Loadout.items, equip: Loadout.equip, nextId: Loadout.nextId, points: Loadout.points, econ: Loadout.econ, quest: Loadout.quest ?? null, unlocks: Loadout.unlocks });
 export function replaceLoadout(d: any, owner: string | undefined) {
   Loadout.items = Array.isArray(d?.items) ? d.items : [];
   Loadout.equip = d?.equip && typeof d.equip === 'object' ? d.equip : {};
@@ -37,8 +40,17 @@ export function replaceLoadout(d: any, owner: string | undefined) {
   Loadout.points = Number.isFinite(d?.points) ? d.points : 0;
   Loadout.econ = d?.econ ?? 0;
   Loadout.quest = d?.quest || undefined;
+  Loadout.unlocks = Array.isArray(d?.unlocks) ? d.unlocks.filter((k: any) => typeof k === 'string') : [];
+  syncUnlocks();
   Loadout.owner = owner;
   saveLocal();
+}
+
+// 駒を解放する（ボスに勝った）。初めてなら true
+export function unlockPiece(k: string) {
+  if (Loadout.unlocks.includes(k)) return false;
+  Loadout.unlocks.push(k); syncUnlocks(); saveLoadout();
+  return true;
 }
 
 // ================= ポイント =================

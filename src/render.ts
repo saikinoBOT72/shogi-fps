@@ -18,6 +18,7 @@ import { buildB93R } from './guns/b93r';
 import { buildM79 } from './guns/m79';
 import { buildYumi } from './guns/yumi';
 import { buildKarambit } from './guns/karambit';
+import { buildKatana } from './guns/katana';
 import { TOON_RAMP, flatGeo, flatten, mat, outlineMat, toon } from './materials';
 export { TOON_RAMP, flatGeo, flatten, mat, outlineMat, toon };   // 前からの読み込み先を変えずに使えるように
 
@@ -169,6 +170,7 @@ export const GUN_BUILDERS = {
   pistol: buildPistol, burst: () => buildB93R({ hand: handMat }), bow: () => buildYumi({ hand: handMat }), sniper: undefined as any,
   mk2: () => buildMk2({ hand: handMat }), m870: () => buildM870({ hand: handMat }), mp5: () => buildMP5({ hand: handMat }),
   ak: () => buildAK47({ hand: handMat }), m79: () => buildM79({ hand: handMat }), karambit: () => buildKarambit({ hand: handMat }),
+  katana: () => buildKatana({ hand: handMat }),
 };
 delete GUN_BUILDERS.sniper;
 export const buildGun = model => (GUN_BUILDERS[model] || buildPistol)();

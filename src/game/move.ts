@@ -150,10 +150,21 @@ export function moveEntity(e, wish, dt) {
       if (top > e.pos.y + 0.3 && top - e.pos.y < 4.5) { e.vy = Math.sqrt(2 * G * (top - e.pos.y + 0.8)); e.vel.copy(fwd.multiplyScalar(5)); e.knockT = 0.7; }   // 前への勢いを空中で保つ
     }
     else { to.multiplyScalar(gp.sk.speed / d); e.vel.set(to.x, 0, to.z); e.vy = to.y + G * dt; e.onGround = false; e.airT = 1; }
+  } else if (act(e, 'blink')) {
+    // 瞬：決めた向きへまっすぐ飛ぶ（重力を打ち消す）。終わったら勢いを少しだけ残す
+    const bl = act(e, 'blink'), v = bl.dir3.clone().multiplyScalar(bl.sp);
+    bl.t -= dt;
+    e.vel.set(v.x, 0, v.z); e.vy = v.y + G * dt; e.onGround = false; e.airT = 1;
+    if (bl.t <= 0) { const k = bl.capped ? 0.03 : 0.25; e.vel.multiplyScalar(k); e.vy *= k; }
   } else if (mv) {
     mv.t -= dt;
     e.vel.copy(mv.dir).multiplyScalar(mv.sk.speed);
     if (mv.t <= 0) e.vel.multiplyScalar(0.35);
+  } else if (e.lungeT > 0) {
+    // 刀の踏み込み（横薙ぎ）：決まった向きへ短く進む
+    e.lungeT -= dt;
+    e.vel.copy(e.lungeDir).multiplyScalar(e.lungeV);
+    if (e.lungeT <= 0) e.vel.multiplyScalar(0.4);
   } else if (lp) {
     lp.t -= dt;   // 跳んでいる間は勢いのまま（空中で向きを変えられない）
   } else {

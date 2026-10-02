@@ -5,13 +5,15 @@ import { V3, rand, settings } from './core';
 // 部品：N 雑音（フィルター付き）/ T 音程が動く音 / P 音程一定の減衰音 / tick 金属の「カチャ」/ scrape 金属の擦れ / seat はまる音 / wood 木の「コン」
 // 残響（reverb）は銃声などに少し足す。音ごとの作りはチャットの試聴で選んだもの
 export const SFX = (() => {
-  let ctx = null, master, noiseBuf, verb;
+  let ctx = null, master, noiseBuf, verb, mlp;
   function init() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
     ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const comp = ctx.createDynamicsCompressor();
     master = ctx.createGain(); master.gain.value = settings.vol;
-    master.connect(comp).connect(ctx.destination);
+    // 刀で斬ったときのスロー中は、全体の高い音を削ってこもらせる（muffle）
+    mlp = ctx.createBiquadFilter(); mlp.type = 'lowpass'; mlp.frequency.value = 22000; mlp.Q.value = 0.7;
+    master.connect(mlp).connect(comp).connect(ctx.destination);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -195,6 +197,30 @@ export const SFX = (() => {
       T(d, { f0: 75, f1: 38, dur: 0.28, g: 1 }); N(d, { dur: 0.22, f0: 700, f1: 90, g: 0.8 });
       N(d, { dur: 0.12, type: 'bandpass', f0: 320, q: 3, g: 0.5 }); click(d, 0.02, 2000, 0.2);
     },
+    // 刀：振る風切り（自分は小さく）・飛ぶ斬撃・斬撃が当たる・刀で斬った（鋭い音＋低いズーン）。仮の音（あとで試聴で選ぶ）
+    swing(pos, mine) { const d = out(pos, 0.08); swish(d, 0, 0.17, 700, 2800, mine ? 0.22 : 0.45); },
+    wave(pos) { const d = out(pos, 0.15); swish(d, 0, 0.3, 1200, 3400, 0.3); T(d, { f0: 900, f1: 1600, dur: 0.25, g: 0.04 }); },
+    waveHit(pos) { N(out(pos, 0.1), { dur: 0.14, type: 'bandpass', f0: 2400, f1: 700, q: 1.5, g: 0.35 }); },
+    slash() {
+      const d = out(null, 0.5);
+      N(d, { dur: 0.05, type: 'highpass', f0: 3500, g: 0.5 });
+      N(d, { dur: 0.22, type: 'bandpass', f0: 2200, f1: 600, q: 1.3, g: 0.45 });
+      metal(d, 0.005, 1900, 0.5, 0.05);
+      T(d, { at: 0.02, f0: 95, f1: 38, dur: 1.1, g: 0.7, atk: 0.02 });
+    },
+    // 瞬：溜め（段ごとに高くなるチッ）・飛ぶ（ビュン：溜めた分だけ長く太い）
+    blinkTick(lv) { const d = out(null, 0.1); tick(d, 0, 1800 + lv * 700, 0.25 + lv * 0.08, 0.06); if (lv >= 3) T(d, { f0: 2400, f1: 3600, dur: 0.25, g: 0.05 }); },
+    blink(pos, k = 1) { const d = out(pos, 0.25); N(d, { dur: 0.22 + 0.2 * k, type: 'bandpass', f0: 300, f1: 4200, q: 1.1, g: 0.55, atk: 0.04 }); T(d, { f0: 140, f1: 60, dur: 0.25, g: 0.35 }); N(d, { at: 0.05, dur: 0.3 + 0.2 * k, type: 'bandpass', f0: 3800, f1: 900, q: 1.5, g: 0.2, atk: 0.02 }); },
+    blinkCancel() { const d = out(null, 0.05); T(d, { f0: 1600, f1: 500, dur: 0.18, g: 0.08 }); },
+    // 葉隠れ：葉がざわっと舞う
+    leaves(pos) { const d = out(pos, 0.2); for (let i = 0; i < 6; i++) N(d, { at: i * 0.04, dur: 0.12, type: 'bandpass', f0: rand(2500, 5000), q: 2, g: 0.08 }); },
+    // 影分身：出る（ボフッ＋シャラン）・消える（ボフッ）
+    cloneSpawn(pos) { const d = out(pos, 0.3); N(d, { dur: 0.35, f0: 900, f1: 200, g: 0.4 }); for (let i = 0; i < 5; i++) T(d, { at: i * 0.04, f0: 1800 + i * 300, dur: 0.2, g: 0.04 }); },
+    clonePop(pos) { N(out(pos, 0.15), { dur: 0.25, f0: 1200, f1: 180, g: 0.4 }); },
+    // 突きの溜め（キーン）・抜刀（鞘走りと鍔鳴り）・納刀（チン）
+    charge(pos) { const d = out(pos, 0.3); T(d, { f0: 2600, f1: 4200, dur: 0.3, g: 0.05, atk: 0.12 }); metal(d, 0.22, 3100, 0.5, 0.04); },
+    draw() { const d = out(null, 0.35); scrape(d, 0, 0.3, 3200, 0.1); metal(d, 0.28, 2400, 0.9, 0.06); tick(d, 0.28, 2900, 0.35, 0.08); },
+    chin() { const d = out(null, 0.6); scrape(d, 0, 0.22, 2600, 0.08); tick(d, 0.24, 3400, 0.6, 0.1); metal(d, 0.24, 2700, 1.4, 0.07); },
     // ナイフを振る
     knife(pos) { N(out(pos, 0.05), { dur: 0.22, type: 'bandpass', f0: 500, f1: 3200, q: 2.2, g: 0.6, atk: 0.06 }); },
     // 弓：放つ・矢をつがえて引き絞る・引き切った
@@ -422,5 +448,7 @@ export const SFX = (() => {
     setStorm(k) { const g = amb && (amb as any).storm; if (g) g.gain.setTargetAtTime(0.01 * k, ctx.currentTime, 0.5); },
     play(name, ...a) { if (!ctx) return; try { sounds[name](...a); } catch (e) { if (import.meta.env.DEV) console.warn('音が鳴らせない:', name, e); } },
     setVol(v) { if (master) master.gain.value = v; },
+    // こもらせる（0 = ふつう 〜 1 = いちばんこもる）
+    muffle(k) { if (mlp) mlp.frequency.setTargetAtTime(k > 0.01 ? 22000 * Math.pow(700 / 22000, k) : 22000, ctx.currentTime, 0.03); },
   };
 })();

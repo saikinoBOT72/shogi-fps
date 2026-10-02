@@ -28,7 +28,17 @@ export const PIECES = {
   R: { name: '飛', value: 10, hp: 130, size: 0.95, speed: 6.5, jump: 7,  weapon: 'smg',      skills: ['grapple', 'flash'] },
   // 王は取られたら負けの駒。価値は ∞（99 以上は ∞ と表示）
   K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',       skills: ['pearl', 'turret'] },
+  // 特殊駒（special）：今は開発者メニューの「特殊駒」をオンにしたときだけ、一騎打ちの自分・相手の駒に出る。将棋モード・ランダムには出ない
+  SA: { name: '侍', value: 99, hp: 120, size: 0.9, speed: 7.2, jump: 7.5, weapon: 'katana', skills: ['blink', 'hagakure'], special: true },   // 影分身（'clone'）は一旦外した（仕組みは clones.ts に残してある）
 };
+// 解放した特殊駒（持ち物と一緒にアカウントへ保存。loadout.ts が入れる。今は手に入れる方法なし）
+export const UNLOCKED = new Set<string>();
+// 開発者メニューの「特殊駒」：オンにすると、特殊駒（侍）が自分の駒・相手（CPU）の駒の欄に出る
+export const specialOn = () => !!(settings as any).dev?.special;
+// 解放した特殊駒か、ふつうの駒なら使える
+export const pieceUsable = (k: string) => !!PIECES[k] && (!PIECES[k].special || UNLOCKED.has(k) || specialOn());
+// ふつうの駒（ランダム・相手の駒・将棋モード用）
+export const NORMAL_PIECES = () => Object.keys(PIECES).filter(k => !PIECES[k].special);
 // 全体のルール：しばらく被弾しないとHPが回復する
 // speed: 走る速さの倍率（駒の speed に掛ける）、walk: 歩く速さ（走りに対する割合）
 export const RULES = { regenDelay: 5, regenRate: 12, speed: 0.8, walk: 0.6 };
@@ -50,6 +60,13 @@ export const WEAPONS = {
   knife: {
     name: 'カランビット', model: 'karambit', kind: 'melee', dmg: 30, back: 1.5, range: 2.3, cone: 0.8, moveMul: 1.1, head: 1,
     rate: 0.5, spread: 0, bloomShot: 0, bloomMax: 0, bloomRecover: 1, move: 0, air: 0, ads: 1, mag: 1, reload: 0.1, auto: true, recoil: 0, falloff: [999, 1000, 1], pref: 2,
+  },
+  // 刀（侍）：連打で1段目（袈裟斬り＋飛ぶ斬撃）をくり返し、長押しで4段目まで続ける（段ごとの動きと威力は sword.ts の STAGES）
+  //   wave*: 1段目で飛ぶ斬撃（中距離用） / range・cone: 刀が届く距離・向きの広さ
+  katana: {
+    name: '刀', model: 'katana', kind: 'sword', dmg: 30, head: 1, range: 2.9, cone: 0.72, moveMul: 1.05,
+    waveDmg: 16, waveSpeed: 45, waveRange: 50, waveR: 0.5,
+    rate: 0.3, spread: 0, bloomShot: 0, bloomMax: 0, bloomRecover: 1, move: 0, air: 0, ads: 1, mag: 1, reload: 0.1, auto: true, recoil: 0, falloff: [999, 1000, 1], pref: 3,
   },
   // 連射で押し切る。近〜中距離
   smg: {
@@ -143,6 +160,16 @@ export const SKILLS = {
   // タレット歩：目の前に動かない砲台を置く。相手が見えたら撃つ（hp: 耐久 / dmg: 1発 / rate: 撃つ間隔 / spread: ブレ / range: 届く距離）
   turret: { name: 'タレット歩', type: 'turret', cooldown: 30, duration: 0, hp: 30, dmg: 8, rate: 1.05, spread: 0.03, range: 40, damageTaken: 1,
     help: '目の前に動かないタレット歩を置く・相手が見えたら撃つ（HP30）' },
+  // 瞬（侍）：押している間に溜め、離すと見ている向き（上下も）へ一気に飛ぶ。溜めた分だけ遠くへ（minDist〜maxDist m、chargeMax 秒で最大）
+  //   speed：飛ぶ速さ / gap：前に相手がいたら、その手前（体の間のすき間 m）で止まる
+  blink: { name: '瞬', type: 'blink', cooldown: 6, duration: 0, chargeMax: 3, minDist: 3.6, maxDist: 30, speed: 70, gap: 0.7, damageTaken: 1,
+    help: '長押しで溜め、離すと見ている向きへ一瞬で飛ぶ（溜めるほど遠く・3秒で最大30m）' },
+  // 葉隠れ（侍）：30 秒の間、動かず攻撃もしていなければ（0.25 秒止まると）姿が全く見えなくなる。動く・攻撃するとすぐ見える
+  hagakure: { name: '葉隠れ', type: 'hagakure', cooldown: 45, duration: 30, still: 0.25, damageTaken: 1,
+    help: '30秒間、動かず攻撃しなければ姿が全く見えなくなる' },
+  // 影分身（侍）：まわり 6 方向に、自分と同じ動きをする分身を出す（撃たれると消える）。CPU は分身を本物と思い込むことがある
+  clone: { name: '影分身', type: 'clone', cooldown: 45, duration: 8, count: 6, radius: 2.4, damageTaken: 1,
+    help: 'まわり6方向に、自分と同じ動きをする分身を8秒出す（撃たれると消える）' },
   // 大玉：次のグレネードが大きくなり、敵も自分も大きく吹き飛ばす（knock: 吹き飛ばす強さ）
   bigshot: { name: '大玉', type: 'bigshot', cooldown: 36, duration: 10, radius: 5.5, knock: 38, lift: 22, damageTaken: 1,
     help: '次のグレネードが巨大に・敵も自分も吹き飛ばす' },
@@ -174,7 +201,7 @@ export const KEY_ACTIONS: [string, string][] = [
 export const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', run: 'ShiftLeft', jump: 'Space', reload: 'KeyR', skill: 'KeyE', skill2: 'KeyQ', weapon1: 'Digit1', weapon2: 'Digit2', inspect: 'KeyV', fullscreen: 'KeyF' };
 (settings as any).keys = Object.assign({}, DEFAULT_KEYS, (settings as any).keys || {});
 // 開発者メニュー：hiddenMaps 未公開マップを選べる / aimKey オートエイムのキー（'' はなし）
-(settings as any).dev = Object.assign({ hiddenMaps: false, aimKey: '' }, (settings as any).dev || {});
+(settings as any).dev = Object.assign({ hiddenMaps: false, aimKey: '', special: false }, (settings as any).dev || {});
 export const DEV_PASSWORD = '5173';
 // e.code を読みやすい名前に
 export const keyName = (code: string) => ({ Mouse1: 'ホイールボタン', Mouse3: 'マウス戻る', Mouse4: 'マウス進む', Space: 'Space', ShiftLeft: '左Shift', ShiftRight: '右Shift', ControlLeft: '左Ctrl', ControlRight: '右Ctrl', AltLeft: '左Alt', AltRight: '右Alt', Tab: 'Tab', CapsLock: 'CapsLock', Backquote: '`' } as any)[code]

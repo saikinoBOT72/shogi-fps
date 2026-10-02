@@ -20,6 +20,7 @@ import { equippedRef, paintGun, skinKey, validRef } from '../loadout';
 import { skinMaterials } from '../guns/skins';
 import { player, botActor, stats, view, onAttack, shootArrow } from '../game';
 import { ray, eyeOf, act } from './move';
+import { Clones } from '../clones';
 
 // ================= 武器 =================
 export function currentSpread(e) {
@@ -67,6 +68,7 @@ export function facingOf(e) {
 // スキルによる被ダメージ倍率（守りの構えは前からの弾だけ減らす）
 export function skillDamageMul(target, from) {
   let m = 1;
+  if (target.swGuard) m *= 0.5;   // 刀で守りの構え（右クリック）：どこからでも半分
   for (const s of target.slots || []) {
     if (!(s.t > 0)) continue;
     if (s.sk.type !== 'guard') { m *= s.sk.damageTaken ?? 1; continue; }
@@ -99,7 +101,7 @@ export function fire(shooter, target, origin, muzzle, dir) {
   }
   shooter.bloom = Math.min(w.bloomMax, shooter.bloom + w.bloomShot);
   if (shooter.ammo <= 0) startReload(shooter);
-  if (blocked) { SFX.play('guard', point); Particles.wood(point, new V3(0, 1, 0), 5, 0.6); }
+  if (blocked) { SFX.play('guard', point); if (target.swGuard) Particles.impact(point, dir.clone().negate()); else Particles.wood(point, new V3(0, 1, 0), 5, 0.6); }   // 刀で受けたら火花
   return { dmg, head, point, blocked, miss: dmg > 0 ? null : miss, wallDist };
 }
 export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
@@ -120,6 +122,13 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
     const hp = ray.ray.intersectBox(box, new V3());
     if (hp && hp.distanceTo(origin) < wallDist) hit = { point: hp, dist: hp.distanceTo(origin) };
   }
+  // 撃たれる側の影分身が手前にいたら、分身に当たって消える（ダメージなし）
+  const ch = Clones.rayHit(ray.ray, hit ? hit.dist : wallDist, target);
+  if (ch) {
+    Clones.pop(target, ch.i, shooter === player);
+    Tracers.add(muzzle, ch.point, tracerColor);
+    return { dmg: 0, head: false, point: null, miss: d, wallDist: ch.dist, end: ch.point, wall: false };
+  }
   let res: any = { dmg: 0, head: false, point: null };
   if (hit) {
     const [f0, f1, fm] = w.falloff;
@@ -128,7 +137,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
     if (head) dmg *= w.head;
     const mul = skillDamageMul(target, shooter.pos);
     dmg *= mul;
-    res = { dmg, head, point: hit.point, blocked: mul < 1 && !!act(target, 'guard'), end: hit.point };
+    res = { dmg, head, point: hit.point, blocked: mul < 1 && (!!act(target, 'guard') || !!target.swGuard), end: hit.point };
     Tracers.add(muzzle, hit.point, tracerColor);
   } else {
     const end = wall ? wall.point : origin.clone().addScaledVector(d, 150);

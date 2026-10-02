@@ -1,6 +1,6 @@
 // タイトル・駒選択・設定・操作方法・一時停止・結果画面
 import { gs } from './state';
-import { $, DEFAULT_KEYS, DEV_PASSWORD, DIFFS, KEY_ACTIONS, PIECES, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, keyName, saveSettings, settings } from './core';
+import { $, DEFAULT_KEYS, DEV_PASSWORD, DIFFS, KEY_ACTIONS, PIECES, pieceUsable, specialOn, QUALITIES, QUALITY_AT_LOAD, SKILLS, WEAPONS, keyName, saveSettings, settings } from './core';
 import { SFX } from './audio';
 import { requestLock } from './input';
 import { bot, botActor, paintActors, player, playerActor, resetMatch, resolveFoe, resolveMe, stats } from './game';
@@ -96,10 +96,17 @@ function showDevMenu(back: () => void) {
       <div class="row"><span>未公開マップ<small>オンにすると選べる（${MAP_LIST.filter(m => m[2]).map(m => m[1]).join('・')}）</small></span>${seg('devMaps', D.hiddenMaps ? '1' : '0')}</div>
       <div class="row"><span>オートエイム<small>押している間、相手の頭に照準が吸い付く</small></span>
         <span><button class="kbd-btn" id="devAim">${D.aimKey ? keyName(D.aimKey) : 'なし'}</button> <button class="small" id="devAimClear">なしにする</button></span></div>
+      <div class="row"><span>特殊駒<small>オンにすると、一騎打ちの自分の駒・相手（CPU）の駒の欄に侍が出る</small></span>${seg('devSpecial', D.special ? '1' : '0')}</div>
     </div>
     <div class="menu"><button class="btn sub" id="back">戻る</button></div>
   </div>`, true);
   document.querySelectorAll<HTMLElement>('#devMaps button').forEach(b => b.onclick = e => { e.stopPropagation(); D.hiddenMaps = b.dataset.v === '1'; saveSettings(); showDevMenu(back); });
+  document.querySelectorAll<HTMLElement>('#devSpecial button').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    D.special = b.dataset.v === '1';
+    if (!D.special) { if (!pieceUsable(settings.myPiece)) settings.myPiece = 'P'; if (PIECES[settings.foePiece]?.special) settings.foePiece = 'P'; }
+    saveSettings(); showDevMenu(back);
+  });
   on('devAimClear', () => { D.aimKey = ''; saveSettings(); showDevMenu(back); });
   // キー設定と同じ：押してから割り当てたいキー（またはホイール・横のボタン）を押す。ESC でやめる
   on('devAim', () => {
@@ -245,7 +252,8 @@ export function pieceCard(k) {
   return `${koma(p.name)}<span class="val">価値 ${p.value >= 99 ? '∞' : p.value}</span><span>HP ${p.hp}</span><span>${w.name}</span>`;
 }
 export function pieceSelectHTML() {
-  const opts = (sel, id, withRandom) => `<div class="pick" id="${id}">${Object.keys(PIECES).map(k =>
+  // 特殊駒（侍）は、開発者メニューでオンのときだけ自分・相手の両方に出る（自分は解放していても出る）
+  const opts = (sel, id, withRandom) => `<div class="pick" id="${id}">${Object.keys(PIECES).filter(k => id === 'pickMe' ? pieceUsable(k) : !PIECES[k].special || specialOn()).map(k =>
     `<button data-k="${k}" class="${sel === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}${withRandom
     ? `<button data-k="random" class="${sel === 'random' ? 'on' : ''}">${koma('？')}<span class="val">ランダム</span></button>` : ''}</div>`;
   const me = PIECES[settings.myPiece] || PIECES.P;

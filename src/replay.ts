@@ -11,6 +11,8 @@ import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
 import { bot, botActor, foeRef, paintFoe, player, playerActor, view } from './game';
 import { paintGun } from './loadout';
+import { Net } from './net';
+import { Sword } from './sword';
 import { animateActor, hipFov, poseViewModel } from './camera';
 
 export const Replay = (() => {
@@ -38,11 +40,15 @@ export const Replay = (() => {
     <div class="kc-xh"></div><div class="kc-hm" id="kcHm"><i></i><i></i><i></i><i></i></div>
     <div class="kc-top"><b id="kcTitle"></b><span id="kcWho"></span></div>
     <div class="kc-bars"><div class="kc-bar"><span id="kcName0"></span><i><b id="kcHp0"></b></i></div><div class="kc-bar foe"><span id="kcName1"></span><i><b id="kcHp1"></b></i></div></div>
-    <div class="kc-skip">クリックでスキップ</div>`;
+    <div class="kc-skip" id="kcSkip">クリックでスキップ</div>`;
   document.body.appendChild(ui);
 
-  function clear() { frames = []; events = []; t = 0; }
+  // foeSkipped：オンラインで勝った相手がもうスキップした（こちらのリプレイが始まる前に届いたとき用）
+  let foeSkipped = false;
+  function clear() { frames = []; events = []; t = 0; foeSkipped = false; }
 
+  // 刀を振っている様子（段・時間・振りかぶる前の形）と守りの構え。リプレイで刀の動きを再現する
+  const swOf = e => (e.sw && e.sw.stage ? { stage: e.sw.stage, t: e.sw.t, serial: e.sw.serial, from: { p: e.sw.from.p.clone(), q: e.sw.from.q.clone() } } : null);
   let lastPcd = 0, lastBcd = 0;
   function record(dt) {
     t += dt;
@@ -54,11 +60,11 @@ export const Replay = (() => {
       p: {
         pos: p.pos.clone(), vel: p.vel.clone(), yaw: view.yaw, onGround: p.onGround, dead: p.dead, hp: p.hp,
         sk: p.slots.map(s => s.t), cd: p.cd, draw: p.draw, adsT: p.adsT || 0, reloading: p.reloading, ammo: p.ammo,
-        fired: p.cd > lastPcd + 1e-4, sway: [VM.sway.x, VM.sway.y], bob: [view.bobX || 0, view.bobY || 0],
+        fired: p.cd > lastPcd + 1e-4, sway: [VM.sway.x, VM.sway.y], bob: [view.bobX || 0, view.bobY || 0], sw: swOf(p), gk: p.swGuardK || 0,
       },
       b: {
         pos: b.pos.clone(), vel: b.vel.clone(), rotY: botActor.root.rotation.y, aim: (b.aimPt || p.pos).clone(), onGround: b.onGround, dead: b.dead, hp: b.hp,
-        sk: b.slots.map(s => s.t), cd: b.cd, draw: b.draw, reloading: b.reloading, ammo: b.ammo, fired: b.cd > lastBcd + 1e-4,
+        sk: b.slots.map(s => s.t), cd: b.cd, draw: b.draw, reloading: b.reloading, ammo: b.ammo, fired: b.cd > lastBcd + 1e-4, sw: swOf(b), gk: b.swGuardK || 0,
       },
       ph: PHYS.snapshot(), ar: Arrows.snapshot(), gr: Grenades.snapshot(), gd: Gadgets.snapshot(),
       ev: events,
@@ -73,13 +79,16 @@ export const Replay = (() => {
   function apply(fk, r) {
     fk.pos.copy(r.pos); fk.vel.copy(r.vel); fk.onGround = r.onGround; fk.slots.forEach((s, i) => { s.t = r.sk[i] || 0; });
     fk.cd = r.cd; fk.draw = r.draw || 0; fk.reloading = r.reloading; fk.adsT = r.adsT || 0; fk.dead = r.dead;
+    fk.sw = r.sw; fk.swGuardK = r.gk || 0;
   }
 
   // win: true = あなたが倒した（あなたの視点）、false = 倒された（相手の視点）
   function start(win, onDone) {
     const victim = win ? 'b' : 'p';
     const death = frames.find(f => f[victim].dead);
-    if (!death || frames.length < 20) return false;
+    // オンラインで勝った側：リプレイが無いときは、すぐ相手のリプレイも終わらせる
+    if (!death || frames.length < 20) { if (Net.on && win) Net.send({ t: 'kcskip' }); return false; }
+    if (Net.on && !win && foeSkipped) return false;   // 勝った相手がもうスキップした
     const t0 = Math.max(frames[0].t, death.t - BEFORE);
     const i = Math.max(0, frames.findIndex(f => f.t >= t0));
     const shooter = win ? player : bot, target = win ? bot : player;
@@ -99,6 +108,8 @@ export const Replay = (() => {
     $('hud').style.display = 'none';
     ui.classList.toggle('win', win);
     $('kcTitle').textContent = win ? 'REPLAY' : 'KILLCAM';
+    // オンラインで負けた側はスキップできない（勝った相手がスキップすると一緒に終わる）
+    $('kcSkip').textContent = Net.on && !win ? '相手がスキップすると終わります' : 'クリックでスキップ';
     $('kcWho').textContent = win ? 'あなたの視点' : `相手（${bot.def.name}）の視点`;
     $('kcName0').textContent = win ? `あなた ${player.def.name}` : `相手 ${bot.def.name}`;
     $('kcName1').textContent = win ? `相手 ${bot.def.name}` : `あなた ${player.def.name}`;
@@ -164,6 +175,7 @@ export const Replay = (() => {
       // 相手の駒を記録どおりに
       animateActor(botActor, P.fb, dt, null);
       botActor.root.rotation.y = f.b.rotY;
+      if (P.fb.w.kind === 'sword') Sword.poseClone(botActor, P.fb);   // 刀の振り
       // カメラはあなたの目（記録したそのまま）
       const c = f.cam;
       cam.position.set(c[0], c[1], c[2]); cam.quaternion.set(c[3], c[4], c[5], c[6]);
@@ -173,6 +185,7 @@ export const Replay = (() => {
       // あなたの駒を記録どおりに
       const fwd = new V3(-Math.sin(f.p.yaw), 0, -Math.cos(f.p.yaw));
       animateActor(playerActor, P.fp, dt, P.fp.pos.clone().add(fwd));
+      if (P.fp.w.kind === 'sword') Sword.poseClone(playerActor, P.fp);
       // カメラは相手の目。歩くと少し揺れる
       const b = P.fb, spd = Math.hypot(b.vel.x, b.vel.z), mk = b.onGround ? Math.min(1, spd / bot.def.speed) : 0;
       P.bobPhase += dt * spd * 1.35;
@@ -228,9 +241,17 @@ export const Replay = (() => {
   }
 
   const isSkip = e => e.type === 'mousedown' || e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape';
-  const skip = e => { if (play && isSkip(e)) { e.preventDefault(); finish(); } };
+  const skip = e => {
+    if (!play || !isSkip(e)) return;
+    e.preventDefault();
+    if (Net.on && !play.win) return;   // 負けた側は、勝った相手がスキップするまで待つ
+    if (Net.on) Net.send({ t: 'kcskip' });
+    finish();
+  };
+  // 勝った相手がスキップした：こちらのリプレイも終わる（まだ始まっていなければ始めない）
+  function foeSkip() { foeSkipped = true; if (play && !play.win) finish(); }
   addEventListener('mousedown', skip);
   addEventListener('keydown', skip);
 
-  return { clear, record, start, update, finish, get playing() { return !!play; } };
+  return { clear, record, start, update, finish, foeSkip, get playing() { return !!play; } };
 })();

@@ -10,6 +10,9 @@ import { Nav } from './nav';
 import { Smoke } from './grenades';
 import { act, bot, botActor, canFire, eyeOf, fire, fireGrenade, hasLOS, moveEntity, player, ray, regenTick, shootArrow, skillTick, startReload, stats, tryJump, useSkill, view, weaponTick } from './game';
 import { addDamageDir, hud, killPlayer } from './hud';
+import { Clones } from './clones';
+import { Sword } from './sword';
+import { swordTick } from './swordai';
 
 // ================= CPU =================
 // 浮島のマップで、(x, z) の足もとに床が無い（落ちたら負け）か
@@ -154,15 +157,19 @@ export function updateBot(dt) {
     weaponTick(b, dt); moveEntity(b, wish, dt); skillTick(b, dt); regenTick(b, dt);
     return;
   }
+  // 刀を使う CPU（侍）は専用の動き（swordai.ts）
+  if (gs.state === 'fight' && !b.dead && b.w.kind === 'sword') { swordTick(b, dt); skillTick(b, dt); regenTick(b, dt); return; }
   if (gs.state === 'fight' && !b.dead) {
-    const pEye = eyeOf(player), bEye = eyeOf(b);
-    const toP = player.pos.clone().sub(b.pos); toP.y = 0;
+    // 影分身：CPU は本物だと思い込んだ分身（T）を相手として見る・追う・狙う
+    const T = Clones.believed(player) || player;
+    const pEye = eyeOf(T), bEye = eyeOf(b);
+    const toP = T.pos.clone().sub(b.pos); toP.y = 0;
     const dist = toP.length(); toP.normalize();
     // 透明化している相手は、すぐ近くでないと見えない
     // 目がくらんでいる間は見えない（閃光弾）
     if (b.blindT > 0) b.blindT -= dt;
-    const los = !player.dead && hasLOS(bEye, pEye) && !(act(player, 'cloak') && dist > 3) && !(b.blindT > 0) && dist < (gs.stormVis ?? Infinity);   // 砂嵐の中は近くしか見えない
-    if (los) { b.seen += dt; b.lostT = 0; b.lastKnown.copy(player.pos); b.flankSide = 0; }
+    const los = !player.dead && hasLOS(bEye, pEye) && !(act(player, 'cloak') && dist > 3) && !Sword.hidden(player) && !(b.blindT > 0) && dist < (gs.stormVis ?? Infinity);   // 砂嵐の中は近くしか見えない
+    if (los) { b.seen += dt; b.lostT = 0; b.lastKnown.copy(T.pos); b.flankSide = 0; }
     else { b.seen = Math.max(0, b.seen - dt * 2); b.lostT += dt; }
     // 透視中は、見えていなくても居場所が分かる
     if (!los && act(b, 'xray')) { b.lastKnown.copy(player.pos); b.lostT = Math.min(b.lostT, 0.5); }
@@ -249,7 +256,7 @@ export function updateBot(dt) {
     b.lastPos.copy(b.pos);
 
     // 照準：プレイヤーの位置を遅れて追いかけるので、横移動していると当てにくい
-    const seenAt = los ? player.pos : b.lastKnown;
+    const seenAt = los ? T.pos : b.lastKnown;
     const chest = new V3(seenAt.x, seenAt.y + player.height * 0.62, seenAt.z);
     b.aimPt.lerp(chest, 1 - Math.exp(-D.track * dt));
     weaponTick(b, dt);

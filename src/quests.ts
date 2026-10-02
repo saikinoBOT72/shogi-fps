@@ -69,7 +69,7 @@ export const nextWeekIn = () => ((weekOf(dayOf(now())) + 1) * 7 - 3) * DAY - SHI
 // 日替わりの駒・マップ：その日の番号で決める（みんな同じ）。そのとき遊べるものから選ぶので、増えても大丈夫
 const hash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
 const rng = (seed: number) => () => { seed = (seed + 0x6d2b79f5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-export const todayPiece = () => { const ks = Object.keys(PIECES); return ks[hash('piece' + dayOf(now())) % ks.length]; };
+export const todayPiece = () => { const ks = Object.keys(PIECES).filter(k => !PIECES[k].special); return ks[hash('piece' + dayOf(now())) % ks.length]; };
 export const todayMap = () => { const ms = MAP_LIST.filter(m => !m[2]); return ms[hash('map' + dayOf(now())) % ms.length][0]; };
 export const questText = (id: string) => DEF[id].text
   .replace('{piece}', PIECES[todayPiece()].name)

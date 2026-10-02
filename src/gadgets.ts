@@ -180,7 +180,7 @@ function empAt(p, T) {
 function hitEmp(e, sk) {
   e.empT = sk.disable; e.empMax = sk.disable; e.empSlow = sk.slow;
   // 使っている最中のスキルも切れる（動くスキルは勢いのまま）。ミサイルの操作も切れる
-  for (const s of e.slots) if (s.t > 0 && !['dash', 'step', 'leap', 'grapple'].includes(s.sk.type)) s.t = 0;
+  for (const s of e.slots) if (s.t > 0 && !['dash', 'step', 'leap', 'grapple', 'blink'].includes(s.sk.type)) s.t = 0;
   const M = missiles.find(m => m.owner === e && m.ctrl); if (M) M.ctrl = false;
   for (let i = 0; i < 12; i++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.mizu[2]);
   if (!e.isBot) { SFX.play('skEmpHit'); view.shake = Math.max(view.shake, 0.3); }

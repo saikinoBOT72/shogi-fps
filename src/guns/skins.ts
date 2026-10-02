@@ -44,6 +44,11 @@ export const SKINS: Record<string, Skin> = {
     slide: { c: P.nezumi[2], metal: true }, barrel: { c: P.nezumi[2], metal: true }, frame: { c: P.nezumi[2], metal: true },
     grip: { c: P.sumi[1] }, detail: { c: P.sumi[1] },
   },
+  tamahagane: { // 刀：slide 刃の背〜鎬 / barrel 鎬〜刃先（刃文のあたり、白く明るい）/ frame 鍔 / grip 柄糸 / detail 鮫皮 / accent 柄頭・縁・はばき
+    name: '玉鋼',
+    slide: { c: P.nezumi[2], metal: true, sheen: P.mizu[2] }, barrel: { c: P.shiro[1], metal: true, sheen: P.shiro[2] }, frame: { c: P.sumi[1], metal: true },
+    grip: { c: P.sumi[0] }, detail: { c: P.shiro[0] }, accent: { c: P.kin[1], metal: true },
+  },
 
 };
 export const DEFAULT_SKIN = 'kurogane';
