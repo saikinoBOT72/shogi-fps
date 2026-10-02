@@ -186,6 +186,8 @@ export const DIFFS = {
   easy:   { name: 'かんたん',   react: 0.7,  err: 0.13,  track: 3.5, gap: [0.35, 0.7], lead: 0.3, dps: 18 },
   normal: { name: 'ふつう',     react: 0.45, err: 0.09,  track: 5.5, gap: [0.22, 0.5], lead: 0.65, dps: 28 },
   hard:   { name: 'むずかしい', react: 0.18, err: 0.035, track: 14,  gap: [0.04, 0.18], lead: 1, dps: 55, pred: 1 },
+  // 鬼畜：数値に加えて、頭を狙う（aimH）・よける・隙を突く・耳と勘がいい（oni）
+  oni:    { name: '鬼畜',       react: 0.1,  err: 0.018, track: 22,  gap: [0.02, 0.1], lead: 1, dps: 80, pred: 1, aimH: 0.86, oni: true },
 };
 // H: アリーナ全体の半分の広さ / BH: 中央の将棋盤の半分の広さ / GROUND: 外周の地面の高さ（盤の上は 0）
 export const H = 66, BH = 22, GROUND = -1.5, G = 22, TIME_LIMIT = 120;

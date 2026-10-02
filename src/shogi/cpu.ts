@@ -10,7 +10,7 @@ import { Board, Hands, Move, Piece, allMoves, canPromote, inZone, rawMoves } fro
 // ---------- 一騎打ちの勝ちやすさ ----------
 const SKILL_KEY = 'shogiFps.skill';
 let skill = (() => { try { const v = +localStorage.getItem(SKILL_KEY); return v > 0 ? v : 1; } catch (e) { return 1; } })();   // あなたの一騎打ちの強さ（1 = 駒の強さどおり）
-const DIFF_K = { easy: 1.4, normal: 1, hard: 0.75 };   // 一騎打ちの CPU の強さ（かんたんほど、あなたが勝ちやすい）
+const DIFF_K = { easy: 1.4, normal: 1, hard: 0.75, oni: 0.55 };   // 一騎打ちの CPU の強さ（かんたんほど、あなたが勝ちやすい）
 const fpsVal = (t: string) => Math.pow(t === 'K' ? 12 : PIECES[t].value, 0.6);
 const youK = () => skill * (DIFF_K[settings.diff] || 1);
 // attOwner の駒 att が def に挑んだとき、挑んだ側が勝つ見込み
@@ -132,6 +132,7 @@ const LEVEL = {
   easy: { depth: 1, beams: [0], noise: 1.6 },
   normal: { depth: 2, beams: [0, 24], noise: 0.25 },
   hard: { depth: 3, beams: [0, 10, 16], noise: 0.05 },
+  oni: { depth: 3, beams: [0, 16, 28], noise: 0 },   // 鬼畜：むずかしいより広く読み、迷わない
 };
 export function chooseMove(b: Board, h: Hands): Move | null {
   const lv = LEVEL[settings.diff] || LEVEL.normal;

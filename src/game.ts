@@ -299,7 +299,7 @@ export function updatePlayer(dt) {
   if (p.onGround && p.moving) {
     const prev = Math.sin(view.bobPhase * 2);
     view.bobPhase += dt * Math.hypot(p.vel.x, p.vel.z) * 1.35;
-    if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { const sf = surfOf(p); SFX.play('step', null, 0.7, sf); if (sf === 'squeak') aiHear(p.pos, 30); else if ((p.adsT || 0) < 0.5) aiHear(p.pos, 10); }   // 鳴る床は忍び足でも遠くまで聞こえる
+    if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { const sf = surfOf(p); if (p.running) SFX.play('step', null, 0.7, sf); if (sf === 'squeak') aiHear(p.pos, 30); else if ((p.adsT || 0) < 0.5) aiHear(p.pos, p.running ? 10 : 4); }   // 鳴る床は忍び足でも遠くまで聞こえる。歩きは聞こえる範囲が狭い
   }
 
   weaponTick(p, dt);

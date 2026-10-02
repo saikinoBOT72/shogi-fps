@@ -140,13 +140,13 @@ function findRetreat(e, from, foePos) {
   return null;
 }
 // 物陰から撃つ：近くの隠れ場所（anchor）を覚え、顔を出して撃つ（out）→ 引っ込む（in）を繰り返す
-function updatePeek(b, want, pEye, dt) {
+function updatePeek(b, want, pEye, dt, fast = false) {
   if (!want) { b.anchor = null; b.peekIn = false; return; }
   b.anchorT = (b.anchorT || 0) - dt; b.peekT = (b.peekT || 0) - dt;
   const lost = b.anchor && bodyVisible(new V3(b.anchor.x, b.pos.y, b.anchor.z), b, pEye);
   if (!b.anchor || b.anchorT <= 0 || lost) { b.anchor = findCover(b, pEye, 5.5); b.anchorT = 2.5; }
   if (!b.anchor) { b.peekIn = false; return; }
-  if (b.peekT <= 0) { b.peekIn = !b.peekIn; b.peekT = b.peekIn ? rand(0.5, 1.1) : rand(1.3, 2.6); }
+  if (b.peekT <= 0) { b.peekIn = !b.peekIn; b.peekT = fast ? (b.peekIn ? rand(0.3, 0.6) : rand(0.7, 1.3)) : (b.peekIn ? rand(0.5, 1.1) : rand(1.3, 2.6)); }   // fast：鬼畜は短く顔を出してすぐ引っ込む
 }
 
 export function updateBot(dt) {
@@ -173,16 +173,22 @@ export function updateBot(dt) {
     else { b.seen = Math.max(0, b.seen - dt * 2); b.lostT += dt; }
     // 透視中は、見えていなくても居場所が分かる
     if (!los && act(b, 'xray')) { b.lastKnown.copy(player.pos); b.lostT = Math.min(b.lostT, 0.5); }
+    // 鬼畜の勘：見失って2秒たつと、だいたいの居場所（数mずれる）が分かる
+    if (D.oni && !los && b.lostT > 2) {
+      b.senseT = (b.senseT || 0) - dt;
+      if (b.senseT <= 0) { b.lastKnown.set(player.pos.x + rand(-2.5, 2.5), player.pos.y, player.pos.z + rand(-2.5, 2.5)); b.senseT = 1.5; }
+    }
 
     b.strafeT -= dt;
     const aimedAt = new V3(0, 0, -1).applyQuaternion(cam.quaternion).dot(bEye.clone().sub(pEye).normalize()) > 0.995;
-    if (b.strafeT <= 0 || (aimedAt && Math.random() < dt * 2)) { b.strafe *= Math.random() < 0.7 ? -1 : 1; b.strafeT = rand(0.5, 1.6); }
+    // 狙われたら左右に切り返す（鬼畜はこまめに）
+    if (b.strafeT <= 0 || (aimedAt && Math.random() < dt * (D.oni ? 6 : 2))) { b.strafe *= Math.random() < 0.7 ? -1 : 1; b.strafeT = D.oni ? rand(0.3, 0.9) : rand(0.5, 1.6); }
     const side = new V3(-toP.z, 0, toP.x).multiplyScalar(b.strafe);
 
     // 状態の決定
     const P = b.persona, pref = Math.max(3, b.w.pref + P.prefAdd);
     // HPが減っていて見つかっていないなら回復を待つ。回復したか、見つかったら再開
-    if (!los && b.hp < b.def.hp * 0.5 && P !== PERSONAS.rush) b.healing = true;
+    if (!los && b.hp < b.def.hp * 0.5 && (P !== PERSONAS.rush || D.oni)) b.healing = true;
     if (b.hp >= b.def.hp * 0.9 || (los && b.hurtT > 0)) b.healing = false;
     const wantCover = los && (b.reloading > 0 || (b.hp < P.coverHp && player.hp > b.hp && b.ammo < b.w.mag * 0.4));
     if (wantCover) {
@@ -192,7 +198,7 @@ export function updateBot(dt) {
 
     const guarding = !!act(b, 'guard');
     // 追い詰められたら退く：HP が少なく、相手の方が元気なとき（突撃型は退かない）。退いた先で回復を待つ
-    const cornered = los && P !== PERSONAS.rush && b.hp < b.def.hp * 0.35 && player.hp > b.hp * 1.2;
+    const cornered = los && (P !== PERSONAS.rush || D.oni) &&b.hp < b.def.hp * 0.35 && player.hp > b.hp * 1.2;
     if (cornered && !b.retreatPt) { b.retreatPt = findRetreat(b, pEye, player.pos); b.retreatT = 3; }
     if (b.retreatPt) {
       b.retreatT -= dt;
@@ -203,9 +209,11 @@ export function updateBot(dt) {
     //   遠くから撃たれたら（underFireT）、どの性格も物陰へ（突撃型はかなり遠いときだけ）
     if (los && b.hurtT > 1.1 && dist > 9) b.underFireT = 4;
     b.underFireT = Math.max(0, (b.underFireT || 0) - dt);
-    const wantPeek = los && !guarding && !b.retreating && !b.coverPt && dist > 5 && b.w.kind !== 'melee'
+    // 鬼畜：相手がリロード中なら一気に詰める
+    const push = D.oni && los && player.reloading > 0 && dist > 4 && !guarding && !b.retreating && !b.coverPt && b.w.kind !== 'melee';
+    const wantPeek = los && !push && !guarding && !b.retreating && !b.coverPt && dist > 5 && b.w.kind !== 'melee'
       && (P === PERSONAS.careful || (P === PERSONAS.normal && (b.hp < b.def.hp * 0.75 || dist > 12)) || (b.underFireT > 0 && (P !== PERSONAS.rush || dist > 15)));
-    updatePeek(b, wantPeek, pEye, dt);
+    updatePeek(b, wantPeek, pEye, dt, !!D.oni);
     const peekIn = wantPeek && b.anchor && b.peekIn;
     if (peekIn && b.w.kind !== 'bow' && b.ammo < b.w.mag * 0.7 && !b.reloading) startReload(b);   // 引っ込んでいる間にリロード
     if (guarding) {
@@ -213,6 +221,8 @@ export function updateBot(dt) {
       wish.copy(toP);
     } else if (b.retreatPt) {
       wish.copy(b.retreatPt).sub(b.pos).setY(0).normalize().addScaledVector(side, 0.35);   // ジグザグに退く
+    } else if (push) {
+      wish.copy(toP).addScaledVector(side, 0.5);
     } else if (peekIn) {
       wish.copy(b.anchor).sub(b.pos).setY(0);
       if (wish.length() < 0.4) wish.set(0, 0, 0);
@@ -250,7 +260,7 @@ export function updateBot(dt) {
     if (wish.lengthSq() > 0) wish.normalize();
     const steered = steer(b, wish);
     b.jumpT -= dt;
-    if (b.onGround && ((los && b.jumpT <= 0 && Math.random() < dt * (aimedAt ? 1.5 : 0.3) * P.jump) || b.stuck > 0.6)) { tryJump(b); b.jumpT = rand(1, 2.5); }
+    if (b.onGround && ((los && b.jumpT <= 0 && Math.random() < dt * (aimedAt ? 1.5 : 0.3) * P.jump * (D.oni ? 2 : 1)) || b.stuck > 0.6)) { tryJump(b); b.jumpT = rand(1, 2.5); }
     // 行き止まりの壁や、相手が高い所にいるときは壁を登る
     b.wantClimb = !!(b.wallN && steered.dot(b.wallN) < -0.2 && (b.stuck > 0.2 || player.pos.y > b.pos.y + 0.8));
     moveEntity(b, steered, dt);
@@ -260,7 +270,7 @@ export function updateBot(dt) {
 
     // 照準：プレイヤーの位置を遅れて追いかけるので、横移動していると当てにくい
     const seenAt = los ? T.pos : b.lastKnown;
-    const chest = new V3(seenAt.x, seenAt.y + player.height * 0.62, seenAt.z);
+    const chest = new V3(seenAt.x, seenAt.y + player.height * (D.aimH || 0.62), seenAt.z);   // aimH：鬼畜は頭を狙う
     if (los && D.pred && T.vel) chest.addScaledVector(new V3(T.vel.x, 0, T.vel.z), D.pred / D.track);   // 追いかける遅れのぶん先を狙う
     b.aimPt.lerp(chest, 1 - Math.exp(-D.track * dt));
     weaponTick(b, dt);
@@ -337,7 +347,7 @@ export function updateBot(dt) {
         if (cd < 1.6 && bEye.distanceTo(pEye) < res.wallDist) SFX.play('whiz', pEye.clone().addScaledVector(res.miss, 1));
       }
     } else if (b.w.kind !== 'bow' && b.ammo <= 0) startReload(b);
-    else if (b.w.kind !== 'bow' && !los && b.ammo < b.w.mag * 0.5) startReload(b);
+    else if (b.w.kind !== 'bow' && !los && b.ammo < b.w.mag * (D.oni ? 0.8 : 0.5)) startReload(b);
   } else {
     weaponTick(b, dt);
     moveEntity(b, wish, dt);
@@ -459,7 +469,7 @@ export const PERSONAS = {
 // 音で気づく：見えていなくても、聞こえた位置を「最後に見た場所」にする
 export function aiHear(pos, radius) {
   if (!bot || bot.dead || gs.state !== 'fight') return;
-  if (bot.pos.distanceTo(pos) > radius || bot.lostT === 0) return;
+  if (bot.pos.distanceTo(pos) > radius * (DIFFS[settings.diff].oni ? 1.5 : 1) || bot.lostT === 0) return;   // 鬼畜は耳がいい
   bot.lastKnown.copy(pos); bot.lostT = 0.01; bot.wp = null;
 }
 
