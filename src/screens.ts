@@ -18,14 +18,24 @@ import { showQuests, takeLoginBonus } from './questScreen';
 import { showMarket } from './marketScreen';
 import { Account, accountAvailable, onAccountChange } from './account';
 import { VS_TIME, showVsCut } from './vscut';
+import { showHero } from './hero';
 
 // ================= 共通 =================
+const H_EN: Record<string, string> = {
+  一人で遊ぶ: 'Solo', 設定: 'Settings', 操作方法: 'Controls', 開発者メニュー: 'Developer', 一時停止: 'Paused', メニュー: 'Menu', まもなく開始: 'Get ready',
+  アカウント: 'Account', 持ち物: 'Collection', マーケット: 'Market', クエスト: 'Quests', ログインボーナス: 'Daily bonus', 友達と対戦: 'Friends', ガチャ: 'Gacha', 将棋モード: 'Shogi',
+};
 // 画面を出す。同じ画面を描き直すとき（見出しが同じ）は、スクロールの位置を保ち、出てくる動きもつけない
 export function overlay(html, dim?) {
   const o = $('overlay'), shown = o.style.display === 'flex', top = o.scrollTop;
   const key = () => o.querySelector('.h, .res, .ga-head h2')?.textContent || '';
   const before = shown ? key() : null;
   o.innerHTML = html; o.style.display = 'flex'; o.classList.toggle('dim', !!dim);
+  // 見出しの横に小さな英語（ゲームの画面らしく）。決まった見出しだけ
+  o.querySelectorAll('.h').forEach(h => {
+    const en = H_EN[(h.firstChild?.textContent || '').trim()];
+    if (en && !h.querySelector('.en')) h.insertAdjacentHTML('beforeend', `<span class="en">${en}</span>`);
+  });
   const same = before !== null && before === key();
   o.scrollTop = same ? top : 0;
   if (!same) { o.classList.remove('enter'); void o.offsetWidth; o.classList.add('enter'); }
@@ -34,6 +44,9 @@ export const hideOverlay = () => { $('overlay').style.display = 'none'; };
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const koma = (ch: string, extra = '') => `<b class="koma${extra}">${ch}</b>`;
+// 勝ち負け・駒を取った瞬間の判子（朱の四角に白い字＋下に小さく英語）。sumi：引き分けなど朱でないとき / cls：大きさ（'mid' で一回り小さく）
+export const sealHTML = (txt: string, en = '', sumi = false, cls = '') =>
+  `<div class="res${cls ? ' ' + cls : ''}"><span class="seal stamp${sumi ? ' sumi' : ''}">${txt}</span>${en ? `<em>${en}</em>` : ''}</div>`;
 
 // ================= 設定 =================
 export function settingsHTML() {
@@ -189,19 +202,23 @@ export function showTitle() {
   if (!titleListen) { titleListen = true; onAccountChange(() => { if (gs.state === 'title' && $('goSolo')) showTitle(); }); }
   gs.state = 'title'; $('hud').style.display = 'none';
   if (takeLoginBonus(showTitle)) return;   // その日の最初：ログインボーナスを見せてからタイトルへ
-  overlay(`<div class="screen title">
-    ${accountAvailable ? `<button class="acct-chip" id="openAcct">${!Account.ready ? '…' : Account.user ? `<small>${Account.user.isAnonymous ? 'ゲスト' : 'ログイン中'}</small><b>${esc(Account.name)}</b>` : '<b>ログイン</b>'}</button>` : ''}
-    <div class="pts title-pts"><small>ポイント</small><b>${pointsText()}</b></div>
-    <div class="logo">将棋<span>FPS</span></div>
-    <div class="beta">ベータ版</div>
-    <div class="tagline">駒を取るときは、一騎打ちで決める。</div>
-    <div class="modes">
-      <button class="mode" id="goSolo"><b>一人で遊ぶ</b><small>CPU と将棋モード・一騎打ち</small></button>
-      <button class="mode" id="goOnline"><b>友達と遊ぶ</b><small>部屋のコードで友達と対戦</small></button>
+  // 左上にロゴ、左下に縦のメニュー、右に自分の駒（3D）
+  const mi = (id: string, ja: string, en: string, big = false) => `<button class="mi${big ? ' big' : ''}" id="${id}">${ja}<small>${en}</small></button>`;
+  overlay(`<div class="home">
+    <div class="hero" id="homeHero"></div>
+    <div class="logo">将棋<span class="fps">FPS</span><span class="lab">Shogi × FPS　<span class="beta">Beta</span></span><div class="tagline">駒を取るときは、一騎打ちで決める。</div></div>
+    <nav class="home-menu">
+      ${mi('goSolo', '一人で遊ぶ', 'Solo', true)}${mi('goOnline', '友達と遊ぶ', 'Friends', true)}
+      ${mi('openGacha', 'ガチャ', 'Gacha')}${mi('openInv', '持ち物', 'Collection')}${mi('openQuests', 'クエスト', 'Quests')}${mi('openMarket', 'マーケット', 'Market')}
+      ${mi('openSettings', '設定', 'Settings')}${mi('openControls', '操作方法', 'Controls')}
+    </nav>
+    <div class="home-top">
+      ${accountAvailable ? `<button class="acct-chip" id="openAcct">${!Account.ready ? '…' : Account.user ? `<small>${Account.user.isAnonymous ? 'ゲスト' : 'ログイン中'}</small><b>${esc(Account.name)}</b>` : '<b>ログイン</b>'}</button>` : ''}
+      <div class="pts"><small>PT</small><b>${pointsText()}</b></div>
     </div>
-    <div class="menu"><button class="btn" id="openGacha">ガチャ</button><button class="btn sub" id="openQuests">クエスト</button><button class="btn sub" id="openMarket">マーケット</button><button class="btn sub" id="openInv">持ち物</button><button class="btn sub" id="openSettings">設定</button><button class="btn sub" id="openControls">操作方法</button></div>
-    <div class="title-foot">${POLICY_LINK}</div>
+    <div class="home-foot">${POLICY_LINK}</div>
   </div>`);
+  showHero($('homeHero'), resolveMe());
   document.querySelectorAll<HTMLElement>('.policy-link').forEach(a => a.onclick = e => e.stopPropagation());
   on('openAcct', () => showAccount(showTitle));
   on('openQuests', () => showQuests(showTitle));
@@ -232,55 +249,71 @@ function showSolo() {
   gs.state = 'title';
   overlay(`<div class="screen title">
     <h2 class="h">一人で遊ぶ</h2>
-    ${mapPickHTML(settings, false, 'マップ', true)}
     <div class="modes">
       <button class="mode" id="goBoard"><b>将棋モード</b><small>盤で指して、駒を取るときは一騎打ち（ステージは守る側が選ぶ）</small></button>
       <button class="mode" id="goDuel"><b>一騎打ち</b><small>好きな駒どうしで 1 対 1</small></button>
     </div>
     <div class="menu"><button class="btn sub" id="back">戻る</button></div>
   </div>`);
-  bindMapPick((k, v) => { settings[k] = v; saveSettings(); if (k === 'map') resetMatch(); else applyAtmos(); showSolo(); });
   on('goBoard', () => BoardMode.open());
   on('goDuel', showPieceSelect);
   on('back', showTitle);
 }
 
 // ================= 駒選択（一騎打ち） =================
-// 駒の紹介カード
+// 駒の紹介カード（友達との部屋の駒選びで使う）
 export function pieceCard(k) {
   const p = PIECES[k], w = WEAPONS[p.weapon];
   return `${koma(p.name)}<span class="val">価値 ${p.value >= 99 ? '∞' : p.value}</span><span>HP ${p.hp}</span><span>${w.name}</span>`;
 }
-export function pieceSelectHTML() {
-  // 特殊駒（侍）は、開発者メニューでオンのときだけ自分・相手の両方に出る（自分は解放していても出る）
-  const opts = (sel, id, withRandom) => `<div class="pick" id="${id}">${Object.keys(PIECES).filter(k => id === 'pickMe' ? pieceUsable(k) : !PIECES[k].special || specialOn()).map(k =>
-    `<button data-k="${k}" class="${sel === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}${withRandom
-    ? `<button data-k="random" class="${sel === 'random' ? 'on' : ''}">${koma('？')}<span class="val">ランダム</span></button>` : ''}</div>`;
-  const me = PIECES[settings.myPiece] || PIECES.P;
-  return `<section class="panel"><h3>あなたの駒</h3>${opts(settings.myPiece, 'pickMe', true)}
-      <p class="detail">${settings.myPiece === 'random' ? `${koma('？', ' s')}<b>ランダム</b>　対局ごとに、どの駒になるかが変わる`
-        : `${koma(me.name, ' s')}<b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `スキル「${SKILLS[k].name}」：${SKILLS[k].help}`).join('　') || 'スキルなし'}`}</p></section>
-    <div class="vs-mark">VS</div>
-    <section class="panel"><h3>相手の駒</h3>${opts(settings.foePiece, 'pickFoe', true)}</section>`;
+// 駒の正式な名前と読み（駒選びの右側の見出し）
+export const FULL_NAME = { 歩: ['歩兵', 'Fuhyo'], 香: ['香車', 'Kyosha'], 桂: ['桂馬', 'Keima'], 銀: ['銀将', 'Ginsho'], 金: ['金将', 'Kinsho'], 角: ['角行', 'Kakugyo'], 飛: ['飛車', 'Hisha'], 王: ['王将', 'Osho'], 侍: ['侍', 'Samurai'] };
+// 性能（右側）：名前・価値・HP の目盛り・武器・スキル
+export function pieceInfoHTML(k: string) {
+  if (k === 'random') return `<div class="nm">？</div><span class="lab">Random</span><p class="note">対局ごとに、どの駒になるかが変わる</p>`;
+  const p = PIECES[k] || PIECES.P, w = WEAPONS[p.weapon], [full, en] = FULL_NAME[p.name] || [p.name, ''], K = (settings as any).keys;
+  const seg = Array.from({ length: 15 }, (_, i) => `<i class="${i < Math.round(p.hp / 10) ? '' : 'e'}"></i>`).join('');
+  return `<div class="nm">${full}</div><span class="lab">${en}　Value ${p.value >= 99 ? '∞' : p.value}</span>
+    <div class="kv"><span>HP</span><b>${p.hp}</b></div><div class="segbar">${seg}</div>
+    <div class="kv"><span>武器</span><b>${w.name}</b></div>
+    ${p.skills.map((s, i) => `<div class="sk"><span class="keycap">${keyName(K[i ? 'skill2' : 'skill'])}</span><span><b>${SKILLS[s].name}</b>　${SKILLS[s].help}</span></div>`).join('')}`;
 }
-export function bindPieceSelect() {
-  const bind = (id, key) => document.querySelectorAll<HTMLElement>(`#${id} button`).forEach(b => b.onclick = e => {
-    e.stopPropagation();
-    settings[key] = b.dataset.k; saveSettings();
-    resetMatch(); showPieceSelect();
-  });
-  bind('pickMe', 'myPiece'); bind('pickFoe', 'foePiece');
-}
+// 左の一覧で、自分の駒と相手の駒のどちらを選んでいるか
+let duelSide: 'me' | 'foe' = 'me';
 function showPieceSelect() {
   gs.state = 'title';
-  overlay(`<div class="screen wide">
-    <h2 class="h">一騎打ち</h2>
-    ${pieceSelectHTML()}
-    <div class="menu"><button class="btn sub" id="back">戻る</button><button class="btn" id="go">対局開始</button></div>
+  const mine = duelSide === 'me', cur = mine ? settings.myPiece : settings.foePiece;
+  // 特殊駒（侍）は、開発者メニューでオンのときだけ自分・相手の両方に出る（自分は解放していても出る）
+  const keys = Object.keys(PIECES).filter(k => mine ? pieceUsable(k) : !PIECES[k].special || specialOn());
+  const row = (k: string, ch: string, nm: string, sub: string) => `<button class="prow${cur === k ? ' on' : ''}" data-k="${k}">${koma(ch)}<span>${nm}</span><small>${sub}</small></button>`;
+  const rows = keys.map(k => row(k, PIECES[k].name, (FULL_NAME[PIECES[k].name] || [PIECES[k].name])[0], WEAPONS[PIECES[k].weapon].name)).join('') + row('random', '？', 'ランダム', '対局ごとに変わる');
+  const nameOf = (k: string) => (k === 'random' ? '？' : (PIECES[k] || PIECES.P).name);
+  const maps: [string, string][] = [...MAP_LIST.filter(m => selectableMaps().includes(m)).map(m => [m[0], m[1]] as [string, string]), ['random', 'ランダム']];
+  const mapI = Math.max(0, maps.findIndex(m => m[0] === (settings.map === 'random' ? 'random' : playableMap(settings.map))));
+  overlay(`<div class="duel">
+    <div class="hero" id="duelHero"></div>
+    <div class="duel-top"><b>一騎打ち</b><span class="lab">Duel</span>
+      <div class="duel-tabs"><button id="sideMe" class="${mine ? 'on' : ''}">あなたの駒</button><button id="sideFoe" class="${mine ? '' : 'on'}">相手の駒</button></div></div>
+    <div class="duel-stage"><span class="lab">Stage</span><button id="stPrev" aria-label="前のステージ">‹</button><b>${maps[mapI][1]}</b><button id="stNext" aria-label="次のステージ">›</button></div>
+    <div class="plist" id="plist">${rows}</div>
+    <div class="pinfo">${pieceInfoHTML(cur)}</div>
+    <div class="duel-bottom"><button class="btn sub small" id="back">戻る</button>
+      <span class="vsinfo">あなた <b>${nameOf(settings.myPiece)}</b>　VS　相手 <b>${nameOf(settings.foePiece)}</b>（CPU ${DIFFS[settings.diff]?.name || ''}）</span>
+      <button class="btn" id="go">対局開始</button></div>
   </div>`, true);
-  bindPieceSelect();
-  on('back', showSolo);
-  on('go', startMatch);
+  if (cur === 'random') $('duelHero').innerHTML = '<b class="koma" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(3)">？</b>';
+  else showHero($('duelHero'), cur, mine, true);
+  document.querySelectorAll<HTMLElement>('#plist .prow').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    settings[mine ? 'myPiece' : 'foePiece'] = b.dataset.k; saveSettings();
+    resetMatch(); showPieceSelect();
+  });
+  const stage = (d: number) => { settings.map = maps[(mapI + d + maps.length) % maps.length][0]; saveSettings(); resetMatch(); showPieceSelect(); };
+  on('stPrev', () => stage(-1)); on('stNext', () => stage(1));
+  on('sideMe', () => { duelSide = 'me'; showPieceSelect(); });
+  on('sideFoe', () => { duelSide = 'foe'; showPieceSelect(); });
+  on('back', () => { duelSide = 'me'; showSolo(); });
+  on('go', () => { duelSide = 'me'; startMatch(); });
 }
 
 // ================= 一時停止 =================
@@ -312,8 +345,9 @@ export function showResult(win) {
   $('hud').style.display = 'none';
   if (gs.matchCtx) { BoardMode.battleResult(win); return; }   // 将棋モードなら盤面へ
   const acc = stats.shots ? Math.round(stats.hits / stats.shots * 100) : 0;
-  overlay(`<div class="screen">
-    <div class="res ${win === true ? 'win' : win === false ? 'lose' : ''}">${win === true ? '勝利' : win === false ? '敗北' : '引き分け'}</div>
+  overlay(`<div class="screen center">
+    ${win === true ? sealHTML('勝ち', 'VICTORY') : win === false ? sealHTML('負け', 'DEFEAT') : sealHTML('引き分け', 'DRAW', true)}
+    <div class="stats-h">棋譜<span class="en">RESULT</span></div>
     <div class="stats">
       <div><b>${acc}%</b><span>命中率 (${stats.hits}/${stats.shots})</span></div>
       <div><b>${stats.heads}</b><span>ヘッドショット</span></div>
@@ -322,7 +356,7 @@ export function showResult(win) {
     </div>
     <div class="menu">
       <button class="btn sub" id="toTitle">${Net.on ? '部屋から抜ける' : 'タイトルへ'}</button>
-      <button class="btn" id="again">${Net.on ? 'もう一戦（駒を選ぶ）' : 'もう一局'}</button>
+      <button class="btn white" id="again">${Net.on ? 'もう一戦（駒を選ぶ）' : 'もう一局'}</button>
     </div>
   </div>`, true);
   if (Net.on) { on('again', () => { resetMatch(); showLobby(); }); on('toTitle', leave); return; }
@@ -336,7 +370,7 @@ export function startMatch(foeType?: string) {
   if (Net.on) resetNetMatch();
   resetMatch(foeType || (gs.matchCtx ? gs.matchCtx.foeType : resolveFoe()), gs.matchCtx ? undefined : resolveMe());
   initPips();
-  $('meName').textContent = `${player.def.name}　${player.w.name}`;
+  $('meName').innerHTML = `<b class="koma s">${player.def.name}</b>`;   // 体力の横に自分の駒の印
   $('foeTag').textContent = bot.def.name;
   $('center').textContent = '';
   gs.state = 'countdown'; gs.stateT = -VS_TIME; gs.paused = true;   // マイナスの間は VS カット

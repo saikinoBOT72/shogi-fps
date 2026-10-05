@@ -19,8 +19,8 @@ import { buildM79 } from './guns/m79';
 import { buildYumi } from './guns/yumi';
 import { buildKarambit } from './guns/karambit';
 import { buildKatana } from './guns/katana';
-import { TOON_RAMP, flatGeo, flatten, mat, outlineMat, toon } from './materials';
-export { TOON_RAMP, flatGeo, flatten, mat, outlineMat, toon };   // 前からの読み込み先を変えずに使えるように
+import { TOON_RAMP, flatGeo, flatten, mat, toon } from './materials';
+export { TOON_RAMP, flatGeo, flatten, mat, toon };   // 前からの読み込み先を変えずに使えるように
 
 // ================= レンダラー・シーン =================
 export const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, powerPreference: 'high-performance' });
@@ -122,17 +122,25 @@ export const starTex = canvasTex(128, 128, (g) => {
 });
 
 // ---------- 材質ヘルパー ----------
-export const pieceWoodMat = toon({ map: woodTex });
+// 駒の木目は縦（本物の駒と同じ柾目。倒れると木目に沿って縦に割れる）
+const pieceWoodTex = woodTex.clone(); pieceWoodTex.center.set(0.5, 0.5); pieceWoodTex.rotation = Math.PI / 2; pieceWoodTex.needsUpdate = true;
+export const pieceWoodMat = toon({ map: pieceWoodTex });
+pieceWoodMat.userData.noCarve = true;   // 駒・手は箱庭の彫り跡を付けない（マップに置いた駒と共用のため）
 export const kanjiCache = {};
+// 彫って墨を入れた字：彫り溝の下ふちに光が当たる（盤の駒もキャラの駒も同じ描き方）
+export function carvedText(g, ch, x, y, px, red?) {
+  g.font = `900 ${px}px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = rgba(P.shiro[2], 0.55); g.fillText(ch, x, y + px * 0.03);
+  g.fillStyle = rgba(P.kiji[0], 0.9); g.fillText(ch, x, y - px * 0.015);
+  g.fillStyle = red ? css(P.shu[0]) : css(P.sumi[0]); g.fillText(ch, x, y);
+}
 // small: 動く駒用（目を描く場所を空けるため、字を小さく下げる）
 export function kanjiMat(ch, red?, small?) {
   const k = ch + (red ? 'r' : '') + (small ? 's' : '');
   if (kanjiCache[k]) return kanjiCache[k];
   const tex = canvasTex(256, 256, g => {
-    g.fillStyle = red ? css(P.shu[0]) : css(P.sumi[0]);
-    g.font = `900 ${small ? 104 : 136}px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif`;
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(ch, 128, small ? 172 : 150);
+    carvedText(g, ch, 128, small ? 172 : 150, small ? 104 : 136, red);
   });
   return kanjiCache[k] = toon({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
 }
@@ -142,26 +150,28 @@ export const pieceShape = new THREE.Shape();
 pieceShape.moveTo(0.14, 0); pieceShape.lineTo(0.86, 0); pieceShape.lineTo(0.94, 0.7);
 pieceShape.lineTo(0.5, 1); pieceShape.lineTo(0.06, 0.7); pieceShape.closePath();
 export const PIECE_DEPTH = 0.32;
-export const pieceGeo = new THREE.ExtrudeGeometry(pieceShape, { depth: 0.25, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.03, bevelSegments: 1 });
-pieceGeo.translate(-0.5, -0.5, -0.125);
+const PIECE_EXT = { depth: 0.22, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.045, bevelSegments: 1 };
+export const pieceGeo = new THREE.ExtrudeGeometry(pieceShape, PIECE_EXT);
+pieceGeo.translate(-0.5, -0.5, -0.11);   // 面取りを含めた厚みが PIECE_DEPTH（表の面が字の板と同じ高さ）
 export const planeGeo = new THREE.PlaneGeometry(1, 1);
 
-// 中心が原点、表面(+z)に文字がある駒
-export function makePiece(ch, w, h, t, woodMat = pieceWoodMat, small = false) {
+// 中心が原点、表面(+z)に文字がある駒。red：字を朱で入れる
+export function makePiece(ch, w, h, t, woodMat = pieceWoodMat, small = false, red = false) {
   const g = new THREE.Group();
   const m = new THREE.Mesh(pieceGeo, woodMat);
   m.scale.set(w, h, t / PIECE_DEPTH);
   m.castShadow = m.receiveShadow = true;
-  const d = new THREE.Mesh(planeGeo, kanjiMat(ch, false, small));
+  const d = new THREE.Mesh(planeGeo, kanjiMat(ch, red, small));
   d.scale.set(w, h, 1); d.position.z = t / 2 + 0.004;
   g.add(m, d);
-  g.userData.body = m;
+  g.userData.body = m; g.userData.face = d;
   return g;
 }
 
 // ---------- 銃モデル ----------
 // ハンドガン：デザートイーグル（src/guns/deagle.ts。実銃の寸法から作った見本）
 export const handMat = toon({ map: woodTex, flatShading: true });
+handMat.userData.noCarve = true;
 export function buildPistol() {
   return buildDeagle({ hand: handMat });
 }

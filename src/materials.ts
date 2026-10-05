@@ -25,5 +25,3 @@ const ROUND = new Set(['ConeGeometry', 'CylinderGeometry', 'IcosahedronGeometry'
 export function flatten(root) {
   root.traverse((o: any) => { if (o.isMesh && !o.isInstancedMesh && ROUND.has(o.geometry.type)) o.geometry = flatGeo(o.geometry); });
 }
-// 動く駒の輪郭線（裏返した一回り大きい形を墨色で描く）
-export const outlineMat = new THREE.MeshBasicMaterial({ color: P.sumi[0], side: THREE.BackSide });

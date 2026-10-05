@@ -108,7 +108,7 @@ export function loop(now) {
     if (gs.state === 'countdown') {
       const n = 3 - Math.floor(gs.stateT);
       if (n !== lastBeep && n >= 1 && n <= 3) { lastBeep = n; showCenter(n); SFX.play('count'); }
-      if (gs.stateT >= 3) { gs.state = 'fight'; lastBeep = -1; showCenter('FIGHT!', 'var(--kin-2)'); SFX.play('fight'); setTimeout(() => { if ($('center').textContent === 'FIGHT!') $('center').textContent = ''; }, 900); }
+      if (gs.stateT >= 3) { gs.state = 'fight'; lastBeep = -1; showCenter('FIGHT!', 'var(--accent-hi)'); SFX.play('fight'); setTimeout(() => { if ($('center').textContent === 'FIGHT!') $('center').textContent = ''; }, 900); }
     }
     if (gs.state === 'fight') stats.time += dt;
     updatePlayer(dt);

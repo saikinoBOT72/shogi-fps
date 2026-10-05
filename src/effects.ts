@@ -2,7 +2,7 @@
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { C, LIGHT, V3, clamp, lerp, rand } from './core';
-import { GUN_BUILDERS, buildGun, cam, flatten, handMat, makeEyes, makePiece, makeShield, outlineMat, pieceGeo, pieceWoodMat, scene, starTex, toon } from './render';
+import { GUN_BUILDERS, buildGun, cam, flatten, handMat, makeEyes, makePiece, makeShield, pieceGeo, pieceWoodMat, scene, starTex, toon } from './render';
 import { floorBelow, groundAt } from './world';
 import { SKINS } from './guns/skins';
 import { equippedRef, paintGun } from './loadout';
@@ -318,10 +318,6 @@ export function buildActor(ch, size, model = 'pistol'): any {
   const wood = pieceWoodMat.clone();
   const piece = makePiece(ch, w, h, t, wood, true);
   const eyes = makeEyes(w, h, t / 2 + 0.008); piece.add(eyes);
-  // 輪郭線：体より一回り大きい裏返しの形を墨色で
-  const body0 = piece.userData.body, outline = new THREE.Mesh(pieceGeo, outlineMat);
-  outline.scale.copy(body0.scale).multiply(new V3(1.06, 1.045, 1.12));
-  piece.add(outline);
   // 貫きの準備中に壁越しに見える姿
   const xray = new THREE.Mesh(pieceGeo, new THREE.MeshBasicMaterial({ color: P.shu[1], transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
   xray.scale.copy(piece.userData.body.scale); xray.renderOrder = 20; xray.visible = false; piece.add(xray);

@@ -2,9 +2,10 @@
 // マップごとの作り方は src/maps/*.ts、全部をまとめて作るのは src/world.ts
 import { P, css, rgba } from '../palette';
 import * as THREE from 'three';
-import { BH, C, GROUND, H, LIGHT, V3, clamp, rand, settings } from '../core';
+import { BH, C, GROUND, H, LIGHT, Q, V3, clamp, rand, settings } from '../core';
 import { gs } from '../state';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { SUN_DIR, boardTex, canvasTex, darkWoodTex, flatGeo, flatten, hemi, kanjiMat, makePiece, mat, planeGeo, scene, sky, sun, toon } from '../render';
 
 // ================= 地形・小道具 =================
@@ -55,6 +56,76 @@ export const trunkM = mat(P.kiji[0]);
 // 床の種類（足音）
 for (const m of [stoneM, roofM, plasterM]) m.userData.surf = 'stone';
 woodSideM.userData.surf = 'wood';
+
+// ---------- 彫った箱庭：木で彫ったように見せる（見た目の決まり 7） ----------
+// どの面にも、ノミの彫り跡と細い木目を世界の位置から貼る（向きに合わせて3方向から貼り分けるので、継ぎ目が出ない）。
+// 色は木地の色へ少し寄せる。形・当たり判定は変えない
+const carveTex = (() => {
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, S, S);
+  // 端を越えた分は反対側にも描いて、つなぎ目なく並ぶようにする
+  const wrap = (fn: (ox: number, oy: number) => void) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) fn(ox, oy); };
+  // 木目：横に流れる細い線
+  for (let i = 0; i < 46; i++) {
+    const y = rand(0, S), a = rand(0.05, 0.16), w = rand(0.6, 1.6), amp = rand(2, 6), ph = rand(0, 6);
+    wrap((ox, oy) => {
+      g.strokeStyle = `rgba(60,40,20,${a})`; g.lineWidth = w; g.beginPath();
+      for (let x = 0; x <= S; x += 8) g.lineTo(x + ox, y + oy + Math.sin(x / S * Math.PI * 2 + ph) * amp);
+      g.stroke();
+    });
+  }
+  // ノミの跡：細長い浅いくぼみ（片側が暗く、反対側の縁が少し明るい）
+  for (let i = 0; i < 70; i++) {
+    const x = rand(0, S), y = rand(0, S), L = rand(18, 46), W = rand(5, 11), r = rand(-0.5, 0.5), a = rand(0.07, 0.17);
+    wrap((ox, oy) => {
+      g.save(); g.translate(x + ox, y + oy); g.rotate(r);
+      g.fillStyle = `rgba(50,32,16,${a})`; g.beginPath(); g.ellipse(0, 0, L / 2, W / 2, 0, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = `rgba(255,255,255,${a * 1.6})`; g.lineWidth = 1.2; g.beginPath(); g.ellipse(0, W * 0.12, L / 2, W / 2, 0, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+      g.restore();
+    });
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return t;
+})();
+// 画質「低」は彫り跡を省いて色だけ寄せる（弱い PC で重くしない）
+const LITE = !Q.shadow;
+export const CARVE = { carveMap: { value: carveTex }, carveK: { value: 1 } };
+// 木地の色（明るさは元の色のまま、色合いだけ寄せる）
+const WOOD = new THREE.Color(P.kiji[1]);
+export function carveMaterial(m: any) {
+  if (!m || m.userData.carved || m.userData.noCarve || m.transparent || !m.isMeshToonMaterial) return;
+  m.userData.carved = true;
+  m.onBeforeCompile = (sh: any) => {
+    Object.assign(sh.uniforms, CARVE);
+    sh.uniforms.carveWood = { value: WOOD };
+    sh.vertexShader = 'varying vec3 vCarveP;\nvarying vec3 vCarveN;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+      vec4 cw = vec4(transformed, 1.0);
+      vec3 cn = objectNormal;
+      #ifdef USE_INSTANCING
+        cw = instanceMatrix * cw; cn = mat3(instanceMatrix) * cn;
+      #endif
+      cw = modelMatrix * cw;
+      vCarveP = cw.xyz; vCarveN = mat3(modelMatrix) * cn;`);
+    sh.fragmentShader = 'uniform sampler2D carveMap;\nuniform float carveK;\nuniform vec3 carveWood;\nvarying vec3 vCarveP;\nvarying vec3 vCarveN;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        vec3 bw = pow(abs(normalize(vCarveN)), vec3(4.0)); bw /= (bw.x + bw.y + bw.z + 1e-4);
+        vec3 q = vCarveP * 0.31;   // 1枚で約3.2m
+        float cv = ${LITE ? '1.0' : 'texture2D(carveMap, q.zy).r * bw.x + texture2D(carveMap, q.xz).r * bw.y + texture2D(carveMap, q.xy).r * bw.z'};
+        // 木の色合いへ寄せる（明るさは保つ）
+        float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+        vec3 wood = carveWood * (lum / max(dot(carveWood, vec3(0.299, 0.587, 0.114)), 1e-3));
+        diffuseColor.rgb = mix(diffuseColor.rgb, wood, 0.24 * carveK);
+        diffuseColor.rgb *= mix(1.0, cv * 1.07, carveK);
+      }`);
+  };
+  m.customProgramCacheKey = () => 'carve';
+  m.needsUpdate = true;
+}
+export function carveObject(root: any) {
+  root.traverse((o: any) => { if (o.isMesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach(carveMaterial); });
+}
 
 // 外周の地面（弾や矢が当たるように propMeshes に入れる）
 {
@@ -134,6 +205,7 @@ export const clouds = [];
   }
   farScenery = new THREE.Mesh(mergeParts(parts), lambertVC);
   scene.add(farScenery);
+  carveMaterial(lambertVC); carveMaterial(baseProps[0].material);   // 遠くの景色・足もとの草も彫った木に
 
   const cm = toon({ vertexColors: true, emissive: C(P.nezumi[2]), emissiveIntensity: 0.35 });
   for (let i = 0; i < 16; i++) {
@@ -191,16 +263,44 @@ export const wall = (len, h) => {
   const cap = boxMesh(len + 0.6, 0.35, 1.4, roofM); cap.position.y = h + 0.1;
   g.add(w, base, cap); return g;
 };
+// ---------- 彫った形：ノミで面を落とした岩・木 ----------
+// 頂点を少し揺らしてから、いくつかの平らな面でそぎ落とす（大きな削り面が残る）。面ごとの陰影
+export function carvedGeo(g0: THREE.BufferGeometry, jitter: number, cuts: number, floorY = -Infinity, keepApex = false) {
+  let g = g0.clone(); g.deleteAttribute('normal'); g.deleteAttribute('uv');
+  g = mergeVertices(g);
+  const p = g.attributes.position, v = new V3(), planes: [THREE.Vector3, number][] = [];
+  for (let i = 0; i < cuts; i++) { const n = new V3(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).normalize(); planes.push([n, rand(0.72, 0.86)]); }
+  let top = -Infinity; for (let i = 0; i < p.count; i++) top = Math.max(top, p.getY(i));
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    if (keepApex && v.y >= top - 1e-4) continue;   // 木のてっぺんは尖ったまま
+    const k = 1 + rand(-jitter, jitter);
+    v.x *= k; v.z *= k; if (!keepApex) v.y *= 1 + rand(-jitter, jitter);
+    const r = Math.hypot(v.x, v.y, v.z) || 1;
+    for (const [n, d] of planes) { const t = v.dot(n) / r; if (t > d) v.addScaledVector(n, -(t - d) * r * 0.9); }
+    v.y = Math.max(v.y, floorY);
+    p.setXYZ(i, v.x, v.y, v.z);
+  }
+  g = g.toNonIndexed(); g.computeVertexNormals();
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  return g;
+}
+// 形は数種類だけ作って使い回す（重くしない）
+const ROCK_GEOS = Array.from({ length: 6 }, () => carvedGeo(new THREE.IcosahedronGeometry(1, 1), 0.16, 8, -0.7));
+const LEAF_GEOS = Array.from({ length: 4 }, () => [0, 1, 2].map(k => carvedGeo(new THREE.ConeGeometry(2.6 - k * 0.6, 3, 7, 2), 0.13, 0, -Infinity, true)));
+const TRUNK_GEO = carvedGeo(new THREE.CylinderGeometry(0.35, 0.5, 3, 6, 2), 0.08, 0);
 export const rock = (s, m = stoneM) => {
-  const r = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 0), m);
-  r.scale.set(s * rand(1, 1.4), s * rand(0.7, 1), s * rand(1, 1.3)); r.position.y = s * 0.55; r.rotation.y = rand(0, 3);
+  const r = new THREE.Mesh(ROCK_GEOS[Math.floor(rand(0, ROCK_GEOS.length))], m);
+  const sy = rand(0.7, 1);
+  r.scale.set(s * rand(1, 1.4), s * sy, s * rand(1, 1.3)); r.position.y = s * (0.7 * sy - 0.15); r.rotation.y = rand(0, 3);   // 平らな底を少し沈める
   const g = new THREE.Group(); g.add(r); return g;
 };
 export const tree = (s, leaves = leafMs) => {
   const g = new THREE.Group();
-  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.35 * s, 0.5 * s, 3 * s, 6), trunkM); t.position.y = 1.5 * s; g.add(t);
+  const t = new THREE.Mesh(TRUNK_GEO, trunkM); t.scale.setScalar(s); t.position.y = 1.5 * s; g.add(t);
+  const set = LEAF_GEOS[Math.floor(rand(0, LEAF_GEOS.length))];
   for (let k = 0; k < 3; k++) {
-    const c = new THREE.Mesh(new THREE.ConeGeometry((2.6 - k * 0.6) * s, 3 * s, 7), leaves[k]);
+    const c = new THREE.Mesh(set[k], leaves[k]); c.scale.setScalar(s);
     c.position.y = (3.2 + k * 1.5) * s; c.rotation.y = rand(0, 3); g.add(c);
   }
   return g;
@@ -302,10 +402,34 @@ export function insideCollider(x, z, R, y = 0) {
 }
 
 // 動かない置き物を材質ごとに1つのメッシュへまとめる（描画回数を減らして軽くする。当たり判定は元の形のまま）
+// 箱の角を面取りして、ノミで彫った木の塊に見せる（見た目だけ。当たり判定は元の箱のまま）
+const chamferCache = new Map<string, THREE.BufferGeometry>();
+// 頂点を動かしていない、ただの箱か（坂・斜めの屋根などは頂点を動かして作っているので、面取りで箱に戻さない）
+//   同じ大きさの箱を作り直して、頂点が1つ残らず同じ場所にあるかで見る（床の高さから始まる坂は、低い端の頂点が底と重なるので、座標の値だけでは見分けられない）
+function plainBox(g: any) {
+  const { width: w, height: h, depth: d, widthSegments: a, heightSegments: b, depthSegments: c } = g.parameters;
+  const p = g.attributes.position.array, q = new THREE.BoxGeometry(w, h, d, a, b, c).attributes.position.array;
+  if (p.length !== q.length) return false;
+  for (let i = 0; i < p.length; i++) if (Math.abs(p[i] - q[i]) > 1e-4) return false;
+  return true;
+}
+function chamferBoxes(root: any) {
+  const s = new V3();
+  root.traverse((o: any) => {
+    if (!o.isMesh || o.isInstancedMesh || o.geometry.type !== "BoxGeometry" || !plainBox(o.geometry)) return;
+    const p = o.geometry.parameters; o.getWorldScale(s);
+    const r = Math.min(0.12, 0.16 * Math.min(p.width * s.x, p.height * s.y, p.depth * s.z));   // 大きい箱でも 12cm まで
+    if (r < 0.012) return;
+    const rl = r / Math.max(s.x, s.y, s.z), key = [p.width, p.height, p.depth, rl.toFixed(3)].join("|");
+    if (!chamferCache.has(key)) { const g0 = new RoundedBoxGeometry(p.width, p.height, p.depth, 1, rl), g = g0.index ? g0.toNonIndexed() : g0; g.computeVertexNormals(); chamferCache.set(key, g); }   // 面ごとの陰影（削った面がはっきり見える）
+    o.geometry = chamferCache.get(key);
+  });
+}
 export function finishMap() {
   const props = cur.props, group = cur.group;
   const groups = new Map(), merged = [];
   scene.updateMatrixWorld(true);
+  if (cur.id !== "boss1") chamferBoxes(group);
   for (const obj of props) {
     obj.traverse((o: any) => {
       if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || o.material.transparent) return;
@@ -341,6 +465,8 @@ export function finishMap() {
   group.updateMatrixWorld(true);
   // 弾・視線の判定を速くする（まとめた大きなメッシュでも、近くの三角形だけ調べる）
   for (const o of props) o.traverse((m: any) => { if (m.isMesh && !m.isInstancedMesh) m.geometry.computeBoundsTree(); });
+  // 木で彫った箱庭に見せる（仮想空間は木ではないので外す）
+  if (cur.id !== "boss1") carveObject(group);
 }
 
 // ================= マップの切り替え =================
@@ -353,7 +479,9 @@ export function applyAtmos() {
   u.top.value.copy(a.top); u.hor.value.copy(a.hor); u.bot.value.copy(a.bot);
   SUN_DIR.copy(a.sunDir).normalize();
   sun.color.copy(a.sunCol); sun.intensity = a.sunI * LIGHT;
-  hemi.color.copy(a.hemiSky); hemi.groundColor.copy(a.hemiGround); hemi.intensity = a.hemiI * LIGHT;
+  // 影の色：日の当たらない所は空の照り返しだけで照らされるので、照り返しを木の色へ寄せて、影を真っ黒・青にせず茶色にする（全マップ共通）
+  hemi.color.copy(a.hemiSky).lerp(C(P.kiji[2]), 0.45); hemi.groundColor.copy(a.hemiGround).lerp(C(P.kiji[0]), 0.5);
+  hemi.intensity = Math.max(a.hemiI, 0.3) * LIGHT;   // 暗いマップでも影が黒くつぶれない
   const f = scene.fog as THREE.Fog;
   f.color.copy(a.fog); f.near = a.near; f.far = a.far;
   for (const c of clouds) c.visible = a.clouds;

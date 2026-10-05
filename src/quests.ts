@@ -19,10 +19,10 @@ export const START_POINTS = 1000;   // アカウントを作ったときに配�
 type QDef = { id: string; text: string; ev: string; need: number; pt: number; fr?: boolean };
 export const DAILY: QDef[] = [
   { id: 'd_play', text: '一騎打ちを3回する', ev: 'match', need: 3, pt: 200 },
-  { id: 'd_kill', text: '合計10キルする', ev: 'kill', need: 10, pt: 200 },
+  { id: 'd_kill', text: '駒を合計10回取る', ev: 'kill', need: 10, pt: 200 },
   { id: 'd_skill', text: 'スキルを5回使う', ev: 'skill', need: 5, pt: 150 },
   { id: 'd_head', text: 'ヘッドショットを5回決める', ev: 'head', need: 5, pt: 200 },
-  { id: 'd_piece', text: '今日の駒（{piece}）で3キルする', ev: 'pieceKill', need: 3, pt: 200 },
+  { id: 'd_piece', text: '今日の駒（{piece}）で3回取る', ev: 'pieceKill', need: 3, pt: 200 },
   { id: 'd_map', text: '今日のマップ（{map}）で1試合遊ぶ', ev: 'mapMatch', need: 1, pt: 150 },
   { id: 'd_dmg', text: '合計1000ダメージを与える', ev: 'dmg', need: 1000, pt: 200 },
   { id: 'd_gacha', text: 'ガチャを1回引く', ev: 'gacha', need: 1, pt: 150 },
@@ -35,7 +35,7 @@ export const DAILY: QDef[] = [
 export const WEEKLY: QDef[] = [
   { id: 'w_duel', text: '一騎打ちで10勝する', ev: 'duelWin', need: 10, pt: 400 },
   { id: 'w_shogi', text: '将棋モードで3局勝つ', ev: 'shogiWin', need: 3, pt: 400 },
-  { id: 'w_kill', text: '合計100キルする', ev: 'kill', need: 100, pt: 300 },
+  { id: 'w_kill', text: '駒を合計100回取る', ev: 'kill', need: 100, pt: 300 },
   { id: 'w_head', text: 'ヘッドショットを30回決める', ev: 'head', need: 30, pt: 300 },
   { id: 'w_upset', text: '格上の駒を5回倒す（歩で飛車など）', ev: 'upset', need: 5, pt: 300 },
   { id: 'w_dmg', text: '合計5000ダメージを与える', ev: 'dmg', need: 5000, pt: 300 },

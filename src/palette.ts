@@ -3,6 +3,7 @@
 // OKLCH（人の目で見た明るさ・鮮やかさが揃う色空間）で、明るさと鮮やかさを揃えて作った。
 export const P = {
   shu:    [0x7a3528, 0xd06551, 0xfab8aa],   // 朱
+  aka:    [0x8f0f14, 0xc8161d, 0xe8585c],   // 赤（朱肉の赤。UI の判子・決定）
   daidai: [0x743c01, 0xc6701e, 0xf3be97],   // 橙
   kin:    [0x684600, 0xb37f00, 0xe5c68e],   // 金
   ki:     [0x584e00, 0x9b8b00, 0xd5cd90],   // 黄
@@ -21,7 +22,7 @@ export const P = {
 } as const;
 export type PalKey = keyof typeof P;
 export const PAL_NAMES: Record<PalKey, string> = {
-  shu: '朱', daidai: '橙', kin: '金', ki: '黄', moegi: '萌黄', midori: '緑', seiji: '青磁', mizu: '水',
+  shu: '朱', aka: '赤', daidai: '橙', kin: '金', ki: '黄', moegi: '萌黄', midori: '緑', seiji: '青磁', mizu: '水',
   ao: '青', ai: '藍', fuji: '紫', momo: '桃', sumi: '墨', nezumi: '鼠', shiro: '生成り', kiji: '木地',
 };
 

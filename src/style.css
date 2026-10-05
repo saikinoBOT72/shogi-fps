@@ -1,98 +1,153 @@
 /* ================= 共通のルール =================
-   色はすべてパレット（palette.ts）の CSS 変数 --色名-段(0暗/1基本/2明) を使う */
+   色はすべてパレット（palette.ts）の CSS 変数 --色名-段(0暗/1基本/2明) を使う
+   画面の作り：3D の駒・銃・マップが主役。文字と操作は暗い半透明の板・白い字・細い線で最小限に。
+   赤（aka）は1画面に1か所だけ（決定のボタン・勝ち負け）。明朝は駒の名前とロゴだけ */
 :root {
-  --font-ui: "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Meiryo", sans-serif;
-  --font-koma: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+  --font-ui: "Zen Kaku Gothic New", "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Meiryo", sans-serif;
+  --font-koma: "Shippori Mincho B1", "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+  --font-head: var(--font-ui);     /* 見出しもゴシックの太字（明朝は駒の名前・ロゴだけ） */
   --text: var(--shiro-2);
-  --text-dim: color-mix(in srgb, var(--shiro-2) 66%, transparent);
-  --accent: var(--kin-2);          /* 強調・選択中 */
-  --danger: var(--shu-1);          /* 被弾・負け */
-  --good: var(--midori-2);         /* HP・回復 */
-  --info: var(--mizu-2);           /* スキル */
-  --panel: color-mix(in srgb, var(--sumi-0) 80%, transparent);
-  --panel-soft: color-mix(in srgb, var(--sumi-0) 55%, transparent);
-  --line: color-mix(in srgb, var(--shiro-2) 14%, transparent);
-  --line-strong: color-mix(in srgb, var(--shiro-2) 32%, transparent);
-  --r: 14px;
-  --r-s: 8px;
-  --shade: 0 2px 6px color-mix(in srgb, var(--sumi-0) 75%, transparent);
+  --text-dim: color-mix(in srgb, var(--shiro-2) 62%, transparent);
+  --text-faint: color-mix(in srgb, var(--shiro-2) 40%, transparent);
+  --ink: var(--sumi-0);
+  --ink-dim: color-mix(in srgb, var(--sumi-0) 62%, transparent);
+  /* 板：暗い半透明（後ろの景色が少し透ける） */
+  --ban: color-mix(in srgb, var(--sumi-0) 72%, transparent);
+  --ban-hi: color-mix(in srgb, var(--shiro-2) 6%, transparent);      /* 板の上の一段明るい札（入力欄・駒の枠） */
+  --ban-edge: color-mix(in srgb, var(--shiro-2) 12%, transparent);   /* 板の細い縁 */
+  --ban-tex: linear-gradient(transparent, transparent);
+  --hanko: var(--aka-1);           /* 赤：決定・勝ち負け（1画面に1か所） */
+  --accent: var(--aka-1);
+  --accent-hi: var(--aka-2);       /* 暗い所に置く赤い字 */
+  --danger: var(--aka-1);
+  --good: var(--midori-2);
+  --info: var(--mizu-2);
+  --sel: color-mix(in srgb, var(--shiro-2) 12%, transparent);         /* 選んでいる行の淡い光 */
+  --panel: var(--ban);
+  --panel-soft: color-mix(in srgb, var(--sumi-0) 50%, transparent);
+  --line: color-mix(in srgb, var(--shiro-2) 10%, transparent);
+  --line-strong: color-mix(in srgb, var(--shiro-2) 24%, transparent);
+  --r: 2px;
+  --r-s: 2px;
+  --shade: 0 1px 3px color-mix(in srgb, var(--sumi-0) 70%, transparent);
+  --lift: none;
   --koma-shape: polygon(50% 0, 94% 22%, 88% 100%, 12% 100%, 6% 22%);
+  --brush: linear-gradient(#000, #000);
+  --seal-tex: linear-gradient(transparent, transparent);
 }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sumi-0); font-family: var(--font-ui); color: var(--text); user-select: none }
 canvas { display: block }
+/* スクロールバーは細く目立たせない */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--shiro-2) 25%, transparent) transparent }
 button { font-family: var(--font-ui) }
 .shadow { text-shadow: var(--shade) }
+/* 小さな英語の見出し（ゲームの画面らしさ） */
+.en, .lab { font: 700 10px var(--font-ui); letter-spacing: .32em; color: var(--text-faint); text-transform: uppercase }
+
+/* ---------- 板：暗い半透明に白い字、細い縁 ---------- */
+.ban, .panel, .mode, .stats div, .pts, .acct-chip, .bm-panel, .ga-panel, .inv-gun, .inv-card, .inv-info, #questToast, .st {
+  color: var(--text); background: var(--ban); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+
+/* ---------- 赤い札：勝ち負け・印（平らな赤に白い字） ---------- */
+.seal { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; padding: .14em .32em; border-radius: var(--r-s);
+  font: 900 1em/1 var(--font-ui); letter-spacing: .08em; color: var(--shiro-2); text-shadow: none; background: var(--hanko) }
+.seal.sumi { background: color-mix(in srgb, var(--shiro-2) 18%, var(--sumi-1)) }
+@keyframes stamp { 0% { transform: scale(1.8); opacity: 0 } 60% { opacity: 1 } 80% { transform: scale(.97) } 100% { transform: scale(1) } }
+.seal.stamp { animation: stamp .32s cubic-bezier(.3, 1.3, .5, 1) both }
 
 /* 駒の形のラベル（どの画面でも同じ見た目） */
 .koma {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 40px; height: 46px; font: 900 26px var(--font-koma); color: var(--sumi-0);
-  background: var(--kiji-2); clip-path: var(--koma-shape);
+  background: linear-gradient(var(--kiji-2), color-mix(in srgb, var(--kiji-2) 72%, var(--kiji-1))); clip-path: var(--koma-shape);
 }
-.koma.s { width: 26px; height: 30px; font-size: 17px; vertical-align: middle }
+.koma.s { width: 22px; height: 26px; font-size: 14px; vertical-align: middle }
 
-/* ボタン */
+/* ボタン：決めるボタンは平らな赤、ほかは細い縁だけ */
 .btn {
-  font: 800 18px var(--font-ui); letter-spacing: 1px; padding: 11px 30px; border-radius: var(--r-s); cursor: pointer;
-  border: 2px solid var(--accent); background: var(--accent); color: var(--sumi-0);
-  transition: transform .08s, filter .15s;
+  white-space: nowrap;
+  font: 800 15px var(--font-ui); letter-spacing: .14em; padding: 11px 28px; border-radius: var(--r-s); cursor: pointer;
+  border: 1px solid var(--hanko); background: var(--hanko); color: var(--shiro-2); text-shadow: none;
+  transition: background .12s, border-color .12s, transform .08s;
 }
-.btn:hover { filter: brightness(1.08); transform: translateY(-1px) }
-.btn.sub, .btn.ghost, .btn.ghost-btn { background: transparent; color: var(--text); border-color: var(--line-strong) }
-.btn.sub:hover, .btn.ghost:hover, .btn.ghost-btn:hover { background: color-mix(in srgb, var(--shiro-2) 10%, transparent) }
-.btn.small, button.small { font: 700 13px var(--font-ui); padding: 6px 14px; border-radius: 6px; cursor: pointer;
-  background: color-mix(in srgb, var(--shiro-2) 10%, transparent); color: var(--text); border: 1px solid var(--line-strong) }
-.btn:active { transform: translateY(0) scale(.98) }
-.btn:disabled, button:disabled { opacity: .45; cursor: not-allowed; filter: none; transform: none }
-button:focus-visible, input:focus-visible, .mode:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-/* 入力欄（数字・文字・パスワード）：どの画面でも同じ見た目 */
+.btn:hover { background: var(--aka-0); border-color: var(--aka-0) }
+/* 白いボタン：赤い札（勝ち負け）と同じ画面に置く決定ボタン（赤は1画面に1か所） */
+.btn.white { background: var(--shiro-2); border-color: var(--shiro-2); color: var(--sumi-0) }
+.btn.white:hover { background: var(--shiro-1); border-color: var(--shiro-1) }
+.btn.sub, .btn.ghost, .btn.ghost-btn { background: color-mix(in srgb, var(--sumi-0) 45%, transparent); border-color: var(--line-strong); color: var(--text) }
+.btn.sub:hover, .btn.ghost:hover, .btn.ghost-btn:hover { background: var(--sel); border-color: var(--text) }
+.btn.small, button.small { font: 700 12px var(--font-ui); letter-spacing: .08em; padding: 6px 14px; border-radius: var(--r-s); cursor: pointer }
+button.small:not(.btn) { border: 1px solid var(--line-strong); background: color-mix(in srgb, var(--sumi-0) 55%, transparent); color: var(--text) }
+button.small:not(.btn):hover { border-color: var(--text); background: var(--sel) }
+.btn:active { transform: scale(.98) }
+.btn:disabled, button:disabled { opacity: .4; cursor: not-allowed; filter: none; transform: none }
+button:focus-visible, input:focus-visible, .mode:focus-visible { outline: 1px solid var(--text); outline-offset: 2px }
+/* 入力欄 */
 input[type=number], input[type=text], input[type=password], input:not([type]) {
-  font: 700 15px var(--font-ui); padding: 5px 10px; color: var(--text); border-radius: 6px; outline: none; box-sizing: border-box;
-  background: color-mix(in srgb, var(--sumi-2) 80%, transparent); border: 1px solid var(--line-strong) }
-input[type=number]:focus, input[type=text]:focus, input[type=password]:focus, input:not([type]):focus { border-color: var(--accent) }
-kbd { display: inline-block; min-width: 20px; padding: 2px 8px; border: 1px solid var(--line-strong); border-bottom-width: 3px;
-  border-radius: 6px; font: 700 12px var(--font-ui); text-align: center; background: color-mix(in srgb, var(--shiro-2) 6%, transparent) }
+  font: 700 15px var(--font-ui); padding: 5px 10px; color: var(--text); border-radius: var(--r-s); outline: none; box-sizing: border-box;
+  background: var(--ban-hi); border: 1px solid var(--line-strong) }
+input[type=number]:focus, input[type=text]:focus, input[type=password]:focus, input:not([type]):focus { border-color: var(--text) }
+kbd { display: inline-block; min-width: 20px; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: var(--r-s);
+  font: 700 12px var(--font-ui); text-align: center; background: var(--ban-hi); color: var(--text) }
 
 /* ================= 画面（オーバーレイ） ================= */
 #overlay { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: safe center;
-  overflow-y: auto; padding: 24px 16px; box-sizing: border-box; text-align: center;
-  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--sumi-0) 30%, transparent), color-mix(in srgb, var(--sumi-0) 78%, transparent)) }
-#overlay.dim { background: color-mix(in srgb, var(--sumi-0) 74%, transparent) }
-#overlay.enter > * { animation: ovIn .2s ease-out backwards }   /* 動かすと fixed の子（ポイント表示など）の位置がずれるので、薄さだけ変える */
+  overflow: hidden auto; padding: 32px 24px; box-sizing: border-box; text-align: left;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--sumi-0) 82%, transparent), color-mix(in srgb, var(--sumi-0) 55%, transparent)) }
+#overlay.dim { background: color-mix(in srgb, var(--sumi-0) 78%, transparent) }
+#overlay.enter > * { animation: ovIn .18s ease-out backwards }
 @keyframes ovIn { from { opacity: 0 } }
-/* タイトル：真ん中を少しだけ暗くして、字を読みやすく（景色はそのまま見せる） */
-#overlay:has(> .screen.title) { background: radial-gradient(ellipse 55% 50% at center, color-mix(in srgb, var(--sumi-0) 46%, transparent), color-mix(in srgb, var(--sumi-0) 22%, transparent) 75%, color-mix(in srgb, var(--sumi-0) 55%, transparent)) }
-.screen { display: flex; flex-direction: column; align-items: center; gap: 16px; width: min(560px, 100%) }
-.screen.wide { width: min(820px, 100%) }
-.h { margin: 0; font: 900 30px var(--font-ui); letter-spacing: 2px; text-shadow: var(--shade) }
-.h.big { font-size: 46px }
+.screen { display: flex; flex-direction: column; align-items: stretch; gap: 14px; width: min(600px, 100%) }
+.screen.wide { width: min(860px, 100%) }
+/* 普通の画面はタイトルと同じく左に寄せた縦の列（結果など .center は真ん中） */
+#overlay > .screen:not(.center) { align-self: flex-start; margin-left: max(0px, calc(6vw - 24px)); max-width: calc(100vw - max(0px, calc(6vw - 24px)) - 48px) }
+/* 見出し：左にそろえた太字＋小さな英語 */
+.h { margin: 0 0 4px; font: 800 26px var(--font-ui); letter-spacing: .06em; text-shadow: var(--shade); display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap }
+.h.big { font-size: 40px }
+.h small { font: 700 13px var(--font-ui); letter-spacing: .1em; color: var(--text-dim) }
+.h .en { margin: 0; font-size: 10px }
 .note { margin: 0; font-size: 12px; color: var(--text-dim) }
-.panel { box-sizing: border-box; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 18px; text-align: left }
-.panel h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--text-dim); letter-spacing: 1px }
-.menu { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap }
-.menu.col { flex-direction: column; width: 240px }
+.panel { box-sizing: border-box; width: 100%; border: 1px solid var(--ban-edge); border-radius: var(--r); padding: 12px 16px; text-align: left }
+.panel h3 { margin: 0 0 10px; font: 700 11px var(--font-ui); color: var(--text-dim); letter-spacing: .24em }
+.menu { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap }
+.menu.col { flex-direction: column; width: 260px; align-self: flex-start }
 
-/* タイトル */
-.title { gap: 18px }
-.logo { font: 900 76px var(--font-koma); letter-spacing: 8px; line-height: 1; text-shadow: 0 6px 24px color-mix(in srgb, var(--sumi-0) 60%, transparent) }
-.logo span { color: var(--accent) }
-.tagline { font-size: 15px; color: color-mix(in srgb, var(--shiro-2) 84%, transparent); letter-spacing: 3px; margin-top: -6px; text-shadow: var(--shade) }
-.modes { display: flex; gap: 14px; width: 100%; flex-wrap: wrap }
+/* タイトル：左上にロゴ、左下に縦のメニュー、右に 3D の駒 */
+#overlay:has(> .home) { padding: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--sumi-0) 80%, transparent) 0, color-mix(in srgb, var(--sumi-0) 45%, transparent) 45%, color-mix(in srgb, var(--sumi-0) 10%, transparent) 75%) }
+.home { position: absolute; inset: 0 }
+.home .hero { position: absolute; right: 2vw; top: 8vh; bottom: 6vh; width: 50% }
+.logo { position: absolute; left: 6vw; top: 9vh; font: 900 clamp(48px, 7vw, 92px)/1 var(--font-koma); letter-spacing: .05em; text-shadow: 0 4px 24px color-mix(in srgb, var(--sumi-0) 60%, transparent) }
+.logo .fps { font: 900 .6em var(--font-ui); color: var(--hanko); margin-left: .12em; letter-spacing: .02em }
+.logo .lab { display: block; margin-top: 14px; text-shadow: none }
+.logo .beta { margin-left: 1em; color: var(--text-dim) }
+.home-menu { position: absolute; left: 6vw; bottom: 9vh; display: flex; flex-direction: column; gap: 2px; min-width: 260px }
+.mi { display: flex; align-items: baseline; gap: 12px; padding: 7px 18px 7px 14px; border: none; border-left: 3px solid transparent; background: none; cursor: pointer;
+  font: 700 18px var(--font-ui); color: color-mix(in srgb, var(--shiro-2) 80%, transparent); text-align: left; text-shadow: var(--shade); transition: background .12s, border-color .12s }
+.mi small { font: 700 10px var(--font-ui); letter-spacing: .3em; color: var(--text-faint) }
+.mi:hover, .mi.on { border-left-color: var(--hanko); color: var(--text); background: linear-gradient(90deg, var(--sel), transparent) }
+.mi.big { font-size: 24px; padding-top: 9px; padding-bottom: 9px }
+.home-top { position: absolute; right: 2.5vw; top: 3vh; display: flex; gap: 10px; align-items: center }
+.home-foot { position: absolute; right: 2.5vw; bottom: 3vh; display: flex; gap: 14px; align-items: center }
+.beta { font: 700 10px var(--font-ui); letter-spacing: .3em; color: var(--text-faint) }
+.tagline { font: 700 13px var(--font-ui); color: var(--text-dim); letter-spacing: .12em; margin-top: 10px; text-shadow: var(--shade) }
+.modes { display: flex; gap: 10px; width: 100%; flex-wrap: wrap }
 .mode { flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; cursor: pointer;
-  padding: 18px 20px; border-radius: var(--r); border: 2px solid var(--line-strong); background: var(--panel); color: var(--text); transition: border-color .15s, transform .08s }
-.mode:hover { border-color: var(--accent); transform: translateY(-2px) }
-.mode b { font: 900 24px var(--font-ui); letter-spacing: 2px }
-.mode small { font-size: 13px; color: var(--text-dim) }
-.mode:first-child { border-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 22%, var(--panel)) }
+  padding: 16px 18px 16px 18px; border: 1px solid var(--ban-edge); border-left: 3px solid transparent; transition: background .12s, border-color .12s }
+.mode:hover { border-left-color: var(--hanko); background: color-mix(in srgb, var(--shiro-2) 10%, var(--ban)) }
+.mode b { font: 800 20px var(--font-ui); letter-spacing: .06em }
+.mode small { font-size: 12px; color: var(--text-dim) }
 
 /* 設定 */
-.form .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; font-size: 15px; border-bottom: 1px solid var(--line) }
+.form .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 0; font-size: 14px; border-bottom: 1px solid var(--line) }
 .form .row:last-child { border-bottom: none }
 .form .row small { display: block; font-size: 11px; color: var(--text-dim) }
+.form .row > span:first-child { min-width: 4.5em }
 .seg { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px }
-.seg button { background: color-mix(in srgb, var(--shiro-2) 8%, transparent); color: var(--text); border: 1px solid var(--line-strong); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: 600 13px var(--font-ui); white-space: nowrap }
-.seg button.on { background: var(--accent); color: var(--sumi-0); border-color: var(--accent); font-weight: 800 }
-input[type=range] { width: 180px; accent-color: var(--accent) }
+.seg button { background: transparent; color: var(--text-dim); border: 1px solid var(--line-strong); padding: 5px 12px; border-radius: var(--r-s); cursor: pointer; font: 700 12px var(--font-ui); white-space: nowrap }
+.seg button:hover:not(:disabled):not(.on) { border-color: var(--text); color: var(--text) }
+.seg button.on { background: var(--shiro-2); color: var(--sumi-0); border-color: var(--shiro-2) }   /* 選んでいる物は白（赤は決定だけ） */
+input[type=range] { width: 180px; accent-color: var(--shiro-2) }
 
 /* 操作方法 */
 .keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 16px; font-size: 13px }
@@ -104,28 +159,74 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .skills td:first-child { width: 34px }
 .skills td:nth-child(2) { white-space: nowrap; color: var(--text-dim) }
 
-/* 駒選択 */
-/* 駒が増えても1列に収まるように小さめ（狭い画面では折り返す） */
-.pick { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center }
-.pick button { display: flex; flex-direction: column; align-items: center; gap: 1px; width: 66px; padding: 6px 2px; border-radius: var(--r-s); cursor: pointer;
-  background: var(--panel-soft); color: var(--text); border: 2px solid var(--line); font: 11px var(--font-ui); transition: border-color .15s }
-.pick button:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent) }
-.pick button.on { border-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 25%, var(--panel-soft)) }
-.pick .koma { margin-bottom: 2px; width: 32px; height: 37px; font-size: 21px }
-.pick span { font-size: 10px; color: var(--text-dim); text-align: center; line-height: 1.25 }   /* 長い武器の名前は折り返す */
-.pick .val { color: var(--accent); font-weight: 700 }
+/* 駒選び（部屋・一覧）：小さな札 */
+.pick { display: flex; gap: 4px; flex-wrap: wrap }
+.pick button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 64px; padding: 6px 2px; border-radius: var(--r-s); cursor: pointer;
+  background: var(--ban-hi); color: var(--text); border: 1px solid var(--line); font: 11px var(--font-ui); transition: border-color .12s, background .12s }
+.pick button:hover { border-color: var(--line-strong) }
+.pick button.on { border-color: var(--shiro-2); background: var(--sel) }
+.pick .koma { margin-bottom: 2px; width: 30px; height: 35px; font-size: 19px }
+.pick span { font-size: 10px; color: var(--text-dim); text-align: center; line-height: 1.25 }
+.pick .val { color: var(--text); font-weight: 700 }
 .detail { margin: 12px 0 0; font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
 .detail b { color: var(--text) }
-.vs-mark { font: 900 italic 24px var(--font-ui); color: var(--accent); margin: -6px 0 }
+.vs-mark { font: 900 italic 22px var(--font-ui); color: var(--text-faint); margin: -4px 0; text-align: center }
 
-/* 結果 */
-.res { font: 900 italic 72px var(--font-ui); letter-spacing: 4px; text-shadow: var(--shade) }
-.res.win { color: var(--accent) }
-.res.lose { color: var(--danger) }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100% }
-.stats div { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); padding: 10px 8px }
-.stats b { display: block; font-size: 24px }
+/* 一騎打ちの駒選び：左に一覧、真ん中に 3D の駒、右に性能、右下に開始 */
+#overlay:has(> .duel) { padding: 0 }
+.duel { position: absolute; inset: 0 }
+.duel .hero { position: absolute; left: calc(3vw + clamp(230px, 24vw, 320px)); right: calc(3.5vw + min(320px, 28vw)); top: 8vh; bottom: 12vh }
+.duel-top { position: absolute; left: 3.5vw; top: 4vh; display: flex; align-items: baseline; gap: 18px }
+.duel-top b { font: 800 22px var(--font-ui); letter-spacing: .06em; text-shadow: var(--shade) }
+.duel-tabs { display: flex; gap: 2px; margin-left: 18px }
+.duel-tabs button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-dim); font: 700 13px var(--font-ui); padding: 4px 10px; cursor: pointer }
+.duel-tabs button.on { color: var(--text); border-bottom-color: var(--shiro-2) }
+.plist { position: absolute; left: 3vw; top: 13vh; bottom: 14vh; width: clamp(230px, 24vw, 320px); display: flex; flex-direction: column; gap: 1px; overflow: hidden auto;
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--shiro-2) 25%, transparent) transparent }
+.prow { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 10px; border: none; border-left: 3px solid transparent; background: none; cursor: pointer;
+  color: var(--text-dim); font: 700 14px var(--font-ui); text-align: left; text-shadow: var(--shade) }
+.prow .koma { width: 24px; height: 28px; font-size: 15px }
+.prow span { flex: 1 }
+.prow span, .prow small { white-space: nowrap }
+.prow small { font: 600 11px var(--font-ui); color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; max-width: 45% }
+.prow:hover { color: var(--text); background: linear-gradient(90deg, color-mix(in srgb, var(--shiro-2) 6%, transparent), transparent) }
+.prow.on { border-left-color: var(--shiro-2); color: var(--text); background: linear-gradient(90deg, var(--sel), transparent) }
+.pinfo { position: absolute; right: 3.5vw; top: 13vh; width: clamp(220px, 28vw, 320px); text-shadow: var(--shade) }
+.pinfo .nm { font: 900 40px/1 var(--font-koma) }
+.pinfo .lab { display: block; margin: 8px 0 18px }
+.pinfo .kv { display: flex; justify-content: space-between; align-items: baseline; font: 700 12px var(--font-ui); margin: 14px 0 6px }
+.pinfo .kv span { color: var(--text-dim) }
+.pinfo .sk { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; line-height: 1.5; margin-top: 8px; color: var(--text-dim) }
+.pinfo .sk b { color: var(--text) }
+.segbar { display: flex; gap: 2px }
+.segbar i { display: block; flex: 1; height: 5px; background: var(--shiro-2) }
+.segbar i.e { background: color-mix(in srgb, var(--shiro-2) 16%, transparent) }
+.keycap { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 22px; height: 22px; padding: 0 4px; box-sizing: border-box;
+  border: 1px solid var(--line-strong); border-radius: var(--r-s); font: 800 11px var(--font-ui); color: var(--text); background: color-mix(in srgb, var(--sumi-0) 45%, transparent) }
+/* ステージ：右上で左右に切り替える */
+.duel-stage { position: absolute; right: 3.5vw; top: 4vh; display: flex; align-items: center; gap: 8px; text-shadow: var(--shade) }
+.duel-stage .lab { margin-right: 6px }
+.duel-stage b { min-width: 9em; text-align: center; font: 700 15px var(--font-ui) }
+.duel-stage button { width: 28px; height: 28px; border: 1px solid var(--line-strong); border-radius: var(--r-s); background: color-mix(in srgb, var(--sumi-0) 45%, transparent); color: var(--text); font: 700 16px/1 var(--font-ui); cursor: pointer }
+.duel-stage button:hover { border-color: var(--text); background: var(--sel) }
+.lobby-note { position: absolute; left: 3.5vw; top: 16vh; max-width: 520px; font-size: 14px; line-height: 1.9; color: var(--text-dim); text-shadow: var(--shade) }
+.duel-tabs button:disabled { opacity: 1; cursor: default }
+.duel-stage button:disabled { opacity: .3 }
+.duel-bottom { position: absolute; left: 3.5vw; right: 3.5vw; bottom: 5vh; display: flex; align-items: center; gap: 16px }
+.duel-bottom .vsinfo { margin-left: auto; font: 600 12px var(--font-ui); color: var(--text-dim); text-shadow: var(--shade) }
+.duel-bottom .vsinfo b { color: var(--text) }
+
+/* 結果：赤い札の下に小さく英語 */
+.res { display: flex; flex-direction: column; align-items: center; gap: 10px; font: 800 48px/1.15 var(--font-ui); letter-spacing: .06em; text-shadow: var(--shade); text-align: center }
+.res .seal { font-size: 64px; padding: .12em .34em }
+.res em { font: 800 12px var(--font-ui); font-style: normal; letter-spacing: .6em; margin-right: -.6em; color: var(--text-dim) }
+.res.mid .seal { font-size: 44px }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100% }
+.stats div { border: 1px solid var(--ban-edge); border-radius: var(--r-s); padding: 10px 12px }
+.stats b { display: block; font: 800 24px var(--font-ui) }
 .stats span { font-size: 11px; color: var(--text-dim) }
+.stats-h { margin: 8px 0 -4px; font: 700 11px var(--font-ui); letter-spacing: .24em; color: var(--text-dim) }
+.stats-h .en { margin-left: 10px }
 
 /* ================= HUD ================= */
 #hud { position: fixed; inset: 0; pointer-events: none; display: none; text-shadow: var(--shade) }
@@ -138,14 +239,14 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 /* ヒットマーカー */
 #hm { position: absolute; left: 50%; top: 50%; opacity: 0 }
 #hm i { position: absolute; width: 3px; height: 11px; background: var(--text); left: -1.5px; top: -5.5px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--sumi-0) 40%, transparent) }
-#hm.head i { background: var(--accent) }
+#hm.head i { background: var(--accent-hi) }
 #hm.kill i { background: var(--danger); height: 16px; top: -8px }
 /* 被弾の向き・低HP・被弾・突撃 */
 .dd { position: absolute; left: 50%; top: 50%; width: 280px; height: 280px; margin: -140px 0 0 -140px; border-radius: 50%;
   background: conic-gradient(from -20deg, color-mix(in srgb, var(--danger) 85%, transparent) 0deg, transparent 40deg);
   -webkit-mask: radial-gradient(circle, transparent 118px, #000 120px, #000 136px, transparent 138px);
   mask: radial-gradient(circle, transparent 118px, #000 120px, #000 136px, transparent 138px) }
-#lowhp { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 45%, color-mix(in srgb, var(--shu-0) 55%, transparent) 100%); opacity: 0 }
+#lowhp { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 45%, color-mix(in srgb, var(--aka-0) 55%, transparent) 100%); opacity: 0 }
 #hurt { position: absolute; inset: 0; box-shadow: inset 0 0 180px 50px color-mix(in srgb, var(--danger) 70%, transparent); opacity: 0 }
 #dashfx { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 35%, color-mix(in srgb, var(--shiro-2) 26%, transparent) 100%); opacity: 0 }
 
@@ -155,44 +256,53 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 #foeWrap { display: none }   /* 相手の HP は画面に出さない */
 #foeTag { width: 34px; height: 40px; font: 900 22px var(--font-koma); color: var(--sumi-0); background: var(--kiji-2); clip-path: var(--koma-shape);
   display: flex; align-items: center; justify-content: center }
-.bar { position: relative; height: 12px; background: color-mix(in srgb, var(--sumi-0) 50%, transparent); border: 2px solid color-mix(in srgb, var(--shiro-2) 85%, transparent); transform: skewX(-18deg); overflow: hidden }
-.bar .lag { position: absolute; inset: 0; background: var(--shiro-2); transform-origin: left; transition: transform .5s .25s }
-.bar .fill { position: absolute; inset: 0; transform-origin: left }
+/* ゲージ：10 ずつ区切った細い目盛り。減った分は薄い赤で少し残る */
+.bar { position: relative; height: 6px; overflow: hidden; background: color-mix(in srgb, var(--shiro-2) 16%, transparent); --seg: 10;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(100% / var(--seg) - 2px), transparent 0 calc(100% / var(--seg)));
+  mask: repeating-linear-gradient(90deg, #000 0 calc(100% / var(--seg) - 2px), transparent 0 calc(100% / var(--seg))) }
+.bar .lag { position: absolute; inset: 0; background: color-mix(in srgb, var(--aka-1) 60%, transparent); transform-origin: left; transition: transform .5s .25s }
+.bar .fill { position: absolute; inset: 0; transform-origin: left; background: var(--shiro-2) }
 #foeBar { width: 320px }
-#foeBar .fill { background: linear-gradient(var(--shu-2), var(--shu-1)) }
+#foeBar .fill { background: var(--aka-1) }
 
-/* 左下：自分のHP */
-#me { position: absolute; left: 26px; bottom: 24px }
-#meHpNum { font: 900 italic 46px var(--font-ui); line-height: 1 }
-#meHpNum small { font-size: 18px; color: var(--text-dim); margin-left: 4px }
-#meBar { width: 280px; height: 14px; margin-top: 6px }
-#meBar .fill { background: linear-gradient(var(--midori-2), var(--midori-1)) }
-#meBar.regen { box-shadow: 0 0 10px 2px color-mix(in srgb, var(--good) 65%, transparent); animation: regen .8s ease-in-out infinite alternate }
-@keyframes regen { from { border-color: color-mix(in srgb, var(--shiro-2) 85%, transparent) } to { border-color: var(--good) } }
-#meName { margin-top: 6px; font-size: 13px; color: var(--text-dim) }
+/* 左下：自分の体力（数字＋10 ずつの目盛り＋自分の駒の印） */
+#me { position: absolute; left: 3.5vw; bottom: 5vh; width: 250px; display: grid; grid-template: "num tag" auto "bar bar" auto / 1fr auto; align-items: end; row-gap: 7px }
+#meHpNum { grid-area: num; font: 800 32px/1 var(--font-ui) }
+#meHpNum small { font-size: 12px; font-weight: 700; color: var(--text-dim); margin-left: 6px }
+#meName { grid-area: tag; text-shadow: none }
+#meBar { grid-area: bar; width: 100% }
+#meBar.low .fill { background: var(--aka-1) }   /* 危ない：赤 */
+#meBar.regen .fill { background: var(--midori-2); animation: regen .8s ease-in-out infinite alternate }   /* 回復中：緑が脈打つ */
+@keyframes regen { to { opacity: .55 } }
 
-/* 右下：弾・スキル */
-#wep { position: absolute; right: 28px; bottom: 24px; text-align: right }
-#ammoNum { font: 900 italic 46px var(--font-ui); line-height: 1 }
-#ammoNum small { font-size: 20px; color: var(--text-dim) }
-#ammoNum.low { color: var(--danger) }
-#pips { display: flex; gap: 3px; justify-content: flex-end; margin-top: 6px }
-#pips i { width: 5px; height: 14px; background: var(--accent); transform: skewX(-18deg) }
-#pips i.e { background: color-mix(in srgb, var(--shiro-2) 20%, transparent) }
-#wepName { margin-top: 6px; font-size: 13px; color: var(--text-dim) }
-#reloadTxt { position: absolute; left: 50%; top: calc(50% + 46px); transform: translateX(-50%); font-weight: 900; font-size: 14px; letter-spacing: 2px; opacity: 0 }
-#skill { position: absolute; right: 28px; bottom: 140px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px }
+/* 右下：弾は数字を出さず目盛りだけ（撃つと右から減る）。下に武器の名前 */
+#wep { position: absolute; right: 3.5vw; bottom: 5vh; text-align: right }
+#ammoNum { display: none }
+#pips { display: flex; flex-wrap: wrap-reverse; gap: 2px; justify-content: flex-end; max-width: 240px; margin-left: auto }
+#pips i { width: 4px; height: 16px; background: var(--shiro-2); box-shadow: 0 1px 2px color-mix(in srgb, var(--sumi-0) 60%, transparent) }
+#pips i.e { background: color-mix(in srgb, var(--shiro-2) 20%, transparent); box-shadow: none }
+#pips.low i:not(.e) { background: var(--aka-1) }   /* 残り少ない：赤 */
+#wepName { margin-top: 8px; font: 700 11px var(--font-ui); letter-spacing: .08em; color: var(--text) }
+#wepName span { opacity: .45 } #wepName span.on { opacity: 1 }
+#reloadTxt { position: absolute; left: 50%; top: calc(50% + 46px); transform: translateX(-50%); font-weight: 800; font-size: 12px; letter-spacing: .2em; opacity: 0 }
+/* スキル：弾の上に、名前と四角いキー（溜め中は下から白く埋まる） */
+#skill { position: absolute; right: 3.5vw; bottom: calc(5vh + 50px); display: flex; flex-direction: column; align-items: flex-end; gap: 6px }
 #skill .sk { display: flex; align-items: center; gap: 10px }
-#skill .ring { position: relative; width: 52px; height: 52px }
-#skill svg { position: absolute; inset: 0; transform: rotate(-90deg) }
-#skill .key { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 19px }
-#skill .sk.ready .key { color: var(--info); text-shadow: 0 0 10px var(--mizu-1) }
-#skill .nm { font-weight: 800; font-size: 15px }
+#skill .key { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  font: 800 12px var(--font-ui); border-radius: var(--r-s); text-shadow: none; color: var(--text-dim);
+  border: 1px solid var(--line-strong); background: color-mix(in srgb, var(--sumi-0) 50%, transparent) }
+#skill .sk.ready .key { color: var(--shiro-2); border-color: var(--shiro-2) }
+#skill .nm { font: 700 12px var(--font-ui); color: var(--text-dim) }
+#skill .sk.ready .nm { color: var(--text) }
 /* 透明化中・ミサイル操作中 */
 #cloakfx { position: absolute; inset: 0; opacity: 0; transition: opacity .3s; box-shadow: inset 0 0 160px 40px color-mix(in srgb, var(--mizu-2) 55%, transparent) }
 #guideTxt { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 17px; white-space: nowrap }
 
-#center { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); font: 900 italic 88px var(--font-ui); white-space: nowrap }
+#center { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); font: 800 72px var(--font-ui); letter-spacing: .04em; white-space: nowrap }
+/* 決着の判子（取った・負け）：判子の下に小さく英語 */
+#center .res { font-size: 0; gap: 8px }
+#center .res .seal { font-size: 52px }
+#center .res em { font-size: 14px; color: var(--shiro-2) }
 #center.pop { animation: pop .35s ease-out }
 @keyframes pop { from { transform: translate(-50%, -50%) scale(1.6); opacity: 0 } to { transform: translate(-50%, -50%) scale(1); opacity: 1 } }
 #hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); font-size: 11px; color: var(--text-dim) }
@@ -224,13 +334,13 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 #tune textarea { display: none; width: 100%; height: 140px; margin-top: 10px; background: var(--sumi-0); color: var(--shiro-1); border: 1px solid var(--sumi-2); font: 12px monospace; box-sizing: border-box }
 
 /* ================= キルカム ================= */
-#killcam { position: fixed; inset: 0; pointer-events: none; display: none; box-shadow: inset 0 0 140px 30px color-mix(in srgb, var(--shu-0) 55%, transparent) }
+#killcam { position: fixed; inset: 0; pointer-events: none; display: none; box-shadow: inset 0 0 140px 30px color-mix(in srgb, var(--aka-0) 55%, transparent) }
 #killcam .kc-top { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: baseline; white-space: nowrap; text-shadow: var(--shade) }
 #killcam .kc-top b { font: 900 italic 32px var(--font-ui); color: var(--danger); letter-spacing: 3px }
 #killcam .kc-top span { font-size: 17px; font-weight: 700 }
 #killcam .kc-skip { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--text-dim) }
-#killcam.win { box-shadow: inset 0 0 140px 30px color-mix(in srgb, var(--kin-0) 40%, transparent) }
-#killcam.win .kc-top b { color: var(--accent) }
+#killcam.win { box-shadow: inset 0 0 140px 30px color-mix(in srgb, var(--kiji-0) 45%, transparent) }
+#killcam.win .kc-top b { color: var(--shiro-2) }
 /* リプレイ中の照準・ヒットマーク・体力 */
 #killcam .kc-xh { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 1px color-mix(in srgb, var(--sumi-0) 45%, transparent) }
 #killcam.scoped .kc-xh { display: none }
@@ -242,36 +352,39 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 #killcam .kc-bars { position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%); display: flex; gap: 40px; text-shadow: var(--shade) }
 #killcam .kc-bar span { display: block; font-size: 13px; font-weight: 700; margin-bottom: 4px }
 #killcam .kc-bar.foe { text-align: right }
-#killcam .kc-bar i { display: block; width: 220px; height: 10px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--sumi-0) 60%, transparent) }
-#killcam .kc-bar b { display: block; height: 100%; transform-origin: left; background: linear-gradient(var(--midori-2), var(--midori-1)) }
-#killcam .kc-bar.foe b { transform-origin: right; background: linear-gradient(var(--shu-2), var(--shu-1)) }
+/* 体力：和紙の細い帯に、自分は墨・相手は朱の筆の線 */
+#killcam .kc-bar i { display: block; width: 220px; height: 12px; padding: 3px 4px; box-sizing: content-box; border-radius: 2px; overflow: hidden; background: var(--ban-tex), var(--ban); box-shadow: none }
+#killcam .kc-bar b { display: block; height: 100%; transform-origin: left; background: var(--shiro-2); -webkit-mask: var(--brush) center / 100% 100% no-repeat; mask: var(--brush) center / 100% 100% no-repeat; }
+#killcam .kc-bar.foe b { transform-origin: right; background: var(--aka-1) }
 
 /* ================= 将棋モード ================= */
 #bmUI { position: fixed; inset: 0; pointer-events: none; display: none }
-#bmMsg { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 22px; font-weight: 900; white-space: nowrap }
-.bm-panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; pointer-events: auto; max-width: 300px }
-.bm-panel h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--text-dim) }
+/* 盤の画面は明るい畳の上なので、字は墨 */
+#bmMsg { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font: 900 22px var(--font-head); letter-spacing: 2px; white-space: nowrap; color: var(--ink); text-shadow: 0 1px 0 var(--shiro-2), 0 0 8px var(--shiro-1) }
+.bm-panel { position: absolute; border: 1px solid var(--ban-edge); border-radius: var(--r); padding: 10px 14px; pointer-events: auto; max-width: 300px; box-shadow: none }
+.bm-panel h4 { margin: 0 0 6px; font: 800 12px var(--font-head); letter-spacing: 1px; color: var(--text-dim) }
 .bm-e { left: 18px; top: 18px; font: 700 20px var(--font-koma); letter-spacing: 2px }
 .bm-p { right: 18px; bottom: 18px }
 #bmHandP { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px }
-.bm-hand { font: 700 20px var(--font-koma); background: var(--kiji-2); color: var(--sumi-0); border: 2px solid var(--kiji-0); border-radius: 6px; padding: 3px 9px; cursor: pointer }
-.bm-hand.sel { background: var(--ao-2) }
+.bm-hand { font: 700 20px var(--font-koma); background: linear-gradient(var(--kiji-2), color-mix(in srgb, var(--kiji-2) 72%, var(--kiji-1))); color: var(--sumi-0); border: 2px solid var(--kiji-0); border-radius: var(--r-s); padding: 3px 9px; cursor: pointer }
+.bm-hand:hover { border-color: var(--text) }
+.bm-hand.sel { border-color: var(--text); background: color-mix(in srgb, var(--aka-2) 55%, var(--kiji-2)); box-shadow: 0 0 0 2px var(--hanko) }
 .bm-hand small { font-size: 12px }
 .bm-btns { position: absolute; left: 18px; bottom: 18px; display: flex; gap: 8px; pointer-events: auto }
 /* ブラインド将棋：並べ替えのボタン（盤の下の真ん中） */
 .bm-setup { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: none; align-items: center; gap: 12px; pointer-events: auto }
-.bm-help { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); font-size: 12px; color: var(--text-dim); white-space: nowrap }
+.bm-help { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); font-size: 12px; color: var(--ink-dim); white-space: nowrap; text-shadow: 0 0 6px var(--shiro-1) }
 .vs-line { display: flex; align-items: center; gap: 14px; font-size: 15px }
-.vs-line em { font: 900 italic 28px var(--font-ui); color: var(--accent) }
-.bm-koma { width: 52px; height: 60px; display: flex; align-items: center; justify-content: center; font: 900 34px var(--font-koma); color: var(--sumi-0); background: var(--kiji-2); clip-path: var(--koma-shape) }
+.vs-line em { font: 900 italic 28px var(--font-ui); color: var(--accent-hi) }
+.bm-koma { width: 52px; height: 60px; display: flex; align-items: center; justify-content: center; font: 900 34px var(--font-koma); color: var(--sumi-0); background: linear-gradient(var(--kiji-2), color-mix(in srgb, var(--kiji-2) 72%, var(--kiji-1))); clip-path: var(--koma-shape) }
 
 /* キー設定のボタン */
-.keys .kbd-btn { font: 700 13px var(--font-ui); min-width: 64px; padding: 4px 10px; border-radius: 6px; cursor: pointer; color: var(--text); background: color-mix(in srgb, var(--sumi-2) 80%, transparent); border: 1px solid var(--line) }
+.keys .kbd-btn { font: 700 13px var(--font-ui); min-width: 64px; padding: 4px 10px; border-radius: var(--r-s); cursor: pointer; color: var(--ink); background: var(--ban-hi); border: 1px solid var(--line-strong); border-bottom-width: 3px }
 .keys .kbd-btn:hover { border-color: var(--accent) }
 .keys .kbd-btn.wait { color: var(--accent); border-color: var(--accent) }
 
 /* 武器の切り替え表示：今持っている方を明るく */
-#wepName span { opacity: .45 } #wepName span.on { opacity: 1; color: var(--accent) }
+#wepName span { opacity: .45 } #wepName span.on { opacity: 1; color: var(--text); font-weight: 700 }
 
 /* 次に撃てるまでのゲージ（照準の下） */
 #cdBar { position: absolute; left: 50%; top: calc(50% + 20px); width: 40px; height: 3px; margin-left: -20px; border-radius: 2px; opacity: 0; transition: opacity .12s; background: color-mix(in srgb, var(--nezumi-1) 30%, transparent) }
@@ -282,12 +395,10 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 #flashfx { position: absolute; inset: 0; opacity: 0; background: var(--shiro-2); pointer-events: none }
 
 /* 友達と対戦 */
-.ol-code { font: 900 46px var(--font-ui); letter-spacing: .25em; color: var(--accent); text-align: center }
-.ol-input { font: 700 18px var(--font-ui); width: 110px; padding: 6px 10px; text-transform: uppercase; letter-spacing: .2em; color: var(--text); background: color-mix(in srgb, var(--sumi-2) 80%, transparent); border: 1px solid var(--line); border-radius: 6px }
+.ol-code { font: 900 46px var(--font-ui); letter-spacing: .25em; color: var(--text); text-align: center }
+.ol-input { font: 700 18px var(--font-ui); width: 110px; padding: 6px 10px; text-transform: uppercase; letter-spacing: .2em }
 .ol-foe { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 15px }
 
-/* タイトル：ベータ版の印 */
-.beta { display: inline-block; font: 900 18px var(--font-ui); letter-spacing: .35em; padding: 4px 10px 4px 16px; color: var(--shu-2); border: 2px solid var(--shu-1); border-radius: 6px; background: color-mix(in srgb, var(--shu-0) 25%, transparent); transform: rotate(-4deg); margin-top: -4px }
 /* 将棋モード：盤面の左上のタイトルへ */
 .bm-quit { position: absolute; left: 18px; top: 18px; pointer-events: auto }
 .bm-e { top: 60px }
@@ -295,21 +406,21 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 /* ================= 持ち物 ================= */
 /* レア度の色：N 鼠・R 青・SR 紫・LR 金（札の帯・銃の後ろの光） */
 .r-base { --rc: var(--kiji-2) } .r-N { --rc: var(--nezumi-2) } .r-R { --rc: var(--ao-2) } .r-SR { --rc: var(--fuji-2) } .r-LR { --rc: var(--kin-2) }
-.pts { display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--panel) }
+.pts { display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; border: 1px solid var(--ban-edge); border-radius: var(--r-s); box-shadow: none }
 .pts small { font-size: 12px; color: var(--text-dim); letter-spacing: 1px }
-.pts b { font: 900 20px var(--font-ui); color: var(--accent); min-width: 1ch; text-align: center }
+.pts b { font: 900 20px var(--font-ui); color: var(--text); min-width: 1ch; text-align: center }
 .title-pts { position: fixed; top: 16px; right: 16px }
 .inv { width: min(1280px, 100%); height: calc(100vh - 48px); min-height: 520px; display: grid; gap: 14px; text-align: left;
   grid-template: "head head head" auto "guns stage list" 1fr / 190px minmax(0, 1fr) 360px }
 .inv-head { grid-area: head; display: flex; align-items: center; gap: 16px }
-.inv-head .h { margin-right: auto; font-family: var(--font-koma); font-size: 34px; letter-spacing: 6px }
+.inv-head .h { margin-right: auto; font-size: 26px; letter-spacing: .06em }
 /* 左：武器の列 */
 .inv-guns { grid-area: guns; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0 }
 .inv-gun { display: grid; grid-template: "n sw" auto "c sw" auto / 1fr auto; align-items: center; gap: 0 8px; padding: 9px 12px; text-align: left; cursor: pointer;
-  background: var(--panel-soft); color: var(--text); border: 1px solid var(--line); border-left: 3px solid transparent; border-radius: var(--r-s); font: inherit }
+  border: 1px solid var(--line); border-left: 3px solid transparent; border-radius: var(--r-s); font: inherit }
 .inv-gun b { grid-area: n; font-size: 14px } .inv-gun small { grid-area: c; font-size: 11px; color: var(--text-dim) } .inv-gun .inv-sw { grid-area: sw }
 .inv-gun:hover { border-color: var(--line-strong) }
-.inv-gun.on { border-left-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 18%, var(--panel)) }
+.inv-gun.on { border-left-color: var(--text); background: var(--sel) }
 /* 真ん中：銃を回して見せる台と、選んだスキンの説明 */
 .inv-stage { grid-area: stage; display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
   background: radial-gradient(ellipse 70% 60% at 50% 45%, color-mix(in srgb, var(--rc) 26%, var(--sumi-1)), var(--sumi-0) 75%) }
@@ -319,12 +430,12 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .inv-view::after { content: ""; position: absolute; left: 20%; right: 20%; bottom: 10%; height: 18px; border-radius: 50%; pointer-events: none;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--sumi-0) 70%, transparent), transparent) }
 .inv-hint { position: absolute; right: 14px; top: 12px; font-size: 11px; color: var(--text-dim); pointer-events: none }
-.inv-info { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px 18px; background: color-mix(in srgb, var(--sumi-0) 72%, transparent); border-top: 1px solid color-mix(in srgb, var(--rc) 45%, transparent) }
+.inv-info { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px 18px; border-top: 3px solid var(--rc) }
 .inv-rar { display: flex; align-items: baseline; gap: 10px }
-.inv-rar b { font: 900 italic 22px var(--font-ui); color: var(--rc); letter-spacing: 1px }
+.inv-rar b { font: 900 italic 22px var(--font-ui); color: color-mix(in srgb, var(--rc) 45%, var(--sumi-0)); letter-spacing: 1px }
 .inv-rar span { font-size: 12px; color: var(--text-dim); letter-spacing: 2px }
 .inv-name { font: 900 28px var(--font-koma); letter-spacing: 2px; line-height: 1.2; overflow-wrap: anywhere }
-.inv-name input { font: 700 20px var(--font-ui); width: min(100%, 22em); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--accent); background: var(--sumi-0); color: var(--text) }
+.inv-name input { font: 700 20px var(--font-ui); width: min(100%, 22em); padding: 4px 10px; border-color: var(--accent) }
 .inv-meta { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px; color: var(--text-dim); align-items: center }
 .inv-meta b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums }
 .inv-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px }
@@ -339,17 +450,17 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .inv-count { margin-left: auto; font-size: 12px; color: var(--text-dim) }
 .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); grid-auto-rows: max-content; gap: 8px; overflow-y: auto; min-height: 0; align-content: start; padding: 2px }
 .inv-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 10px 10px 13px; min-width: 0; text-align: left; cursor: pointer;
-  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-s); font: inherit; overflow: hidden }
+  border: 1px solid var(--line); border-radius: var(--r-s); font: inherit; overflow: hidden }
 .inv-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--rc) }
-.inv-card em { position: absolute; right: 9px; top: 7px; font: 900 italic 13px var(--font-ui); color: var(--rc) }
+.inv-card em { position: absolute; right: 9px; top: 7px; font: 900 italic 13px var(--font-ui); color: color-mix(in srgb, var(--rc) 45%, var(--sumi-0)) }
 .inv-card .inv-sw { margin-bottom: 2px }
 .inv-card b { font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .inv-card small { font-size: 11px; color: var(--text-dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .inv-card:hover { border-color: var(--line-strong) }
-.inv-card.sel { border-color: var(--text); box-shadow: 0 0 0 1px var(--text) }
-.inv-card.r-LR { background: linear-gradient(160deg, color-mix(in srgb, var(--kin-1) 20%, var(--panel)), var(--panel) 60%) }
-.inv-eq { font-size: 10px; font-weight: 800; color: var(--sumi-0); background: var(--accent); padding: 1px 6px; border-radius: 4px; letter-spacing: 1px }
-.inv-star { position: absolute; right: 9px; bottom: 7px; color: var(--accent); font-size: 13px }
+.inv-card.sel { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); background: var(--sel) }
+.inv-card.r-LR:not(.sel) { background: var(--ban-tex), linear-gradient(160deg, color-mix(in srgb, var(--kin-2) 45%, var(--ban)), var(--ban) 60%) }
+.inv-eq { display: inline-block; font-size: 10px; font-weight: 800; color: var(--sumi-0); background: var(--shiro-2); padding: 1px 6px; border-radius: 2px; letter-spacing: 1px }
+.inv-star { position: absolute; right: 9px; bottom: 7px; color: var(--text); font-size: 13px }
 .inv-empty { text-align: left }
 /* 狭い画面：縦に積む */
 @media (max-width: 900px) {
@@ -368,17 +479,17 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .ga-dark { position: absolute; inset: 0; background: radial-gradient(ellipse at center, color-mix(in srgb, var(--kin-0) 25%, var(--sumi-0)), var(--sumi-0) 70%); opacity: 0; transition: opacity .8s; pointer-events: none }
 .ga.dark .ga-dark { opacity: 1 }
 .ga-head { position: absolute; top: 16px; left: 20px; right: 20px; display: flex; align-items: center; gap: 12px; z-index: 1 }
-.ga-head .h { margin-right: auto; font-family: var(--font-koma); font-size: 34px; letter-spacing: 6px }
+.ga-head .h { margin-right: auto; font-size: 26px; letter-spacing: .06em }
 .ga-panel { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); box-sizing: border-box;
   display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 20px; text-align: center;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r) }
+  border: 1px solid var(--ban-edge); border-radius: var(--r); box-shadow: none }
 .ga-rates { display: flex; gap: 16px; font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums }
-.ga-rates b { color: var(--rc); font-style: italic; font-weight: 900; margin-right: 4px }
+.ga-rates b { color: color-mix(in srgb, var(--rc) 45%, var(--sumi-0)); font-style: italic; font-weight: 900; margin-right: 4px }
 .ga-btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center }
 .ga-pull { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 160px; padding: 10px 24px }
-.ga-pull b { font: 900 22px var(--font-ui); letter-spacing: 2px }
+.ga-pull b { font: 900 22px var(--font-head); letter-spacing: 3px }
 .ga-pull small { font-size: 12px; font-weight: 700; opacity: .75 }
-.ga-pull.ten { background: linear-gradient(160deg, var(--kin-2), var(--kin-1)); box-shadow: 0 0 18px color-mix(in srgb, var(--kin-2) 45%, transparent) }
+.ga-pull.ten { box-shadow: none }
 .ga-pull[disabled] { opacity: .45; cursor: default; filter: none; transform: none }
 .ga-skip { position: absolute; right: 20px; bottom: 24px; z-index: 1 }
 .ga-count { position: absolute; left: 50%; top: 24px; transform: translateX(-50%); font: 900 italic 18px var(--font-ui); color: var(--text-dim); font-variant-numeric: tabular-nums }
@@ -405,14 +516,14 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 
 /* ================= バフ・デバフ ================= */
 /* 金色＝バフ、青＝EMP、朱＝その他のデバフ。名前・残り秒・減っていくゲージ */
-#status { position: absolute; left: 26px; bottom: 132px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
-.st { --sc: var(--kin-2); display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: baseline; min-width: 132px; box-sizing: border-box;
-  padding: 5px 10px 6px; border-radius: 6px; border-left: 3px solid var(--sc); background: color-mix(in srgb, var(--sumi-0) 58%, transparent) }
-.st.emp { --sc: var(--mizu-2) } .st.debuff { --sc: var(--shu-2) }
-.st b { font-weight: 800; font-size: 14px; color: var(--sc); letter-spacing: 1px }
+#status { position: absolute; left: 24px; bottom: 84px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
+.st { --sc: var(--kin-2); --sct: var(--kin-2); display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: baseline; min-width: 132px; box-sizing: border-box;
+  padding: 5px 10px 6px; border-radius: var(--r-s); border-left: 4px solid var(--sc); box-shadow: none }
+.st.emp { --sc: var(--mizu-2); --sct: var(--mizu-2) } .st.debuff { --sc: var(--aka-2); --sct: var(--aka-2) }
+.st b { font-weight: 800; font-size: 14px; color: var(--sct); letter-spacing: 1px }
 .st span { font: 700 13px var(--font-ui); font-variant-numeric: tabular-nums }
 .st small { grid-column: 1 / -1; font-size: 11px; color: var(--text-dim) }
-.st i { grid-column: 1 / -1; height: 3px; margin-top: 4px; background: color-mix(in srgb, var(--shiro-2) 15%, transparent); overflow: hidden }
+.st i { grid-column: 1 / -1; height: 3px; margin-top: 4px; background: color-mix(in srgb, var(--sumi-0) 12%, transparent); overflow: hidden }
 .st u { display: block; height: 100%; background: var(--sc); transform-origin: left }
 .st.emp { animation: stEmp .5s ease-in-out infinite alternate }
 @keyframes stEmp { to { box-shadow: 0 0 12px color-mix(in srgb, var(--mizu-2) 55%, transparent) } }
@@ -433,18 +544,18 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 #skill .sk.jam .nm { color: var(--mizu-2) }
 
 /* ================= アカウント ================= */
-.acct-chip { position: fixed; top: 16px; left: 16px; display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font: 600 13px var(--font-ui); max-width: 60vw }
+.acct-chip { position: fixed; top: 16px; left: 16px; display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; border: 1px solid var(--ban-edge); border-radius: var(--r-s); box-shadow: none; cursor: pointer; font: 600 13px var(--font-ui); max-width: 60vw }
 .acct-chip small { font-size: 12px; color: var(--text-dim); letter-spacing: 1px }
 .acct-chip b { font: 800 15px var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.acct-chip:hover { filter: brightness(1.1) }
+.acct-chip:hover { border-color: var(--text) }
 .acct .panel p { margin: 0 0 6px; line-height: 1.7 }
 .acct .menu.col { width: 260px }
 .acct-name { display: flex; gap: 8px; align-items: center }
 .acct-name input { width: 4.5em; text-align: center; font-weight: 800; letter-spacing: .2em; text-transform: uppercase }
 .acct-ask b { display: block; font-size: 16px; margin-bottom: 6px }
-.acct-msg { margin: 0; font-size: 13px; color: var(--shu-2) }
-.btn.danger { background: var(--shu-1); border-color: var(--shu-1); color: var(--shiro-2) }
-.btn.danger-text { color: var(--shu-2) }
+.acct-msg { margin: 0; font-size: 13px; color: var(--aka-2) }
+.btn.danger { background: var(--seal-tex), var(--aka-0); border-color: var(--sumi-1); box-shadow: none }
+.btn.danger-text { color: var(--aka-2) }
 .title-foot { margin-top: 4px }
 .policy-link { font-size: 12px; color: var(--text-dim); text-decoration: underline; text-underline-offset: 3px }
 .policy-link:hover { color: var(--text) }
@@ -452,19 +563,20 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 /* ================= クエスト（持ち物・ガチャの画面と同じ見出し） ================= */
 .qs { width: min(820px, 100%); display: flex; flex-direction: column; gap: 14px; text-align: left }
 .qs-head { display: flex; align-items: center; gap: 16px }
-.qs-head .h { margin-right: auto; font-family: var(--font-koma); font-size: 34px; letter-spacing: 6px }
+.qs-head .h { margin-right: auto; font-size: 26px; letter-spacing: .06em }
 .qs-body { display: flex; flex-direction: column; gap: 14px }
-.qs .panel h3 { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 15px; color: var(--text); letter-spacing: 1px }
+.qs .panel h3 { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 15px; color: var(--text); letter-spacing: 2px }
+.qs .panel h3::before { align-self: center; margin-right: -4px }
 .qs .panel h3 span { font-size: 12px; font-weight: 400; color: var(--text-dim); letter-spacing: 0 }
 .qs-off p { margin: 0 0 12px; line-height: 1.8 }
 .q-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px 56px 84px; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line) }
 .qs .panel > .q-row:last-child { border-bottom: none }
 .q-main { display: flex; flex-direction: column; gap: 6px; min-width: 0 }
 .q-text { font-size: 14px; display: flex; align-items: center; gap: 8px; min-width: 0 }
-.q-bar { height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--shiro-2) 10%, transparent); overflow: hidden }
-.q-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px }
+.q-bar { height: 5px; border-radius: 1px; background: color-mix(in srgb, var(--sumi-0) 10%, transparent); overflow: hidden }
+.q-bar i { display: block; height: 100%; background: var(--sumi-0); border-radius: 1px }
 .q-n { font-size: 12px; color: var(--text-dim); text-align: right; font-variant-numeric: tabular-nums }
-.q-pt { font: 800 15px var(--font-ui); color: var(--accent); text-align: right; font-variant-numeric: tabular-nums }
+.q-pt { font: 800 15px var(--font-ui); color: var(--text); text-align: right; font-variant-numeric: tabular-nums }
 .q-re { justify-self: end }
 .q-row.got .q-text, .q-row.got .q-pt { color: var(--text-dim) }
 .q-row.got .q-n { color: var(--good); font-weight: 700 }
@@ -474,53 +586,91 @@ input[type=range] { width: 180px; accent-color: var(--accent) }
 .q-tag.fr { color: var(--good); border-color: color-mix(in srgb, var(--good) 50%, transparent) }
 .q-tag.cpu { color: var(--info); border-color: color-mix(in srgb, var(--info) 50%, transparent) }
 .q-login { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px }
-.q-day { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-soft) }
+.q-day { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--ban-hi) }
 .q-day small { font-size: 11px; color: var(--text-dim) }
 .q-day b { font: 800 16px var(--font-ui); font-variant-numeric: tabular-nums }
 .q-day i { position: absolute; top: 3px; right: 6px; font-style: normal; font-size: 11px; color: var(--good) }
 .q-day.got { opacity: .55 }
-.q-day.now { border-color: var(--accent); background: color-mix(in srgb, var(--kin-1) 22%, var(--panel)) }
-.q-day.now b { color: var(--accent) }
+.q-day.now { border-color: var(--text); background: var(--sel); box-shadow: 0 0 0 1px var(--text) }
+.q-day.now b { color: var(--text) }
 /* ログインボーナスの知らせ */
 .lb-get { display: flex; align-items: baseline; gap: 10px }
 .lb-get small { font-size: 15px; color: var(--text-dim) }
-.lb-get b { font: 900 56px var(--font-ui); color: var(--accent); text-shadow: var(--shade) }
+.lb-get b { font: 900 56px var(--font-head); color: var(--accent-hi); text-shadow: var(--shade) }
 .lb-get span { font-size: 15px; color: var(--text-dim) }
 /* クエスト達成の知らせ（画面の上） */
 #questToast { position: fixed; top: 16px; left: 50%; z-index: 50; transform: translate(-50%, -12px); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
-  padding: 8px 18px; border: 1px solid var(--accent); border-radius: 999px; background: var(--panel); color: var(--text); font: 700 14px var(--font-ui); white-space: nowrap; text-shadow: var(--shade) }
+  padding: 8px 18px 8px 14px; border: 1px solid var(--ban-edge); border-left: 3px solid var(--text); border-radius: var(--r-s); box-shadow: none; font: 700 14px var(--font-ui); white-space: nowrap }
 #questToast.on { opacity: 1; transform: translate(-50%, 0) }
-.ga-login { color: var(--accent) }
+.ga-login { color: var(--text) }
 
 /* ================= マーケット（持ち物の画面の部品をそのまま使う） ================= */
-.mk-price { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums }
+.mk-price { color: var(--text); font-weight: 800; font-variant-numeric: tabular-nums }
 .mk-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: var(--text-dim); font-size: 14px }
 .mk .inv-view { position: relative }
 .mk-ask { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
 .mk-ask span { font-weight: 700 }
 .inv-sell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px }
 .inv-sell input { width: 7em; text-align: right }
-.inv-msg { margin: 6px 0 0; font-size: 13px; color: var(--shu-2) }
-.ol-name { letter-spacing: .15em; color: var(--accent) }
+.inv-msg { margin: 6px 0 0; font-size: 13px; color: var(--aka-2) }
+.ol-name { letter-spacing: .15em; color: var(--accent-hi) }
 
 /* ================= 戦いの前の VS カット（vscut.ts） ================= */
-#vscut { position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; background: var(--shiro-1) }
+#vscut { position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; background: var(--sumi-0) }
+/* 自分は暗い木の色、相手は暗い赤。斜めに分けて、両側から滑り込む */
 #vscut .vs-side { position: absolute; inset: 0; animation: vsInL .45s cubic-bezier(.2,.9,.3,1) both }
-#vscut .vs-side.l { background: color-mix(in srgb, var(--shu-2) 55%, var(--shiro-1)); clip-path: polygon(0 0, 56% 0, 44% 100%, 0 100%) }
-#vscut .vs-side.r { clip-path: polygon(56% 0, 100% 0, 100% 100%, 44% 100%); animation-name: vsInR; background: color-mix(in srgb, var(--ao-2) 55%, var(--shiro-1)) }
-#vscut .vs-bar { position: absolute; left: 0; right: 0; top: 0; height: 13vh; display: flex; align-items: center; gap: 2vw; padding: 0 4vw;
-  background: color-mix(in srgb, var(--sumi-0) 80%, transparent) }
-#vscut .r .vs-bar { justify-content: flex-end; flex-direction: row-reverse }
-#vscut .vs-who { font: 900 2.2vh var(--font-ui); color: var(--shu-2) }
-#vscut .r .vs-who { color: var(--ao-2) }
-#vscut .vs-name { font: 900 6vh var(--font-koma); letter-spacing: .4em; color: var(--shiro-2) }
-#vscut .vs-koma { position: absolute; top: 24vh; width: 30vh; height: 35vh; font-size: 20vh; left: 10vw; transform: rotate(-8deg) }
-#vscut .r .vs-koma { left: auto; right: 10vw; transform: rotate(8deg) }
-#vscut .vs-sub { position: absolute; bottom: 6vh; left: 4vw; font: 700 2.6vh var(--font-ui); color: var(--sumi-1) }
-#vscut .r .vs-sub { left: auto; right: 4vw }
-#vscut .vs-sub span { color: var(--kin-0) }
-#vscut .vs-mark-big { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: italic 900 18vh/1 var(--font-ui);
-  color: var(--kin-2); -webkit-text-stroke: .6vh var(--sumi-0); animation: vsPop .5s .35s both }
+#vscut .vs-side.l { background: radial-gradient(ellipse 60% 70% at 25% 55%, color-mix(in srgb, var(--kiji-0) 55%, var(--sumi-1)), var(--sumi-0) 75%); clip-path: polygon(0 0, 56% 0, 44% 100%, 0 100%) }
+#vscut .vs-side.r { clip-path: polygon(56% 0, 100% 0, 100% 100%, 44% 100%); animation-name: vsInR; background: radial-gradient(ellipse 60% 70% at 75% 55%, color-mix(in srgb, var(--aka-0) 70%, var(--sumi-1)), var(--sumi-0) 75%) }
+#vscut .vs-bar { position: absolute; left: 0; right: 0; top: 7vh; display: flex; align-items: baseline; gap: 2vw; padding: 0 5vw }
+#vscut .r .vs-bar { justify-content: flex-start; flex-direction: row-reverse }   /* 逆向きの並びなので flex-start が右端 */
+#vscut .vs-who { font: 700 1.6vh var(--font-ui); letter-spacing: .4em; color: var(--text-dim) }
+#vscut .vs-name { font: 900 7vh var(--font-koma); letter-spacing: .2em; color: var(--shiro-2) }
+#vscut .vs-koma { position: absolute; top: 26vh; width: 30vh; height: 35vh; font-size: 20vh; left: 12vw; transform: rotate(-6deg) }
+#vscut .r .vs-koma { left: auto; right: 12vw; transform: rotate(6deg) }
+#vscut .vs-sub { position: absolute; bottom: 8vh; left: 5vw; font: 700 2.2vh var(--font-ui); letter-spacing: .08em; color: var(--text-dim) }
+#vscut .r .vs-sub { left: auto; right: 5vw }
+#vscut .vs-sub b { color: var(--text); margin-right: .6em }
+#vscut .vs-sub span { color: var(--text) }
+#vscut .vs-mark-big { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: italic 900 14vh/1 var(--font-ui); letter-spacing: -.02em;
+  color: var(--shiro-2); text-shadow: 0 .6vh 3vh color-mix(in srgb, var(--sumi-0) 70%, transparent); animation: vsPop .5s .35s both }
 @keyframes vsInL { from { transform: translateX(-60%) } to { transform: none } }
 @keyframes vsInR { from { transform: translateX(60%) } to { transform: none } }
-@keyframes vsPop { 0% { transform: translate(-50%, -50%) scale(3); opacity: 0 } 60% { transform: translate(-50%, -50%) scale(.9); opacity: 1 } 100% { transform: translate(-50%, -50%) scale(1) } }
+@keyframes vsPop { 0% { transform: translate(-50%, -50%) scale(3); opacity: 0 } 60% { transform: translate(-50%, -50%) scale(.92); opacity: 1 } 100% { transform: translate(-50%, -50%) scale(1) } }
+
+/* ================= 3D の主役（hero.ts の描画を入れる箱） ================= */
+.hero canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important }
+.home-top .acct-chip, .home-top .pts { position: static }
+
+/* 一騎打ち：窓が狭いとき（900px 未満）は、ステージを見出しの下へ、性能を下へ回して重ならないように */
+@media (max-width: 900px) {
+  .duel-top { flex-wrap: wrap; row-gap: 6px }
+  .duel-stage { left: 3.5vw; right: auto; top: calc(4vh + 64px) }
+  .plist { top: calc(4vh + 110px); width: 210px; bottom: 12vh }
+  .duel .hero { left: 225px; right: 0; top: calc(4vh + 100px); bottom: 42vh }
+  .pinfo { left: 235px; right: 3.5vw; width: auto; top: auto; bottom: 12vh }
+  .pinfo .nm { font-size: 28px }
+  .pinfo .lab { margin: 4px 0 8px }
+}
+
+/* ================= 持ち物・マーケット：一騎打ちと同じ「左に一覧・真ん中に 3D・右に札」 ================= */
+#overlay:has(> .inv) { padding: 0 }
+.inv { position: absolute; inset: 0; width: auto; height: auto; min-height: 0; box-sizing: border-box; padding: 4vh 3.5vw;
+  grid-template: "head head head" auto "guns stage list" 1fr / clamp(200px, 18vw, 260px) minmax(0, 1fr) clamp(280px, 26vw, 380px); gap: 2.4vh 2.4vw }
+.inv-head .pts, .inv-head .btn { flex: none }
+/* 左：武器の一覧は線と字だけ（選んでいる行に白い線と淡い光） */
+.inv-gun { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border: none; border-left: 3px solid transparent; border-radius: 0; padding: 7px 12px 7px 10px; text-shadow: var(--shade) }
+.inv-gun:hover { background: linear-gradient(90deg, color-mix(in srgb, var(--shiro-2) 6%, transparent), transparent) }
+.inv-gun.on { border-left-color: var(--shiro-2); background: linear-gradient(90deg, var(--sel), transparent) }
+/* 真ん中：銃が景色の上に浮く（枠なし。レア度の色が後ろでうっすら光る） */
+.inv-stage { border: none; border-radius: 0; background: radial-gradient(ellipse 55% 50% at 50% 42%, color-mix(in srgb, var(--rc) 24%, transparent), transparent 70%) }
+.inv-view::after { display: none }
+.inv-info { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-top: 1px solid var(--line); padding: 14px 4px 4px; text-shadow: var(--shade) }
+.inv-rar b { color: var(--rc) }
+.inv-name { font: 800 26px var(--font-ui); letter-spacing: .04em }
+/* 右：札は暗い板 */
+.inv-card { border: 1px solid var(--ban-edge) }
+.inv-card em { color: var(--rc) }
+@media (max-width: 900px) {
+  .inv { position: static; padding: 0; grid-template: "head" auto "guns" auto "stage" auto "list" auto / minmax(0, 1fr) }
+  #overlay:has(> .inv) { padding: 24px 16px }
+}

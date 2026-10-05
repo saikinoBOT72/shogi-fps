@@ -10,7 +10,7 @@ import { PHYS } from './physics';
 import { Particles, VM } from './effects';
 import { act, bot, botActor, currentSpread, eyeOf, player, stats, view } from './game';
 import { Replay } from './replay';
-import { showResult } from './screens';
+import { sealHTML, showResult } from './screens';
 import { Net } from './net';
 import { mapId } from './world/base';
 import { questMatch } from './quests';
@@ -39,7 +39,8 @@ export function endMatch(win) {
   stats.time = TIME_LIMIT - Math.max(0, TIME_LIMIT - stats.time);
   // クエスト：1試合ぶんをまとめて数える（一騎打ち・将棋モードの一騎打ちの両方）
   questMatch({ win, fr: !!Net.on, duel: !gs.matchCtx, map: mapId, me: player.type, foe: bot.type, heads: stats.heads, dmg: stats.dealt });
-  showCenter(win === true ? '撃破！' : win === false ? '敗北' : '時間切れ', win === true ? 'var(--kin-2)' : 'var(--shu-1)');
+  if (win === null) showCenter('時間切れ');
+  else showStamp(win ? '取った' : '負け', win ? 'KILL' : 'DEFEAT');
   if (win !== null) setTimeout(() => SFX.play(win ? 'win' : 'lose'), 600);
   const toResult = () => { if (document.pointerLockElement) document.exitPointerLock(); showResult(win); };
   // 決着がついたら、決めた側の視点で直前を再生してから結果へ（時間切れは再生なし）
@@ -51,6 +52,12 @@ export function showCenter(text, color = 'var(--shiro-2)') {
   const c = $('center');
   c.textContent = text; c.style.color = color;
   c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+}
+// 決着の判子を画面の真ん中に押す
+export function showStamp(txt: string, en: string) {
+  const c = $('center');
+  c.innerHTML = sealHTML(txt, en); c.style.color = '';
+  c.classList.remove('pop');
 }
 export let hmT = 0;
 export function showHitmarker(kind) {
@@ -91,13 +98,12 @@ function drawStatus(el: HTMLElement, list: any[], key: string) {
   });
 }
 export function initSkills() {
-  $('skill').innerHTML = player.slots.map((s, i) => `<div class="sk" id="sk${i}"><span class="nm"></span><div class="ring">
-    <svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="23" fill="rgba(0,0,0,.4)" stroke="rgba(255,255,255,.2)" stroke-width="4"/>
-    <circle class="arc" cx="27" cy="27" r="23" fill="none" stroke="var(--info)" stroke-width="4" stroke-dasharray="144.5" stroke-dashoffset="0"/></svg>
-    <div class="key">${skillKey(i)}</div></div></div>`).join('');
+  // 名前と四角いキー。溜めている間はキーが下から白く埋まっていく
+  $('skill').innerHTML = player.slots.map((s, i) => `<div class="sk" id="sk${i}"><span class="nm"></span><div class="key">${skillKey(i)}</div></div>`).join('');
 }
 export function initPips() {
   hud.ammo = -1; hud.cache.clear();
+  $('meBar').style.setProperty('--seg', String(Math.max(1, Math.round(player.def.hp / 10))));   // 体力の目盛りは 10 ずつ
   initSkills();
   $('pips').innerHTML = '';
   if (player.w.kind !== 'melee' && player.w.kind !== 'sword') for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
@@ -153,6 +159,7 @@ export function updateHUD(dt) {
   setHTML('meHpNum', `${Math.max(0, Math.ceil(p.hp))}<small>/${p.def.hp}</small>`);
   setStyle($('meBar').children[1], 'transform', `scaleX(${hpk.toFixed(3)})`);
   setStyle($('meBar').children[0], 'transform', `scaleX(${hpk.toFixed(3)})`);
+  if (changed('hpLow', hpk < 0.35)) $('meBar').classList.toggle('low', hpk < 0.35);   // 危ないときは朱の線
   setStyle($('lowhp'), 'opacity', hpk < 0.35 && !p.dead ? (0.55 + Math.sin(performance.now() / 180) * 0.35).toFixed(2) : '0');
   hud.hurt = Math.max(0, hud.hurt - dt * 2.2); setStyle($('hurt'), 'opacity', hud.hurt.toFixed(2));
   hud.dash = act(p, 'dash') ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
@@ -168,6 +175,7 @@ export function updateHUD(dt) {
     hud.ammo = p.ammo;
     $('ammoNum').innerHTML = `${p.ammo}<small>/${p.w.mag}</small>`;
     $('ammoNum').classList.toggle('low', p.ammo <= 3);
+    $('pips').classList.toggle('low', p.ammo <= 3 && p.w.mag > 3);   // 残り少ない目盛りは赤
     [...$('pips').children].forEach((c, i) => c.classList.toggle('e', i >= p.ammo));
   }
   if (p.w.kind !== 'bow' && p.w.kind !== 'melee' && p.w.kind !== 'sword') {
@@ -179,7 +187,8 @@ export function updateHUD(dt) {
     const el = $('sk' + i); if (!el) return;
     const sk = s.sk, max = sk.charges || 1;
     const k = s.charges >= max ? 1 : 1 - s.cd / sk.cooldown;
-    setAttr(el.querySelector('.arc'), 'stroke-dashoffset', (144.5 * (1 - k)).toFixed(1));
+    const pk = Math.round(Math.max(0, Math.min(1, k)) * 100);
+    setStyle(el.querySelector('.key'), 'background', pk >= 100 ? '' : `linear-gradient(0deg, rgba(243,238,230,.28) ${pk}%, rgba(26,21,18,.5) ${pk}%)`);
     const again = (sk.type === 'c4' && Gadgets.c4Of(p)) || (sk.type === 'missile' && Gadgets.ctrlOf(p));
     const jam = p.empT > 0 && !again;   // EMP でスキル封じ
     if (changed('skj' + i, jam)) el.classList.toggle('jam', jam);

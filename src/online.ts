@@ -8,7 +8,8 @@ import { $, PIECES, SKILLS, V3, WEAPONS, pieceUsable, saveSettings, settings } f
 import { SFX } from './audio';
 import { Net, hostRoom, joinRoom, leaveRoom, r2, vec } from './net';
 import { Account, NAME_RE } from './account';
-import { overlay, pieceCard, showTitle, startMatch } from './screens';
+import { FULL_NAME, overlay, pieceInfoHTML, showTitle, startMatch } from './screens';
+import { showHero } from './hero';
 import { bot, botActor, eyeOf, player, resetMatch, useSkill, view } from './game';
 import { Arrows } from './arrows';
 import { Grenades } from './grenades';
@@ -17,8 +18,7 @@ import { Gadgets } from './gadgets';
 import { damagePlayer } from './ai';
 import { killBot } from './hud';
 import { BoardMode } from './boardmode';
-import { bindMapPick, mapPickHTML } from './screens';
-import { applyAtmos, pickMap } from './world';
+import { MAP_LIST, applyAtmos, pickMap, selectableMaps } from './world';
 import { equippedAll } from './loadout';
 import { Sword } from './sword';
 import { Replay } from './replay';
@@ -82,19 +82,26 @@ const sendPick = () => Net.send({ t: 'pick', k: settings.myPiece, ready: meReady
 export function showLobby() {
   inLobby = true; gs.state = 'title';
   if (!pieceUsable(settings.myPiece)) settings.myPiece = 'P';
-  const me = PIECES[settings.myPiece], f = foe.k && PIECES[foe.k];
-  overlay(`<div class="screen wide">
-    <h2 class="h">友達と対戦　<small>部屋 ${Net.code}</small></h2>
-    <div class="panel form"><div class="row"><span>遊び方<small>${Net.host ? 'あなたが決める' : '部屋を作った人が決める'}</small></span>
-      <div class="seg" id="olMode">${[['duel', '一騎打ち'], ['board', '将棋モード'], ['blind', 'ブラインド将棋']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${Net.host ? '' : ' disabled'}>${n}</button>`).join('')}</div></div></div>
-    ${mapPickHTML(room, !Net.host)}
-    ${mode === 'blind' ? '<p class="note" style="text-align:center">始める前に、自分の3段の中で駒を並べ替えられる。対局中、相手の駒は字の無い駒に見える（打った駒・成った駒も）。<br>動きから何の駒か覚えながら戦い、一騎打ちで姿を見て答え合わせ。部屋を作った人が先手</p>'
-      : mode === 'board' ? '<p class="note" style="text-align:center">部屋を作った人が先手。駒を取るときは一騎打ち</p>' : `<section class="panel"><h3>あなたの駒</h3><div class="pick" id="olPick">${Object.keys(PIECES).filter(pieceUsable).map(k => `<button data-k="${k}" class="${settings.myPiece === k ? 'on' : ''}">${pieceCard(k)}</button>`).join('')}</div>
-      <p class="detail"><b>${WEAPONS[me.weapon].name}</b>　${me.skills.map(k => `「${SKILLS[k].name}」${SKILLS[k].help}`).join('　')}</p></section>`}
-    <div class="ol-foe">相手${foe.nm ? `（<b class="ol-name">${foe.nm}</b>）` : ''}：${mode !== 'duel' ? '' : f ? `<b class="koma s">${f.name}</b><span>${WEAPONS[f.weapon].name}</span>` : '<span>選んでいます…</span>'}${foe.ready ? '<b style="color:var(--accent)">準備OK</b>' : '<span>準備中</span>'}</div>
-    <div class="menu"><button class="btn sub" id="olLeave">抜ける</button><button class="btn${meReady ? ' sub' : ''}" id="olReady">${meReady ? '準備OK を取り消す' : '準備OK'}</button></div>
+  const f = foe.k && PIECES[foe.k], duel = mode === 'duel', host = Net.host, dis = host ? '' : ' disabled';
+  // 一騎打ちの駒選びと同じ形：上に遊び方とステージ、左に駒の一覧、真ん中に自分の駒、右に性能、下に相手の様子と準備OK
+  const maps = selectableMaps(), mi = Math.max(0, maps.findIndex(m => m[0] === room.map));
+  const mapName = (MAP_LIST.find(m => m[0] === room.map) || [room.map, room.map])[1];
+  const rows = Object.keys(PIECES).filter(pieceUsable).map(k => { const p = PIECES[k]; return `<button class="prow${settings.myPiece === k ? ' on' : ''}" data-k="${k}"><b class="koma">${p.name}</b><span>${(FULL_NAME[p.name] || [p.name])[0]}</span><small>${WEAPONS[p.weapon].name}</small></button>`; }).join('');
+  const note = mode === 'blind'
+    ? '始める前に、自分の3段の中で駒を並べ替えられる。対局中、相手の駒は字の無い駒に見える（打った駒・成った駒も）。<br>動きから何の駒か覚えながら戦い、一騎打ちで姿を見て答え合わせ。部屋を作った人が先手'
+    : '部屋を作った人が先手。駒を取るときは一騎打ち（ステージは守る側が選ぶ）';
+  overlay(`<div class="duel">
+    <div class="hero" id="lobbyHero"></div>
+    <div class="duel-top"><b>控室</b><span class="lab">Lobby　部屋 ${Net.code}</span>
+      <div class="duel-tabs" id="olMode">${[['duel', '一騎打ち'], ['board', '将棋モード'], ['blind', 'ブラインド将棋']].map(([k, n]) => `<button data-v="${k}" class="${mode === k ? 'on' : ''}"${dis}>${n}</button>`).join('')}</div></div>
+    <div class="duel-stage"><span class="lab">Stage</span><button id="stPrev" aria-label="前のステージ"${dis}>‹</button><b>${mapName}</b><button id="stNext" aria-label="次のステージ"${dis}>›</button></div>
+    ${duel ? `<div class="plist" id="olPick">${rows}</div><div class="pinfo">${pieceInfoHTML(settings.myPiece)}</div>` : `<div class="lobby-note">${note}</div>`}
+    <div class="duel-bottom"><button class="btn sub small" id="olLeave">抜ける</button>
+      <span class="vsinfo">${host ? '' : '遊び方とステージは部屋を作った人が決める　'}相手${foe.nm ? `（<b class="ol-name">${foe.nm}</b>）` : ''}：${duel ? (f ? `<b>${f.name}</b> ${WEAPONS[f.weapon].name}　` : '選んでいます…　') : ''}${foe.ready ? '<b>準備OK</b>' : '準備中'}</span>
+      <button class="btn${meReady ? ' sub' : ''}" id="olReady">${meReady ? '準備OK を取り消す' : '準備OK'}</button></div>
   </div>`, true);
-  document.querySelectorAll<HTMLElement>('#olPick button').forEach(b => b.onclick = e => {
+  if (duel) showHero($('lobbyHero'), settings.myPiece, true, true);
+  document.querySelectorAll<HTMLElement>('#olPick .prow').forEach(b => b.onclick = e => {
     e.stopPropagation();
     settings.myPiece = b.dataset.k; saveSettings(); meReady = false;
     sendPick(); showLobby();
@@ -104,7 +111,8 @@ export function showLobby() {
     if (!Net.host) return;
     mode = b.dataset.v; meReady = false; Net.send({ t: 'mode', m: mode }); sendPick(); showLobby();
   });
-  bindMapPick((k, v) => { if (!Net.host) return; room[k] = v; meReady = false; sendRoom(); sendPick(); applyRoom(); showLobby(); });
+  const stage = (d: number) => { if (!Net.host || !maps.length) return; room.map = maps[(mi + d + maps.length) % maps.length][0]; meReady = false; sendRoom(); sendPick(); applyRoom(); showLobby(); };
+  on('stPrev', () => stage(-1)); on('stNext', () => stage(1));
   on('olReady', () => { meReady = !meReady; sendPick(); showLobby(); maybeStart(); });
   on('olLeave', leave);
 }

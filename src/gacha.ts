@@ -33,7 +33,7 @@ export function showGacha(onBack: () => void) {
     <div class="ga-panel">
       <div class="ga-rates">${RATES.slice().reverse().map(([r, p]) => `<span class="r-${r}"><b>${r}</b>${p}%</span>`).join('')}</div>
       <div class="ga-btns">
-        <button class="btn ga-pull" id="gaOne"${canSpend(PULL_COST[1]) ? '' : ' disabled'}><b>1連</b><small>${PULL_COST[1]} ポイント</small></button>
+        <button class="btn white ga-pull" id="gaOne"${canSpend(PULL_COST[1]) ? '' : ' disabled'}><b>1連</b><small>${PULL_COST[1]} ポイント</small></button>
         <button class="btn ga-pull ten" id="gaTen"${canSpend(PULL_COST[10]) ? '' : ' disabled'}><b>10連</b><small>${PULL_COST[10]} ポイント</small></button>
       </div>
       <p class="note">形はデザインから、色は毎回まったくのランダム。強さには関わりません</p>

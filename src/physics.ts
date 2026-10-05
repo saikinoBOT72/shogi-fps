@@ -7,7 +7,7 @@ import { gs } from './state';
 import { BH, G, GROUND, clamp, rand } from './core';
 const G0 = GROUND;
 import { SFX } from './audio';
-import { PIECE_DEPTH, canvasTex, mat, pieceGeo, pieceWoodMat, scene, toon, woodGrain } from './render';
+import { PIECE_DEPTH, canvasTex, carvedText, mat, pieceGeo, pieceWoodMat, scene, toon, woodGrain } from './render';
 import { FLOW, MAPS, WATER_Y, colliders, insideCollider, mapId, mapLV, onMapChange, propMeshes } from './world';
 
 // ================= 物理演算（cannon.js）：撃つ・押す・体当たりで動く小物 =================
@@ -22,9 +22,10 @@ export function pieceSolidMats(ch, red?) {
   const key = ch + (red ? 'r' : '');
   if (solidMatCache[key]) return solidMatCache[key];
   const tex = canvasTex(256, 256, (g, w, h) => {
+    g.save(); g.translate(w / 2, h / 2); g.rotate(Math.PI / 2); g.translate(-w / 2, -h / 2);   // 木目は縦
     woodGrain(g, w, h, P.kiji[2], P.kiji[0], 30);
-    g.fillStyle = red ? css(P.shu[0]) : css(P.sumi[0]); g.font = '900 136px "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif';
-    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 128, 150);
+    g.restore();
+    carvedText(g, ch, 128, 150, 136, red);
   });
   return solidMatCache[key] = [toon({ map: tex, roughness: 0.7 }), pieceWoodMat];
 }

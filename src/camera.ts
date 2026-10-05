@@ -176,9 +176,11 @@ export function animateActor(A, e, dt, lookAt) {
   }
   const spd = Math.hypot(e.vel.x, e.vel.z);
   const mk = e.onGround ? clamp(spd / e.def.speed, 0, 1) : 0;
-  const prev = Math.sin(e.stepPhase);
+  // 盤の駒らしく：硬いまま小さく跳ねて、コトッと着く（半分は床に着いている）。着いた瞬間に足音
+  const prev = Math.sin(e.stepPhase * 2);
   e.stepPhase += dt * (6 + spd * 1.3);
-  if (e.isBot && mk > 0.3 && prev > 0 && Math.sin(e.stepPhase) <= 0) SFX.play('step', e.pos, 1, surfOf(e));
+  const hop = Math.max(0, Math.sin(e.stepPhase * 2));
+  if (e.isBot && mk > 0.3 && prev > 0 && Math.sin(e.stepPhase * 2) <= 0) SFX.play('step', e.pos, 1, surfOf(e));
   const inv = A.root.rotation.y;
   const lf = e.vel.x * Math.sin(inv) + e.vel.z * Math.cos(inv);  // 前後
   const ls = e.vel.x * Math.cos(inv) - e.vel.z * Math.sin(inv);  // 左右
@@ -189,8 +191,8 @@ export function animateActor(A, e, dt, lookAt) {
   A.shieldT = damp(A.shieldT || 0, guardA ? 1 : 0, 14, dt);
   A.shield.visible = A.shieldT > 0.02;
   A.shield.scale.set(1, Math.max(0.01, A.shieldT), 1);
-  A.body.rotation.z = damp(A.body.rotation.z, Math.sin(e.stepPhase) * 0.13 * mk - ls * 0.02, 14, dt);
-  A.body.position.y = Math.abs(Math.sin(e.stepPhase)) * 0.14 * mk;
+  A.body.rotation.z = damp(A.body.rotation.z, Math.sign(Math.sin(e.stepPhase)) * hop * 0.05 * mk - ls * 0.02, 20, dt);   // 跳ぶたびに左右へ少し傾く
+  A.body.position.y = hop * 0.11 * mk;
   A.wood.emissive.multiplyScalar(Math.max(0, 1 - dt * 10));
   // 透明化：体と銃を隠して、うっすらした影だけ
   const cloaked = !!act(e, 'cloak'), hid = Sword.hidden(e);   // 葉隠れで止まっている間は影も含めて全く見えない

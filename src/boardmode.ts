@@ -11,7 +11,7 @@ import { SFX } from './audio';
 import { PIECE_DEPTH, boardTex, canvasTex, darkWoodTex, pieceGeo, renderer, speckle, toon } from './render';
 import { pieceSolidMats } from './physics';
 import { resetMatch } from './game';
-import { bindMapPick, hideOverlay, keysHTML, mapPickHTML, overlay, showTitle, startMatch } from './screens';
+import { bindMapPick, hideOverlay, keysHTML, mapPickHTML, overlay, sealHTML, showTitle, startMatch } from './screens';
 import { Net } from './net';
 import { leave, showLobby } from './online';
 import { HAND_ORDER, PRO, allMoves, attackedBy, canPromote, deadEnd, dropSquares, findKing, inCheck, inZone, initialBoard, label, nifu, rawMoves } from './shogi/rules';
@@ -26,7 +26,7 @@ export const BoardMode = (() => {
   bScene.background = new THREE.Color(P.sumi[0]);
   const bCam = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
   bCam.position.set(0, 14, 10.5); bCam.lookAt(0, 0, 0.9);
-  bScene.add(new THREE.HemisphereLight(C(P.shiro[2]), C(P.sumi[1]), 0.5 * LIGHT));
+  bScene.add(new THREE.HemisphereLight(C(P.shiro[2]).lerp(C(P.kiji[2]), 0.45), C(P.kiji[0]), 0.5 * LIGHT));   // 影は茶色
   const key = new THREE.DirectionalLight(C(P.shiro[2]), 1.0 * LIGHT);
   key.position.set(6, 16, 8);
   key.castShadow = Q.shadow > 0; key.shadow.mapSize.set(1024, 1024);
@@ -357,7 +357,7 @@ export const BoardMode = (() => {
         const stageHTML = meDef && !sent
           ? mapPickHTML({ map: stage }, false, '守るあなたがステージを選ぶ') + (online ? '<button class="btn" id="bmStage">このステージで決定</button>' : '')
           : stage ? `<p>ステージ：<b>${mapName(stage)}</b>（${meDef ? 'あなた' : '相手'}が選んだ）</p>` : '<p>相手がステージを選んでいます…</p>';
-        overlay(`<div class="res" style="font-size:50px;color:${playerIsAttacker ? 'var(--kin-2)' : 'var(--ao-2)'}">${playerIsAttacker ? '攻め' : '守り'}</div>
+        overlay(`${playerIsAttacker ? sealHTML('攻め', 'ATTACK', false, 'mid') : sealHTML('守り', 'DEFENSE', true, 'mid')}
         <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted && !hideFoe ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
         <p>${hideFoe ? (playerIsAttacker ? '勝てば相手の駒を取れる（何の駒かは、一騎打ちで姿を見るまで分からない）' : '守り切れば攻めてきた駒を取れる（何の駒かは、一騎打ちで姿を見るまで分からない）') : playerIsAttacker ? `勝てば相手の「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}` : `守り切れば攻めてきた「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}`}。負けるとあなたの「${mn}」は${me.cracked ? 'ひび入りなので割れて消える' : '取られる'}</p>
         ${me.promoted || (foe.promoted && !hideFoe) ? '<p style="opacity:.7">※成駒の一騎打ちはまだ元の駒の性能です</p>' : ''}
@@ -381,8 +381,9 @@ export const BoardMode = (() => {
     if (!online && win !== null) recordBattle(ctx.myType, ctx.foeType, ctx.playerIsAttacker, playerWon);
     if (playerWon) questEvent('capture', 1, online);   // 攻めて勝っても守り切っても、相手の駒が1つ盤から消える
     $('hud').style.display = 'none';
-    overlay(`<div class="res" style="color:${playerWon ? 'var(--kin-2)' : 'var(--shu-1)'}">${
-      ctx.playerIsAttacker ? (attackerWon ? '駒を取った！' : '取り返された…') : (attackerWon ? '駒を取られた…' : '守り切った！')}</div>
+    overlay(`${ctx.playerIsAttacker ? (attackerWon ? sealHTML('取った', 'CAPTURE') : sealHTML('取られた', 'CAPTURED'))
+      : (attackerWon ? sealHTML('取られた', 'CAPTURED') : sealHTML('守った', 'DEFENDED'))}
+      <p>${ctx.playerIsAttacker ? (attackerWon ? '駒を取った！' : '取り返された…') : (attackerWon ? '駒を取られた…' : '守り切った！')}</p>
       <button class="btn" id="bmBack">盤面へ戻る</button>`, true);
     $('bmBack').onclick = e => {
       e.stopPropagation();
@@ -545,9 +546,9 @@ export const BoardMode = (() => {
     clearSave();
     if (winner >= 0) SFX.play(winner === 0 ? 'win' : 'lose');
     setMsg('');
-    overlay(`<div class="res" style="color:${winner === 0 ? 'var(--kin-2)' : winner === 1 ? 'var(--shu-1)' : 'var(--text)'}">${winner === 0 ? '勝利' : winner === 1 ? '敗北' : '引き分け'}</div>
+    overlay(`${winner === 0 ? sealHTML('勝ち', 'VICTORY') : winner === 1 ? sealHTML('負け', 'DEFEAT') : sealHTML('引き分け', 'DRAW', true)}
       <p>${why || (winner === 0 ? '相手の玉を討ち取った！' : 'あなたの王が討たれた…')}</p>
-      <button class="btn" id="bmAgain">もう一局</button><button class="btn ghost" id="bmTitle">タイトルへ</button>`, true);
+      <div class="menu"><button class="btn ghost" id="bmTitle">タイトルへ</button><button class="btn white" id="bmAgain">もう一局</button></div>`, true);
     $('bmAgain').onclick = e => { e.stopPropagation(); if (online) { close(); showLobby(); } else start(); };
     $('bmTitle').onclick = e => { e.stopPropagation(); if (online) { close(); leave(); } else exit(); };
     if (online) $('bmAgain').textContent = 'もう一局（部屋に戻る）';

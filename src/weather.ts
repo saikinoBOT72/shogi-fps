@@ -102,7 +102,7 @@ function updateStorm(rdt: number, on: boolean) {
   f.near = lerp(10, 2, k); f.far = lerp(220, 30, k); f.color.copy(a.fog).lerp(stormCol, Math.max(k, 0.4));   // ふだんも砂で少しかすむ（100m 先が半分ほど）
   const u = (sky.material as any).uniforms;
   u.top.value.copy(a.top).lerp(stormCol, kv * 0.9); u.hor.value.copy(a.hor).lerp(stormCol, kv); u.bot.value.copy(a.bot).lerp(stormCol, kv);
-  sun.intensity = a.sunI * lerp(1, 0.45, kv) * Math.PI; hemi.intensity = a.hemiI * lerp(1, 1.3, kv) * Math.PI;
+  sun.intensity = a.sunI * lerp(1, 0.45, kv) * Math.PI; hemi.intensity = Math.max(a.hemiI, 0.3) * lerp(1, 1.3, kv) * Math.PI;
   if (!vis) return;
   sandMat.opacity = 0.85 * kv;
   const cx = cam.position.x, cy = cam.position.y, cz = cam.position.z, tt = performance.now() / 1000;

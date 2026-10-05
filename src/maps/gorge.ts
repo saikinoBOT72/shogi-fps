@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { C, V3, clamp } from '../core';
 import { canvasTex, mat, toon } from '../render';
 import { rgba } from '../palette';
-import { G0, MAPS, beginMap, boxMesh, cur, deco, finishMap, moonStoneM, rock, sides, solidBox, skyWall, stoneM, topM, woodSideM } from '../world/base';
+import { G0, MAPS, beginMap, boxMesh, carvedGeo, cur, deco, finishMap, moonStoneM, rock, sides, solidBox, skyWall, stoneM, topM, woodSideM } from '../world/base';
 
 // ================= マップ5：霧の渓谷（朝霧・110m 四方・点対称） =================
 // 真ん中を幅20m ほどの浅い川が z 方向にゆるく蛇行して流れる。岸は三段：河原（+1m）→ 中段の道（+6m）→ 崖の上（+12m）
@@ -365,10 +365,13 @@ export function buildGorge() {
   // ----- 3 杉林（背の高い黒っぽい杉。幹だけ当たる） -----
   {
     const leaf = [mat(C(P.midori[0]).lerp(C(P.sumi[1]), 0.45).getHex()), mat(C(P.midori[0]).lerp(C(P.sumi[1]), 0.3).getHex()), mat(C(P.midori[0]).lerp(C(P.seiji[0]), 0.35).getHex())];
+    // 杉：彫った形（幹と葉の段を数種類だけ作って使い回す）
+    const trunkG = carvedGeo(new THREE.CylinderGeometry(0.22, 0.34, 3.4, 6, 2), 0.08, 0);
+    const tierGs = Array.from({ length: 3 }, () => [0, 1, 2, 3].map(k => carvedGeo(new THREE.ConeGeometry(1.7 - k * 0.35, 2.6, 7, 2), 0.13, 0, -Infinity, true)));
     const cedar = (s: number) => {
-      const g = new THREE.Group();
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * s, 0.34 * s, 3.4 * s, 6), barkM); t.position.y = 1.7 * s; g.add(t);
-      for (let k = 0; k < 4; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry((1.7 - k * 0.35) * s, 2.6 * s, 7), leaf[k % 3]); c.position.y = (3 + k * 1.35) * s; c.rotation.y = k; g.add(c); }
+      const g = new THREE.Group(), set = tierGs[Math.floor(Math.random() * tierGs.length)];
+      const t = new THREE.Mesh(trunkG, barkM); t.scale.setScalar(s); t.position.y = 1.7 * s; g.add(t);
+      for (let k = 0; k < 4; k++) { const c = new THREE.Mesh(set[k], leaf[k % 3]); c.scale.setScalar(s); c.position.y = (3 + k * 1.35) * s; c.rotation.y = k; g.add(c); }
       return g;
     };
     const groves: [number, number, number[][]][] = [
@@ -412,7 +415,7 @@ export function buildGorge() {
     const clayM = mat(C(P.kiji[0]).lerp(C(P.nezumi[0]), 0.35).getHex(), { roughness: 1 });
     put(() => {
       const g = new THREE.Group();
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), clayM); dome.scale.y = sy; g.add(dome);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(r, 9, 4, 0, Math.PI * 2, 0, Math.PI / 2), clayM); dome.scale.y = sy; g.add(dome);
       const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.55, 10, 0, Math.PI), mat(P.sumi[0])); mouth.position.set(r + 0.02, 0.02, 0); mouth.rotation.y = Math.PI / 2; g.add(mouth);
       const chim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 1.7, 6), clayM); chim.position.set(-r * 0.55, sy * r * 0.8 + 0.4, 0); g.add(chim);
       return g;
