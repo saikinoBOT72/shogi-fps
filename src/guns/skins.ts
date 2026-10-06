@@ -14,8 +14,9 @@ import { toon } from '../materials';
 // sheen：照り返しの色（光の当たる所と影の縁がこの色に染まる。無ければ白い光）
 // fade：銃の後ろから前へ、色がなめらかに移り変わる（2〜4色）。fadeLen：その銃の長さ（図面の mm、無ければ 270）
 // glow：自分で光る（照準・引き金などの小物を光らせる）
+// fadeAxis：'v' なら色の流れを下→上（図面の v）にする（カランビットの刃のように縦に長い部品用）
 // tex：グリップの表面（滑り止めの点々・木目）。fadeFrom：色の流れが始まる位置（図面の mm。刃のように図面のマイナス側にある部品用）
-export type SlotStyle = { c: number; metal?: boolean; gloss?: boolean; sheen?: number; fade?: number[]; fadeLen?: number; fadeFrom?: number; glow?: boolean; tex?: 'stipple' | 'wood' };
+export type SlotStyle = { c: number; metal?: boolean; gloss?: boolean; sheen?: number; fade?: number[]; fadeLen?: number; fadeFrom?: number; fadeAxis?: 'v'; glow?: boolean; tex?: 'stipple' | 'wood' };
 // rarity：N ノーマル / R レア / SR スーパーレア / LR レジェンドレア（無いものは初期スキン）
 // SR 以上の付け足し（形の輪郭はほぼ変えない小さな部品。どれがあるかは銃ごとに作る）：addons に名前を並べる
 //   accent：付け足しの部品（根付・飾り板・輪・鎖・房・鈴）の色 / gem：宝石・ラインストーンの色 / line：光る線の色
@@ -38,6 +39,11 @@ export const SKINS: Record<string, Skin> = {
     name: '木目',
     slide: { c: P.sumi[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },
     grip: { c: P.kiji[1], tex: 'wood' }, detail: { c: P.sumi[0] }, mag: { c: P.sumi[1], metal: true },
+  },
+  olive: {      // AWM：銃床と先台はくすんだ緑のざらざらの樹脂、金属とスコープは墨
+    name: 'オリーブ',
+    slide: { c: P.sumi[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },
+    grip: { c: P.moegi[0], tex: 'stipple' }, detail: { c: P.sumi[0] }, mag: { c: P.sumi[1], metal: true },
   },
   hagane: {     // カランビット
     name: '鋼',
@@ -331,13 +337,14 @@ function surface(style: SlotStyle) {
   });
 }
 // 後ろから前への色の移り変わり（図面の mm で、from から from + len まで1回だけ）
-function fadeMap(cols: number[], len = 270, from = 0) {
-  const t = canvas(256, 4, g => {
-    const gr = g.createLinearGradient(0, 0, 256, 0);
+function fadeMap(cols: number[], len = 270, from = 0, axis?: 'v') {
+  const V = axis === 'v';
+  const t = canvas(V ? 4 : 256, V ? 256 : 4, g => {
+    const gr = V ? g.createLinearGradient(0, 256, 0, 0) : g.createLinearGradient(0, 0, 256, 0);   // 縦は下（テクスチャの 0）から上へ
     cols.forEach((c, i) => gr.addColorStop(i / (cols.length - 1), css(c)));
-    g.fillStyle = gr; g.fillRect(0, 0, 256, 4);
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
   });
-  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.repeat.set(1 / len, 1 / len); t.offset.set(-from / len, 0);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.repeat.set(1 / len, 1 / len); t.offset.set(V ? 0 : -from / len, V ? -from / len : 0);
   return t;
 }
 
@@ -346,10 +353,13 @@ export function slotMaterial(style: SlotStyle): THREE.Material {
   if (style.metal || style.gloss) {
     const gloss = !!style.gloss && !style.metal;
     // 色の移り変わり：白いつやに、色の帯を重ねる
-    if (style.fade) return new THREE.MeshMatcapMaterial({ matcap: matcap(P.shiro[2], style.sheen, gloss), map: fadeMap(style.fade, style.fadeLen, style.fadeFrom), flatShading: true });
+    // 木目などの表面に艶を重ねる（木地に薄く漆をかけた感じ）
+    if (style.tex) { const m = surface(style); m.wrapS = m.wrapT = THREE.RepeatWrapping; m.repeat.set(1 / 24, 1 / 24); return new THREE.MeshMatcapMaterial({ matcap: matcap(P.shiro[2], style.sheen, gloss), map: m, flatShading: true }); }
+    if (style.fade) return new THREE.MeshMatcapMaterial({ matcap: matcap(P.shiro[2], style.sheen, gloss), map: fadeMap(style.fade, style.fadeLen, style.fadeFrom, style.fadeAxis), flatShading: true });
     return new THREE.MeshMatcapMaterial({ matcap: matcap(style.c, style.sheen, gloss), flatShading: true });
   }
   const o: any = { color: new THREE.Color(style.c) };
+  if (style.fade) { o.map = fadeMap(style.fade, style.fadeLen, style.fadeFrom, style.fadeAxis); o.color = new THREE.Color(0xffffff); }   // つや消しの色の流れ（墨染の紙）
   if (style.tex) {
     const t = surface(style); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 24, 1 / 24);   // 図面の mm で 24mm ごとに繰り返す
     o.map = t; o.color = new THREE.Color(0xffffff);
@@ -386,7 +396,7 @@ function makeSkinMaterials(id: string) {
 // スキン＝形（飾り）＋部位ごとの質感＋「どの部位がどのカラーを使うか」。色そのものはガチャで決まる
 //   カラーは基本2つ（c1 がメイン、c2 が差し色）、たまに3つ（c3）。カラーを使わない部位は黒・白・銀などの固定色にしてよい
 //   照り返し（sheen）だけをカラーにするのもあり
-//   colors は公式配色（ガチャを引く前・見本で見せる色）。白黒灰だけで表す（色は見本ページで自分で入れて試す）。レア度ごとに各武器1つずつ
+//   colors は公式配色（ガチャを引く前・見本で見せる色）。白黒灰だけで表す（色は見本ページで自分で入れて試す）。レア度ごとに各武器1つずつ（AK の LR は鬼・金継ぎの2つ。ガチャは同じ武器・レア度の中から等しく選ぶ）
 // 部位の書き方（DPart）：
 //   v: 1・2・3 … そのカラーを使う / c … 固定色（v が無いとき）
 //   metal・gloss・glow・tex … 質感（今までと同じ）
@@ -395,7 +405,7 @@ function makeSkinMaterials(id: string) {
 type CRef = 'c1' | 'c2' | 'c3' | number;
 export type DPart = Omit<SlotStyle, 'c' | 'sheen' | 'fade'> & { v?: 1 | 2 | 3; c?: number; sheen?: 'self' | CRef; fade?: CRef[] };
 export type Design = { name: string; gun: string; rarity: 'N' | 'R' | 'SR' | 'LR'; colors: number[]; parts: Record<string, DPart>; addons?: string[]; fx?: CRef; aura?: boolean };
-const BLACK = 0x131313, INK = 0x0b0b0b, STEEL = 0xc8c8c8;   // 固定色も白黒灰だけ
+const BLACK = 0x131313, INK = 0x0b0b0b, STEEL = 0xc8c8c8, PAPER = 0xf2f2f0;   // 固定色も白黒灰だけ
 const light = (c: number) => mix(c, 0xffffff, 0.6);
 
 export const DESIGNS: Record<string, Design> = {
@@ -442,6 +452,18 @@ export const DESIGNS: Record<string, Design> = {
       grip: { c: 0x09090a, gloss: true, sheen: 'c2' }, chain: { c: INK, metal: true },
     },
   },
+  // LR（2つ目）花札：スライドの両脇の「坊主」の月と山・銃身の横の短冊と幕と日・底の輪から扇に広がる5枚の札・まわりに浮く4枚の札
+  //   生き物の札は使わない（月・幕・短冊・日だけ）。c1 スライドと銃身の艶（坊主の空の色。メイン）と札の空・幕の紋・短冊、c2 月・日・花・幕の裾・銃口の光
+  //   札の地は生成り、縁と山は黒、フレームと握りは黒い艶で固定
+  dg_lr2: {
+    name: '花札', gun: 'pistol', rarity: 'LR', colors: [0x5a5a5a, 0xe0e0e0], fx: 'c2', aura: true, addons: ['hf_bozu', 'hf_tanzaku', 'hf_maku', 'hf_sun', 'hf_cards'],
+    parts: {
+      slide: { v: 1, gloss: true, sheen: 'self' }, barrel: { v: 1, gloss: true, sheen: 'self' },
+      art1: { v: 1, gloss: true }, art2: { v: 2, gloss: true, sheen: 'self' },
+      face: { c: 0xefece4 }, hill: { c: INK },
+      frame: { c: INK, gloss: true }, grip: { c: INK, gloss: true }, detail: { c: INK }, mag: { c: BLACK, metal: true },
+    },
+  },
 
   // N 油焼け：木部は c1 の木目（メイン）。金属は暗い鋼で、照り返しだけ c2（油の膜のような色の照り返し）。弾倉も同じ
   ak_n: {
@@ -480,6 +502,19 @@ export const DESIGNS: Record<string, Design> = {
       accent: { v: 2, metal: true, sheen: 'self' }, stud: { v: 2, metal: true, sheen: 'self' }, mask: { v: 2, gloss: true, sheen: 'self' }, line: { v: 2, glow: true },
       horn: { c: 0xeeeeee, gloss: true },
       slide: { c: BLACK, metal: true }, frame: { c: BLACK, metal: true }, barrel: { c: BLACK, metal: true }, mag: { c: BLACK, metal: true }, detail: { c: INK },
+    },
+  },
+  // LR（2つ目）金継ぎ：割れた銃を金で継いだ姿。ストック・グリップ・ハンドガード・弾倉を走る光る継ぎ目（左右で割れ方が違う）・継ぎ目をまたぐ鎹
+  //   ストックのかかとと弾倉の底の欠けを埋めた金・割れて浮く木の破片（割れ口が光る）と銃口の金の粉
+  //   c1 木部（初期の「木目」と同じ木目に薄い艶。メイン）、c2 金（継ぎ目は光り、当てと鎹は磨いた金属。照り返しも）
+  //   金属と弾倉は初期と同じ墨の鋼、小物は黒で固定（初期スキンから離れすぎないように）
+  ak_lr2: {
+    name: '金継ぎ', gun: 'ak', rarity: 'LR', colors: [0x8a8a8a, 0xf0f0f0], fx: 'c2', aura: true, addons: ['kn_seams', 'kn_staples', 'kn_patches', 'kn_shards'],
+    parts: {
+      grip: { v: 1, tex: 'wood', gloss: true, sheen: 'self' }, shard: { v: 1, tex: 'wood' },
+      line: { v: 2, glow: true }, accent: { v: 2, metal: true, sheen: 'self' },
+      slide: { c: P.sumi[1], metal: true, sheen: 'c2' }, frame: { c: P.sumi[1], metal: true, sheen: 'c2' }, barrel: { c: P.sumi[1], metal: true, sheen: 'c2' },
+      mag: { c: P.sumi[1], metal: true, sheen: 'c2' }, detail: { c: P.sumi[0] },
     },
   },
 
@@ -521,6 +556,17 @@ export const DESIGNS: Record<string, Design> = {
       barrel: { c: STEEL, metal: true, sheen: 0xffffff }, grip: { c: INK, gloss: true, sheen: 'c2' }, accent: { c: 0xf4f4f4, gloss: true },
     },
   },
+  // LR（2つ目）竹林：銃身とスコープにかぶせた竹の筒（節と節の下の白い粉）・ストックと先台を区切る竹の節の帯・笹の小枝3つ・先台から吊るした竹筒の水筒
+  //   煤竹：木部と竹は後ろの c2 から銃口の c1 へ煤けていく色の流れ（艶）。節と笹は c1、白い粉は薄い灰、紐は灰、金属は黒で固定
+  mk_lr2: {
+    name: '竹林', gun: 'mk2', rarity: 'LR', colors: [0x4a4a4a, 0xbdbdbd], fx: 'c1', aura: true, addons: ['ck_culm', 'ck_scope', 'ck_bands', 'ck_leaves', 'ck_canteen'],
+    parts: {
+      grip: { v: 1, gloss: true, sheen: 'self', fade: ['c2', 'c1'], fadeLen: 1030 }, culm: { v: 1, gloss: true, sheen: 'self', fade: ['c2', 'c1'], fadeLen: 1030 },
+      node: { v: 1, gloss: true, sheen: 'self' }, leaf: { v: 1, gloss: true, sheen: 'self' }, powder: { c: 0xa4a49c }, rope: { c: 0x6a6a6a },
+      slide: { c: BLACK, metal: true }, frame: { c: BLACK, metal: true }, barrel: { c: BLACK, metal: true }, detail: { c: INK },
+    },
+  },
+
 
   // N エナメル：機関部は艶のあるエナメル塗装の c1（メイン）、ストックと先台はつや消しの c2。銃身と弾倉の筒は磨いた銀で固定
   m8_n: {
@@ -558,6 +604,16 @@ export const DESIGNS: Record<string, Design> = {
       armor: { v: 1, sheen: 'self' }, line: { v: 2, glow: true }, detail: { v: 2, glow: true },
       bolt: { c: STEEL, metal: true, sheen: 0xffffff }, fin: { c: 0x3a3a3a, metal: true, sheen: 'c2' },
       frame: { c: BLACK, metal: true }, barrel: { c: BLACK, metal: true }, grip: { c: INK },
+    },
+  },
+  // LR（2つ目）種子島：銃身と弾倉をまとめる真鍮の帯・機関部の両脇の火皿の板・ストックの紋（架空）・ストックから銃口まで巻きつく火縄（先が光り、細い煙）・ストックの下の房
+  //   3色：c1 木部（木目に薄い艶。メイン）、c2 真鍮（帯・火皿・紋）、c3 火縄の先の火・房・銃口の光。火縄は灰、煙は薄い灰、金属は黒で固定
+  m8_lr2: {
+    name: '種子島', gun: 'm870', rarity: 'LR', colors: [0x8a8a8a, 0xd0d0d0, 0xffffff], fx: 'c3', aura: true, addons: ['tg_bands', 'tg_plate', 'tg_crest', 'tg_cord', 'tg_tassel'],
+    parts: {
+      grip: { v: 1, tex: 'wood', gloss: true, sheen: 'self' }, accent: { v: 2, metal: true, sheen: 'self' },
+      ember: { v: 3, glow: true }, tassel: { v: 3, gloss: true, sheen: 'self' }, rope: { c: 0x4a4a4a }, smoke: { c: 0xbdbdbd },
+      slide: { c: BLACK, metal: true }, frame: { c: BLACK, metal: true }, barrel: { c: BLACK, metal: true }, detail: { c: INK }, mag: { c: BLACK, metal: true },
     },
   },
 
@@ -718,6 +774,19 @@ export const DESIGNS: Record<string, Design> = {
       grip: { c: INK, gloss: true },
     },
   },
+  // LR（2つ目）忍：輪を芯にした手裏剣の3枚刃・苦無の刃・背と刃の光る筋・輪から垂れる鎖と分銅・苦無から下がる煙玉・握りの紐巻き・握りに刺さった十字手裏剣
+  //   刃は根元の c1 から刃先の c2 へ染まる（毒の刃。縦の色の流れ）。c1 刃と輪と手裏剣と分銅の鋼（メイン）、c2 毒の色・光る筋・紐・煙玉の帯・舞う光
+  //   握りと鎖は黒、煙玉は黒い艶で固定
+  kb_lr2: {
+    name: '忍', gun: 'karambit', rarity: 'LR', colors: [0x5a5a5a, 0xd0d0d0], fx: 'c2', aura: true,
+    addons: ['nin_shuriken', 'nin_kunai', 'nin_lines', 'nin_chain', 'nin_smoke', 'nin_wrap', 'nin_star'],
+    parts: {
+      slide: { v: 1, metal: true, sheen: 'c2', fade: ['c2', 'c1', 'c1'], fadeLen: 122, fadeFrom: -176, fadeAxis: 'v' },
+      frame: { v: 1, metal: true, sheen: 'c2' }, steel: { v: 1, metal: true, sheen: 'c2' },
+      line: { v: 2, glow: true }, cord: { v: 2 },
+      chain: { c: INK, metal: true }, ball: { c: BLACK, gloss: true }, grip: { c: INK },
+    },
+  },
 
   // ===== 和弓 =====
   // N 重籐：弓の本体は c1 の漆（メイン）、籐巻きは c2 の艶。握りは黒い革で固定
@@ -750,6 +819,52 @@ export const DESIGNS: Record<string, Design> = {
     parts: {
       frame: { v: 1, gloss: true, sheen: 'c2' }, detail: { v: 2, glow: true }, line: { v: 2, glow: true }, gem: { v: 2, gloss: true, sheen: 'self' },
       grip: { c: INK, gloss: true },
+    },
+  },
+
+  // ===== AWM（見本だけ。ゲームの武器には未登録なのでガチャには出ない） =====
+  // N 艶塗り：銃床と先台を車の塗装のような c1 の艶に（メイン）。金属とスコープは黒で、照り返しが c2
+  aw_n: {
+    name: '艶塗り', gun: 'awm', rarity: 'N', colors: [0x6a6a6a, 0xf0f0f0],
+    parts: {
+      grip: { v: 1, gloss: true, sheen: 'c2' },
+      slide: { c: BLACK, metal: true, sheen: 'c2' }, frame: { c: BLACK, metal: true, sheen: 'c2' }, barrel: { c: BLACK, metal: true, sheen: 'c2' },
+      scope: { c: INK, metal: true, sheen: 'c2' }, mag: { c: BLACK, metal: true }, detail: { c: INK },
+    },
+  },
+  // R 競技札：シャーシの両脇の番号札「07」・頬当てにかぶせた当て布と留め帯・銃身の上の風見の小旗
+  //   c1 銃床と先台のざらざらの樹脂（メイン）、c2 当て布と小旗。札は白、数字と帯は黒、金属は黒で固定
+  aw_r: {
+    name: '競技札', gun: 'awm', rarity: 'R', colors: [0x5a5a5a, 0xd0d0d0], addons: ['aw_bib', 'aw_pad', 'aw_flag'],
+    parts: {
+      grip: { v: 1, tex: 'stipple' }, cloth: { v: 2 }, bib: { c: 0xf4f4f4 }, ink: { c: INK },
+      slide: { c: BLACK, metal: true }, frame: { c: BLACK, metal: true }, barrel: { c: BLACK, metal: true },
+      scope: { c: INK, metal: true }, mag: { c: BLACK, metal: true }, detail: { c: INK },
+    },
+  },
+  // SR 撃墜記録：銃床に刻んだ数え線（5本ずつ4組）・先台の下から吊るした3つの空薬莢・用心鉄の前から下がるドッグタグと鎖
+  //   c1 銃床と先台のざらざらの樹脂（メイン）、c2 真鍮（数え線と薬莢。金属の照り返しも）。札は銀、鎖と紐は黒、金属は黒で固定
+  aw_sr: {
+    name: '撃墜記録', gun: 'awm', rarity: 'SR', colors: [0x4a4a4a, 0xd0d0d0], addons: ['aw_tally', 'aw_shells', 'aw_tags'],
+    parts: {
+      grip: { v: 1, tex: 'stipple' }, brass: { v: 2, metal: true, sheen: 'self' }, tag: { c: STEEL, metal: true, sheen: 0xffffff }, ink: { c: INK },
+      slide: { c: BLACK, metal: true, sheen: 'c2' }, frame: { c: BLACK, metal: true, sheen: 'c2' }, barrel: { c: BLACK, metal: true, sheen: 'c2' },
+      scope: { c: INK, metal: true, sheen: 'c2' }, mag: { c: BLACK, metal: true }, detail: { c: INK },
+    },
+  },
+  // LR 墨染：白い紙（固定）の銃が、後ろから銃口へ c1 の墨に染まり、銃口で c2 へにじむ。筆の払い（上 c2・下 c1）・落款 c2・墨のしずく c2・飛んだ墨の点 c1
+  //   紙はつや消しの白で固定。金属・スコープも同じ流れで染まる（銃身は c1 から c2 へ）。弾倉は紙、小物は黒
+  aw_lr: {
+    name: '墨染', gun: 'awm', rarity: 'LR', colors: [0x2a2a2a, 0x8a8a8a], fx: 'c2', aura: true, addons: ['aw_brush', 'aw_seal', 'aw_drops', 'aw_splat'],
+    parts: {
+      grip: { v: 1, fade: [PAPER, PAPER, 'c1', 'c1', 'c2'], fadeLen: 1236 },
+      slide: { v: 1, metal: true, sheen: 'c2', fade: [PAPER, PAPER, 'c1', 'c1', 'c2'], fadeLen: 1236 },
+      frame: { v: 1, metal: true, sheen: 'c2', fade: [PAPER, PAPER, 'c1', 'c1', 'c2'], fadeLen: 1236 },
+      scope: { v: 1, gloss: true, sheen: 'c2', fade: [PAPER, PAPER, 'c1', 'c1', 'c1'], fadeLen: 1236 },
+      barrel: { v: 1, metal: true, sheen: 'c2', fade: ['c1', 'c1', 'c2'], fadeLen: 1236 },
+      mag: { c: PAPER }, paper: { c: PAPER }, detail: { c: INK },
+      brushA: { v: 2, gloss: true, sheen: 'self' }, brushB: { v: 1, gloss: true, sheen: 'self' }, splat: { v: 1 },
+      seal: { v: 2 }, drop: { v: 2, gloss: true, sheen: 'self' },
     },
   },
 };

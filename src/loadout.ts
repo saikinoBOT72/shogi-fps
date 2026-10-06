@@ -125,8 +125,10 @@ export function pull(n: 1 | 10): Owned[] | null {
   for (let i = 0; i < n; i++) {
     const r = rollRarity();
     const m = models[Math.floor(Math.random() * models.length)];
-    const base = Object.keys(DESIGNS).find(k => DESIGNS[k].gun === GUN_OF_MODEL[m] && DESIGNS[k].rarity === r)
-      || Object.keys(DESIGNS).find(k => DESIGNS[k].rarity === r);
+    // 同じ武器・同じレア度のデザインが複数あれば（AK の LR 鬼・金継ぎなど）その中から等しい確率で
+    const pick = (ks: string[]) => ks[Math.floor(Math.random() * ks.length)];
+    const ofGun = Object.keys(DESIGNS).filter(k => DESIGNS[k].gun === GUN_OF_MODEL[m] && DESIGNS[k].rarity === r);
+    const base = ofGun.length ? pick(ofGun) : pick(Object.keys(DESIGNS).filter(k => DESIGNS[k].rarity === r));
     const it: Owned = { id: Loadout.nextId++, base, seed: (Math.random() * 4294967296) >>> 0, at: now + i };
     Loadout.items.push(it); out.push(it);
   }

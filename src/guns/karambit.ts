@@ -169,6 +169,56 @@ export function buildKarambit(opt: { skin?: string; hand?: THREE.Material } = {}
   }
   flower(20, 10, 0, 0.9);
 
+  // 忍（LR 2つ目）：nin_ で始まる（刃は根元から刃先へ毒の色に染まる：スキンの fade を縦向きに）
+  //   nin_shuriken：輪を芯にした手裏剣の3枚刃（握りの方向は握りが4本目の刃の代わり） / nin_kunai：輪の後ろの突起を苦無の刃に
+  //   nin_lines：背と刃に沿う2本の光る筋 / nin_chain：輪の下から垂れる鎖と分銅 / nin_smoke：苦無の根元から下がる煙玉（帯と紐）
+  //   nin_wrap：握りの両脇にひし形に巻いた紐 / nin_star：握りの外側（手と反対の -x）に刺さった小さな十字手裏剣
+  const blade3 = (a: number) => {
+    const sh = new THREE.Shape(), r0 = 14, r1 = 29, w = 0.32;
+    sh.moveTo(Math.cos(a - w) * r0, Math.sin(a - w) * r0); sh.lineTo(Math.cos(a) * r1, Math.sin(a) * r1); sh.lineTo(Math.cos(a + w) * r0, Math.sin(a + w) * r0);
+    return new THREE.ExtrudeGeometry(sh, { depth: 2.4, bevelEnabled: true, bevelSize: 0.4, bevelThickness: 0.4, bevelSegments: 1 }).translate(0, 0, -1.2);
+  };
+  for (const deg of [100, 30, 280]) add('nin_shuriken', 'steel', side(blade3(deg * Math.PI / 180), 0, 0, 0));
+  add('nin_kunai', 'steel', S.extrude([[12, -4], [22, -2.5], [42, -10], [22, -15], [12, -12]], 4, { bevel: 0.6 }));
+  add('nin_lines', 'line', tube(([[-106, -54], [-111, -84], [-107, -113], [-96, -143], [-78, -168], [-65, -176]] as [number, number][]).map(([u, v]) => [u - 0.9, v, 0] as [number, number, number]), 1, 60));
+  add('nin_lines', 'line', tube(([[-73, -60], [-78, -84], [-79, -113], [-76, -143], [-72, -164], [-65, -176]] as [number, number][]).map(([u, v]) => [u + 0.6, v, 0] as [number, number, number]), 0.9, 60));
+  for (let i = 0; i < 5; i++) add('nin_chain', 'chain', S.put(new THREE.TorusGeometry(2.8, 0.9, 4, 8), 2 + (i % 2) * 0.8, -20 - i * 5.4, 0, [0, i % 2 ? 0 : Math.PI / 2, 0]));
+  add('nin_chain', 'steel', S.put(new THREE.CylinderGeometry(4.5, 4.5, 11, 6), 2.8, -52));   // 分銅（六角の重り）
+  add('nin_smoke', 'cord', tube([[18, -14, 0], [20, -22, 0.8], [21, -30, 0]], 0.8, 12));
+  add('nin_smoke', 'ball', S.put(new THREE.IcosahedronGeometry(7, 1), 21, -38));
+  add('nin_smoke', 'cord', S.put(new THREE.TorusGeometry(7.1, 1.1, 4, 14).rotateX(Math.PI / 2), 21, -38));   // 煙玉の帯
+  {
+    // 握りの真ん中の線に沿って6か所、軸に斜めの2本を交差させて巻く
+    // 紐は両脇の面（x = ±10）に半分ほど埋めた丸い紐。端は握りの輪郭の少し手前で面の中へ沈める（貼った板に見えないように）
+    //   紐の端は握りの輪郭と紐の線が交わる所から決める（輪郭は握りを作った形そのもの）
+    const outline: Pt[] = [...top, ...end, ...fingers, [-11, -9]];
+    const hits = (c: Pt, d: Pt) => {   // c から向き d の直線と輪郭の交わり（c より前と後ろでいちばん近いもの）
+      let lo = -Infinity, hi = Infinity;
+      for (let i = 0; i < outline.length; i++) {
+        const [a, b] = [outline[i], outline[(i + 1) % outline.length]], ex = b[0] - a[0], ey = b[1] - a[1];
+        const den = d[0] * ey - d[1] * ex; if (Math.abs(den) < 1e-9) continue;
+        const t = ((a[0] - c[0]) * ey - (a[1] - c[1]) * ex) / den, w = ((a[0] - c[0]) * d[1] - (a[1] - c[1]) * d[0]) / den;
+        if (w < 0 || w > 1) continue;
+        if (t > 0) hi = Math.min(hi, t); else lo = Math.max(lo, t);
+      }
+      return [lo, hi];
+    };
+    const axis = Math.atan2(-65, -95), perp = axis + Math.PI / 2;
+    for (const [u, v] of [[-24, -1], [-38, -8], [-52, -16], [-66, -27], [-80, -35], [-94, -44]] as Pt[]) for (const d of [0.45, -0.45]) {
+      const dir: Pt = [Math.cos(perp + d), Math.sin(perp + d)], [lo, hi] = hits([u, v], dir);
+      const at = (t: number, x: number) => new THREE.Vector3(x, v + dir[1] * t, -(u + dir[0] * t));
+      for (const s of [1, -1]) {
+        const pts = [at(lo + 1, 8.6 * s), at(lo + 4, 10.3 * s), at(hi - 4, 10.3 * s), at(hi - 1, 8.6 * s)];
+        add('nin_wrap', 'cord', S.put(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), 16, 1.15, 5, false), 0, 0));
+      }
+    }
+  }
+  {
+    const sh = new THREE.Shape();
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, r = i % 2 ? 2.6 : 8; (i ? sh.lineTo.bind(sh) : sh.moveTo.bind(sh))(Math.cos(a) * r, Math.sin(a) * r); }
+    add('nin_star', 'steel', side(new THREE.ExtrudeGeometry(sh, { depth: 1.4, bevelEnabled: false }).translate(0, 0, -0.7).rotateX(0.35), -56, -20, -11.2));
+  }
+
   const model = makeGun({
     B, clips, muzzle, eject, addons, skin: opt.skin || 'hagane',
     info: { name: 'カランビット', real: '全長 190mm・刃 100mm' },

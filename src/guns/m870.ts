@@ -196,6 +196,45 @@ export function buildM870(opt: { skin?: string; hand?: THREE.Material } = {}) {
   addons.push({ name: 'hv_brake', slot: 'line', geo: S.put(new THREE.TorusGeometry(9.5, 1.3, 4, 14), 992.4, 100) });
   addons.push({ name: 'hv_brake', slot: 'bore', geo: S.rod(991, 992.6, 100, 8.5, 10) });
 
+  // ----- 種子島（LR 2つ目）：tg_ で始まる -----
+  //   tg_bands：銃身と弾倉をまとめる真鍮の帯2本・銃身だけの帯2本（先台が下がってくる所より前だけ）
+  //   tg_plate：機関部の両脇の火皿の板（小さな皿つき） / tg_crest：ストックの両脇の紋（輪と3つの丸。架空）
+  //   tg_cord：ストックの付け根から機関部の右を通り、銃身の右を波打って進み、前で銃身に2周巻いて銃口でくすぶる火縄（先が光り、細い煙）
+  //   tg_tassel：ストックの下から下がる紐と玉と房
+  // 横から見た幅の形 (x, v) を、u0 から 12mm の厚さで前へ押し出す（帯のように銃を囲む部品用）
+  const band = (sh: THREE.Shape, u0: number, len = 12) => {
+    const g = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: true, bevelSize: 0.8, bevelThickness: 0.8, bevelSegments: 1, curveSegments: 8 }).rotateY(Math.PI);
+    g.scale(1 / 1000, 1 / 1000, 1 / 1000); g.translate(0, -64 / 1000, -(u0 - 300) / 1000);
+    return g;
+  };
+  const stadium = new THREE.Shape(); stadium.absarc(0, 100, 12.6, 0, Math.PI, false); stadium.absarc(0, 76, 11.6, Math.PI, Math.PI * 2, false);
+  const ringB = new THREE.Shape(); ringB.absarc(0, 100, 12.6, 0, Math.PI * 2, false);
+  for (const u of [818, 856]) addons.push({ name: 'tg_bands', slot: 'accent', geo: band(stadium, u) });
+  for (const u of [924, 944]) addons.push({ name: 'tg_bands', slot: 'accent', geo: band(ringB, u, 10) });
+  for (const s of [1, -1]) {
+    const plate = new THREE.Shape(); plate.moveTo(322, 72); plate.lineTo(386, 72); plate.quadraticCurveTo(392, 72, 392, 78); plate.lineTo(392, 90); plate.quadraticCurveTo(392, 96, 386, 96); plate.lineTo(322, 96); plate.quadraticCurveTo(316, 96, 316, 90); plate.lineTo(316, 78); plate.quadraticCurveTo(316, 72, 322, 72);
+    addons.push({ name: 'tg_plate', slot: 'accent', geo: S.extrude(plate.getPoints(3).map(p => [p.x, p.y] as [number, number]), 2, { bevel: 0.4, x: 15.9 * s }) });
+    addons.push({ name: 'tg_plate', slot: 'accent', geo: S.put(new THREE.CylinderGeometry(6, 6, 6, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2), 382, 96, 17 * s) });   // 火皿
+    addons.push({ name: 'tg_crest', slot: 'accent', geo: S.ring(120, 58, 22, 18.5, 1.6, 20, { bevel: 0, x: 19.8 * s }) });
+    for (const a of [Math.PI / 2, Math.PI / 2 + 2.094, Math.PI / 2 + 4.189])
+      addons.push({ name: 'tg_crest', slot: 'accent', geo: S.put(new THREE.CylinderGeometry(6.5, 6.5, 1.6, 12).rotateZ(Math.PI / 2), 120 + 8.5 * Math.cos(a), 58 + 8.5 * Math.sin(a), 19.8 * s) });
+  }
+  {
+    // 火縄の道：(u, v, x)。先台（v 92 まで・幅 ±20）には触れない高さを通る
+    //   ストックの右の面（x 19）→ 機関部の右の平らな面（x 15）→ 銃身の右（半径 11）の横を波打つ → 前の金具（880〜898）より前で1周半巻く
+    const P: [number, number, number][] = [[200, 92, 21], [236, 97, 20.5], [280, 98, 17.3], [340, 96, 17.4], [420, 99, 17.4], [500, 101, 16]];
+    for (let i = 0; i < 19; i++) P.push([524 + i * 20, i % 2 ? 103 : 98.5, 13.4]);
+    for (let i = 0; i <= 18; i++) { const t = i / 18, a = t * Math.PI * 3; P.push([904 + t * 54, 100 + 13.6 * Math.sin(a), 13.6 * Math.cos(a)]); }
+    P.push([962, 112, 8], [966, 116, 4]);
+    const curve = new THREE.CatmullRomCurve3(P.map(([u, v, x]) => new THREE.Vector3(x, v, -u)));
+    addons.push({ name: 'tg_cord', slot: 'rope', geo: S.put(new THREE.TubeGeometry(curve, 160, 2.4, 5, false), 0, 0) });
+    addons.push({ name: 'tg_cord', slot: 'ember', geo: S.put(new THREE.IcosahedronGeometry(4, 1), 967, 117, 3) });
+    const smoke = new THREE.CatmullRomCurve3(([[968, 121, 3], [962, 134, 4], [970, 148, 2], [964, 164, 4]] as [number, number, number][]).map(([u, v, x]) => new THREE.Vector3(x, v, -u)));
+    addons.push({ name: 'tg_cord', slot: 'smoke', geo: S.put(new THREE.TubeGeometry(smoke, 16, 1.3, 4, false), 0, 0) });
+  }
+  addons.push({ name: 'tg_tassel', slot: 'rope', geo: S.box(39, 41, -8, 24, 1.4) });
+  addons.push({ name: 'tg_tassel', slot: 'tassel', geo: S.put(new THREE.IcosahedronGeometry(5, 1), 40, -12) });
+  addons.push({ name: 'tg_tassel', slot: 'tassel', geo: S.put(new THREE.ConeGeometry(7, 28, 8), 40, -30) });
   return makeGun({
     B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume',
     info: { name: 'M870', real: '全長 約970mm・銃身 470mm（ポンプ式）', reload: 2.2 },

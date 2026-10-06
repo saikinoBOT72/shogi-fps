@@ -205,6 +205,48 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   addons.push({ name: 'tk_disc', slot: 'line', geo: S.put(new THREE.CylinderGeometry(9, 9, 1.6, 16), 421, 165.2) });
   addons.push({ name: 'tk_lens', slot: 'line', geo: S.rod(573.5, 574.4, 142, 15, 10) });
 
+  // ----- 竹林（LR 2つ目）：ck_ で始まる（色は後ろから銃口へ煤けた色の流れ。竹らしさは形で出す） -----
+  //   ck_culm：銃身にかぶせた竹の筒（先台の前の金具より先。太さ 26mm）と節5つ（銃口に近いほど間隔が短い）・節の下の白い粉の帯
+  //   ck_scope：スコープの筒も竹（台と台の間。節2つ） / ck_bands：ストックの付け根と先台の後ろを竹の節の帯で区切る
+  //   ck_leaves：笹の小枝3つ（銃口の上・筒の1つ目の節の右・床尾の上）。照準の線（スコープの高さ）より上には出さない
+  //   ck_canteen：先台の下から紐で吊るした竹筒の水筒（節と栓つき）
+  // 色の流れ（図面の u に沿う）が乗るよう、uv を横から見た図面の mm にする
+  const uvSide = (g: THREE.BufferGeometry) => {
+    const p = g.attributes.position, uv = new Float32Array(p.count * 2);
+    for (let i = 0; i < p.count; i++) { uv[i * 2] = 262 - p.getZ(i) * 1000; uv[i * 2 + 1] = p.getY(i) * 1000 + 70; }
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    return g;
+  };
+  const culm = (name: string, u0: number, u1: number, v: number, r: number, nodes: number[], x = 0) => {
+    addons.push({ name, slot: 'culm', geo: uvSide(S.rod(u0, u1, v, r, 14, x)) });
+    for (const u of nodes) {
+      addons.push({ name, slot: 'node', geo: uvSide(S.rod(u - 2.5, u + 2.5, v, r + 1.4, 14, x)) });
+      addons.push({ name, slot: 'powder', geo: uvSide(S.rod(u - 6.5, u - 2.5, v, r + 0.15, 14, x)) });
+    }
+  };
+  culm('ck_culm', 744, 1022, 100, 13, [796, 858, 910, 954, 992]);
+  addons.push({ name: 'ck_culm', slot: 'node', geo: uvSide(S.rod(1020, 1023, 100, 13.6, 14)) });   // 切り口の縁
+  culm('ck_scope', 347, 493, 142, 14.5, [402, 452]);
+  addons.push({ name: 'ck_bands', slot: 'node', geo: uvSide(S.extrude([[214, 53], [224, 53], [224, 103.5], [214, 103.5]], 41.4, { bevel: 2 })) });
+  addons.push({ name: 'ck_bands', slot: 'node', geo: uvSide(S.extrude([[586, 62.5], [596, 62.5], [596, 109.5], [586, 109.5]], 35.4, { bevel: 2 })) });
+  // 笹の葉：細長く先が尖る。横から見た向き a（u から v へ）、長さ k 倍、横への開き tw
+  const leaf = (len: number) => {
+    const sh = new THREE.Shape(), w = len * 0.15;
+    sh.moveTo(0, 0); sh.quadraticCurveTo(len * 0.3, w * 1.4, len, 0); sh.quadraticCurveTo(len * 0.3, -w * 1.4, 0, 0);
+    return new THREE.ExtrudeGeometry(sh, { depth: 0.8, bevelEnabled: false, curveSegments: 5 }).translate(0, 0, -0.4);
+  };
+  const sprig = (u: number, v: number, x: number, list: [number, number, number][]) => {
+    for (const [a, k, tw] of list) addons.push({ name: 'ck_leaves', slot: 'leaf', geo: S.put(leaf(62 * k).rotateZ(a).rotateY(Math.PI / 2).rotateY(tw), u, v, x) });
+    addons.push({ name: 'ck_leaves', slot: 'node', geo: S.put(new THREE.IcosahedronGeometry(2.6, 0), u, v, x) });
+  };
+  sprig(1012, 113, 0, [[0.35, 1, 0.35], [0.12, 0.85, -0.4], [0.55, 0.75, -0.15], [-0.25, 0.7, 0.55]]);
+  sprig(796, 104, 14, [[-0.6, 0.9, 0.5], [-1.1, 0.75, 0.25], [-0.2, 0.7, 0.7]]);
+  sprig(40, 97, 0, [[2.4, 0.8, 0.4], [2.0, 0.7, -0.35], [2.8, 0.6, 0.1]]);
+  // 水筒：横に寝かせた竹筒（節が真ん中、後ろに栓）。先台の下の2点から V 字の紐で吊る
+  culm('ck_canteen', 652, 704, 18, 12, [679]);
+  addons.push({ name: 'ck_canteen', slot: 'node', geo: uvSide(S.rod(645, 652, 18, 8, 10)) });
+  for (const [a, b] of [[[664, 66], [660, 30]], [[694, 66], [698, 30]]] as [number, number][][])
+    addons.push({ name: 'ck_canteen', slot: 'rope', geo: S.put(new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(0, a[1], -a[0]), new THREE.Vector3(0, b[1], -b[0])), 2, 1, 4, false), 0, 0) });
   return makeGun({
     B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume',
     info: { name: 'マークスマン Mk2', real: '全長 約1030mm・銃身 580mm（レバーアクション）', reload: 2.4 },

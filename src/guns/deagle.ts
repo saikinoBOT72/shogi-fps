@@ -6,7 +6,7 @@
 // 　　　　　reload（弾倉を落として入れ替える）・inspect（眺める）・equip（構える：スライドを引く）
 import * as THREE from 'three';
 import { GunAnimator, Clip, Track, Key } from './anim';
-import { PartBuilder, Pt, makeSpace } from './kit';
+import { PartBuilder, Pt, flat, makeSpace } from './kit';
 import { Addon, makeAddons } from './model';
 import { DEFAULT_SKIN, skinMaterials } from './skins';
 
@@ -178,6 +178,50 @@ export function buildDeagle(opt: GunOpt = {}) {
   addons.push({ name: 'lanyard', slot: 'cord', geo: S.box(7, 9, -40, -15, 1.4) });
   addons.push({ name: 'lanyard', slot: 'bead', geo: S.put(new THREE.IcosahedronGeometry(5.5, 1), 8, -45) });
   addons.push({ name: 'lanyard', slot: 'cord', geo: S.put(new THREE.ConeGeometry(3.2, 12, 6), 8, -56) });
+  // 花札（LR 2つ目）：hf_ で始まる
+  //   hf_bozu：スライドの両脇の「坊主」の月（c2）と黒い山 / hf_tanzaku：銃身の横に斜めに貼った短冊（c1、縁は生成り）
+  //   hf_maku：銃身の下の段に垂れる幕（生成りに c2 の裾と c1 の紋） / hf_sun：銃身の前の横の日（c2）
+  //   hf_cards：底の輪から扇に広がる5枚の札と、まわりに浮く4枚の札（札は 22×35mm。地は生成り、縁は黒、絵は c1・c2・黒）
+  const circ = (u: number, v: number, r: number, n = 12): Pt[] => Array.from({ length: n }, (_, i) => [u + r * Math.cos(i / n * Math.PI * 2), v + r * Math.sin(i / n * Math.PI * 2)] as Pt);
+  // 銃身の横の面に沿わせる（上の段は上へ細くなる：v116 で幅 30、v136 で 0.55 倍）。押し出した薄い板の x を面の位置へ移す
+  const barrelHalf = (v: number) => BARREL_W / 2 * (v <= 116 ? 1 : 1 - 0.45 * Math.min(1, (v - 116) / 20));
+  const onBarrel = (pts: Pt[], t: number, off: number, s: number) => {
+    const g = S.extrude(pts, t, { bevel: 0 }), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setX(i, s * (barrelHalf(p.getY(i) * 1000 + 100) + off) / 1000 + p.getX(i));
+    return flat(g);
+  };
+  for (const s of [1, -1]) {
+    addons.push({ name: 'hf_bozu', slot: 'art2', geo: S.extrude(circ(66, 124, 9, 14), 0.8, { bevel: 0, x: (SLIDE_W / 2 + 0.6) * s }), part: slide });
+    addons.push({ name: 'hf_bozu', slot: 'hill', geo: S.extrude([[28, 103], [50, 113], [72, 109], [96, 113], [112, 103]], 0.8, { bevel: 0, x: (SLIDE_W / 2 + 0.7) * s }), part: slide });
+    // 幕：上はまっすぐ、裾は波。生成りの布に c2 の裾の線と c1 の紋3つ
+    const hem: Pt[] = []; for (let i = 0; i <= 14; i++) hem.push([264 - i * 10, i % 2 ? 105.5 : 108.5]);
+    addons.push({ name: 'hf_maku', slot: 'face', geo: onBarrel([[124, 115], [264, 115], ...hem], 0.6, 0.3, s) });
+    addons.push({ name: 'hf_maku', slot: 'art2', geo: onBarrel(hem.map(([u, v]) => [u, v + 1.6] as Pt).concat(hem.slice().reverse()), 0.6, 0.6, s) });
+    for (const u of [150, 200, 240]) addons.push({ name: 'hf_maku', slot: 'art1', geo: onBarrel(circ(u, 111.5, 2.6, 8), 0.6, 0.6, s) });
+    addons.push({ name: 'hf_tanzaku', slot: 'face', geo: onBarrel([[156, 103.5], [168, 103.5], [204, 133], [192, 133]], 0.6, 0.9, s) });
+    addons.push({ name: 'hf_tanzaku', slot: 'art1', geo: onBarrel([[158.5, 105], [166, 105], [200, 131.5], [192.5, 131.5]], 0.6, 1.2, s) });
+    addons.push({ name: 'hf_sun', slot: 'art2', geo: onBarrel(circ(250, 124, 6, 12), 0.6, 0.6, s) });
+  }
+  // 札：横から見た面に描く。kind 0 坊主（空・月・山）/ 1 桜に幕（幕と花の点）/ 2 短冊 / 3 日（日と黒い茎）
+  //   (u, v) が札の上の真ん中、a が回転（ラジアン）、k が大きさ、x が幅方向の位置
+  const card = (u: number, v: number, a: number, kind: number, x: number, k = 1, part?: THREE.Object3D) => {
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const T = (pts: Pt[]): Pt[] => pts.map(([px, py]) => [u + (px * k) * ca - (py * k) * sa, v + (px * k) * sa + (py * k) * ca] as Pt);   // 札の中の座標（上の真ん中が原点、下が -）
+    const rect = (x0: number, x1: number, y0: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    const add = (slot: string, pts: Pt[], dx: number) => { for (const s of [1, -1]) addons.push({ name: 'hf_cards', slot, geo: S.extrude(T(pts), 0.4, { bevel: 0, x: x + s * dx }), part }); };
+    addons.push({ name: 'hf_cards', slot: 'hill', geo: S.extrude(T(rect(-11, 11, -35, 0)), 1, { bevel: 0, x }), part });   // 黒い縁（裏の芯）
+    add('face', rect(-10, 10, -34, -1), 0.6);
+    if (kind === 0) { add('art1', rect(-9, 9, -33, -2), 0.9); add('art2', circ(0, -13, 5, 12), 1.2); add('hill', [[-9, -33], [-9, -25], [0, -21], [9, -27], [9, -33]], 1.2); }
+    if (kind === 1) { add('art1', [[-9, -2], [9, -2], [9, -9], [4.5, -6], [0, -11], [-4.5, -6], [-9, -9]], 0.9); for (const px of [-6, -2, 2, 6]) add('art2', circ(px, -24, 1.8, 6), 0.9); }
+    if (kind === 2) add('art1', [[-6, -3], [-1, -3], [7, -31], [2, -31]], 0.9);
+    if (kind === 3) { add('art2', circ(0, -14, 6, 12), 0.9); for (const px of [-6, 0, 6]) add('hill', rect(px - 1, px + 1, -32, -24), 0.9); }
+  };
+  addons.push({ name: 'hf_cards', slot: 'hill', geo: S.put(new THREE.TorusGeometry(4, 1.2, 4, 10).rotateY(Math.PI / 2), 14, -9) });
+  [-0.55, -0.27, 0, 0.27, 0.55].forEach((a, i) => card(14 + Math.sin(a) * 3, -13, a, [0, 1, 2, 3, 0][i], (i - 2) * 1.6));
+  card(292, 112, 0.35, 0, 6, 0.8);      // 銃口の先に浮く2枚（照準の線より下）
+  card(306, 80, -0.25, 2, -4, 0.8);
+  card(-40, 140, 0.18, 1, 4, 0.7);      // 撃鉄の後ろ
+  card(214, 152, -0.45, 3, 24, 0.7);    // 銃身の右の上（照準の線の外）
   const deco = makeAddons(B, addons);
 
   // ---------- 塗装 ----------

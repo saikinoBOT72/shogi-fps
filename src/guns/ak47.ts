@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 
 const S = makeSpace(320, 62);   // 原点：グリップの付け根
 const TRAVEL = 0.07;            // キャリアが下がる量（m）
@@ -114,7 +114,7 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
   // スキンの付け足し（SR 以上）：輪郭はほぼ変えない小さな部品
   //   brake：銃口の飾りマズルブレーキ（切り欠き2つ） / line：機関部の両脇に光る線
   //   charm：ハンドガードの留め金から下がる根付（紐とお守り） / plate：ストックの両脇の飾り板
-  const addons = [
+  const addons: Addon[] = [
     { name: 'brake', slot: 'barrel', geo: S.rod(866, 898, 100, 12.5, 8) },
     { name: 'brake', slot: 'bore', geo: S.box(873, 879, 109, 113.5, 7) },
     { name: 'brake', slot: 'bore', geo: S.box(885, 891, 109, 113.5, 7) },
@@ -238,6 +238,64 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
     const t = i / 12, u = 250 + (150 - 250) * t, v = 66 + (48 - 66) * t - 36 * 4 * t * (1 - t);
     addons.push({ name: 'gr_chain', slot: 'frame', geo: S.put(new THREE.TorusGeometry(3.4, 1.1, 4, 8), u, v, 14.5 + 6 * t, [0, i % 2 ? Math.PI / 2 : 0, 0.3]) });
   }
+
+  // ----- 金継ぎ：kn_ で始まる（割れた銃を金で継いだ姿。案 B） -----
+  //   kn_seams：ストック・グリップ・ハンドガード・弾倉を走る光る継ぎ目（左右で割れ方が少し違う）
+  //   kn_staples：継ぎ目をまたぐ金の鎹 / kn_patches：ストックのかかとと弾倉の底の欠けを埋めた金
+  //   kn_shards：割れて浮いている破片（ストックの後ろ1・銃口の上2、割れ口が光る）と銃口の金の粉
+  type KP = [number, number];
+  const SEAMS: { pts: KP[]; x: (v: number) => number; part?: THREE.Object3D; staple?: number[] }[] = [
+    { pts: [[10, 40], [50, 54], [80, 36], [120, 62], [160, 58], [200, 82], [236, 92]], x: () => 19.4, staple: [1, 3] },   // ストック（長い方）
+    { pts: [[24, 4], [58, 22], [90, 18], [118, 36], [150, 46]], x: () => 19.4, staple: [1] },                              // ストック（下の枝）
+    { pts: [[306, 54], [316, 26], [304, -6], [298, -36]], x: () => 15.4 },                                                 // グリップ
+    { pts: [[530, 96], [565, 80], [600, 96], [640, 76], [690, 90]], x: v => 18 * (1 - 0.1 * (v - 70) / 30) + 0.4, staple: [1, 3] },   // ハンドガード（上へ細くなる）
+    { pts: [[420, 40], [438, 8], [470, -30], [456, -60], [492, -96]], x: () => 12.4, part: mag, staple: [1] },             // 弾倉
+  ];
+  const JIT = [5, -4, 6, -5, 4, -6];   // 左側は割れ方を少しずらす
+  // a→b の帯（幅 w）。継ぎ目のつなぎ目が切れないよう、両端を w/2 だけ伸ばす
+  const strip = (a: KP, b: KP, w: number): KP[] => {
+    const du = b[0] - a[0], dv = b[1] - a[1], l = Math.hypot(du, dv), tu = du / l, tv = dv / l, nu = -tv * w / 2, nv = tu * w / 2;
+    const cu = (a[0] + b[0]) / 2, cv = (a[1] + b[1]) / 2, h = l / 2 + w / 2;
+    return [[cu - tu * h - nu, cv - tv * h - nv], [cu + tu * h - nu, cv + tv * h - nv], [cu + tu * h + nu, cv + tv * h + nv], [cu - tu * h + nu, cv - tv * h + nv]];
+  };
+  for (const s of [1, -1]) for (const sm of SEAMS) {
+    const pts = sm.pts.map(([u, v], i) => (s > 0 || i === 0 || i === sm.pts.length - 1 ? [u, v] : [u, sm === SEAMS[3] ? Math.min(97, Math.max(74, v + JIT[i])) : v + JIT[i]]) as KP);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [a, b] = [pts[i], pts[i + 1]], x = sm.x((a[1] + b[1]) / 2);
+      addons.push({ name: 'kn_seams', slot: 'line', geo: S.extrude(strip(a, b, 2.6), 1.2, { bevel: 0, x: x * s }), part: sm.part });
+    }
+    for (const i of sm.staple || []) {
+      const [a, b] = [pts[i], pts[i + 1]], x = sm.x((a[1] + b[1]) / 2) + 0.3;
+      // 鎹は継ぎ目と直角（幅 6mm・長さ 20mm）
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]), nu = -(b[1] - a[1]) / l * 7, nv = (b[0] - a[0]) / l * 7, mu = (a[0] + b[0]) / 2, mv = (a[1] + b[1]) / 2;
+      addons.push({ name: 'kn_staples', slot: 'accent', geo: S.extrude(strip([mu - nu, mv - nv], [mu + nu, mv + nv], 6), 1.6, { bevel: 0.3, x: x * s }), part: sm.part });
+    }
+  }
+  // 欠けを埋めた金：ストックの面取り（3mm 外へ広がる）と弾倉の面取り（1.5mm）を覆う大きさ
+  addons.push({ name: 'kn_patches', slot: 'accent', geo: S.extrude([[-3.6, 44], [-3.6, 77], [4, 83.4], [50, 86], [38, 62], [16, 56]], 39.6, { bevel: 0.6 }) });
+  addons.push({ name: 'kn_patches', slot: 'accent', geo: S.extrude([[462, -123], [529, -114.5], [528, -103], [512, -92], [486, -101], [462, -109]], 26, { bevel: 0.6 }), part: mag });
+  // 浮く破片：木の欠片（三角すい）と、割れ口の面だけ光る板
+  const shard = (r: number, u: number, v: number, x: number, rot: [number, number, number], part?: THREE.Object3D) => {
+    const g = new THREE.TetrahedronGeometry(r, 0); g.scale(1, 1.6, 0.6);
+    const p = g.attributes.position, A = new THREE.Vector3().fromBufferAttribute(p, 0), Bv = new THREE.Vector3().fromBufferAttribute(p, 1), Cv = new THREE.Vector3().fromBufferAttribute(p, 2);
+    const n = Bv.clone().sub(A).cross(Cv.clone().sub(A)).normalize().multiplyScalar(0.4);
+    const face = new THREE.BufferGeometry();
+    face.setAttribute('position', new THREE.Float32BufferAttribute([A, Bv, Cv].flatMap(w => [w.x + n.x, w.y + n.y, w.z + n.z]), 3));
+    face.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1], 2));
+    addons.push({ name: 'kn_shards', slot: 'shard', geo: S.put(g, u, v, x, rot), part });
+    addons.push({ name: 'kn_shards', slot: 'line', geo: S.put(face, u, v, x, rot), part });
+  };
+  shard(13, -26, 112, 6, [0.4, 0.9, 0.3]);
+  shard(12, 914, 134, 4, [1.1, 0.3, -0.6]);
+  shard(9, 946, 116, -5, [-0.5, 1.4, 0.8]);
+  shard(7, 972, 140, 2, [0.9, -0.7, 0.2]);
+  shard(9, -42, 88, -8, [-0.8, 0.5, 1.2]);   // ストックの後ろにもう2つ
+  shard(7, -20, 58, 14, [0.3, -1.1, -0.4]);
+  shard(7, 612, 140, 10, [1.3, 0.6, -0.9]);   // ハンドガードの上（一人称で見える）
+  shard(8, 540, -130, 6, [0.6, 0.9, 0.5], mag);   // 弾倉の底の欠けから落ちかけの破片（弾倉と一緒に動く）
+  shard(6, 506, -142, -4, [-1.0, 0.4, 1.1], mag);
+  for (const [u, v, x, r] of [[898, 100, 8, 2], [912, 112, -6, 1.6], [906, 86, 4, 1.4], [930, 96, -3, 1.8], [948, 106, 6, 1.3]])
+    addons.push({ name: 'kn_shards', slot: 'line', geo: S.put(new THREE.IcosahedronGeometry(r, 0), u, v, x) });
   return makeGun({
     B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume',
     info: { name: 'AK-47', real: '全長 880mm・銃身 415mm', reload: 2.0 },
