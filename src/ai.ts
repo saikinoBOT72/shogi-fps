@@ -22,7 +22,10 @@ export function steer(e, dir) {
   const o = new V3(e.pos.x, e.pos.y + 0.5, e.pos.z);
   const free = d => {
     if (overVoid(e.pos.x + d.x * 1.2, e.pos.z + d.z * 1.2, e.pos.y)) return false;   // 島の縁の先へは進まない
-    ray.set(o, d); ray.far = 1.8; const h = ray.intersectObjects(propMeshes, true).length === 0; ray.far = Infinity; return h;
+    // 上を歩ける面（急な階段・坂の上面）に当たったのは障害物に数えない（上っている途中で階段を壁と思って止まらないように）
+    ray.set(o, d); ray.far = 1.8;
+    const h = !ray.intersectObjects(propMeshes, true).some(hit => !hit.face || hit.face.normal.clone().transformDirection(hit.object.matrixWorld).y < 0.5);
+    ray.far = Infinity; return h;
   };
   if (free(dir)) return dir;
   for (const a of [0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) {
@@ -44,6 +47,8 @@ export function reachable(e, from, to) {
   const len = d.length();
   if (len < 0.01) return true;
   d.normalize();
+  // 浮島・屋上のマップ：途中に床の無い所（すき間）があれば、まっすぐは行けない
+  if (MAPS[mapId]?.void) for (let t = 0.8; t < len; t += 0.8) if (overVoid(from.x + d.x * t, from.z + d.z * t, e.pos.y)) return false;
   // 体の真ん中と両肩の3本で調べる（真ん中だけだと、戸口の端を体がすり抜けられると思って引っかかる）
   const side = new V3(-d.z, 0, d.x).multiplyScalar(e.radius * 0.9);
   ray.far = len + e.radius;

@@ -95,6 +95,13 @@ export const SFX = (() => {
       every(6, 14, () => { const d = out(null, 0.5, 6000, bus), n = 2 + Math.floor(Math.random() * 3), f = rand(3800, 4600); for (let j = 0; j < n; j++) T(d, { at: j * rand(0.12, 0.2), f0: f, f1: f * 0.78, dur: 0.06, g: 0.008, atk: 0.004 }); });   // 雀（ちゅん）
       every(22, 45, () => { const d = out(null, 0.8, 7000, bus), n = 1 + Math.floor(Math.random() * 3); for (let j = 0; j < n; j++) { const at = j * rand(0.25, 0.5); P(d, at, 2150, 1.4, 0.004); P(d, at, 5370, 0.6, 0.0015); } });   // 遠くの風鈴（ちりん）
       every(25, 55, () => { const d = out(null, 0.6, 1500, bus); N(d, { dur: 0.45, type: 'bandpass', f0: 420, f1: 330, q: 7, g: 0.02, atk: 0.06 }); });   // 家鳴り（ぎしっ）
+    } else if (id === 'roof') {
+      // 夜の屋上（試聴で決定）：手すりで鳴る口笛のような風（C）・下の通りの車とクラクション（B）・まれに遠くの救急車（A）。ネオンの音はなし
+      { const gw = ctx.createGain(); gw.gain.value = 0.05; const lf = ctx.createOscillator(), lg = ctx.createGain(); lf.frequency.value = 0.1; lg.gain.value = 0.03; lf.connect(lg).connect(gw.gain); lf.start(); a.srcs.push(lf);
+        loop('bandpass', 1150, 9, 0.05, [0.18, 160], gw); }   // 手すりで鳴る口笛のような風（音の高さと強さがゆっくり揺れる）
+      every(1.2, 3, () => { const d = out(null, 0.2, 3000, bus); N(d, { dur: 2.0, type: 'bandpass', f0: 350, f1: 950, q: 0.9, g: 0.025, atk: 0.9 }); });   // 下の通りを車が通る
+      every(6, 14, () => { const d = out(null, 0.5, 900, bus); for (const at of Math.random() < 0.5 ? [0, 0.35] : [0]) { T(d, { type: 'square', f0: 415, dur: 0.25, g: 0.012, at, atk: 0.02 }); T(d, { type: 'square', f0: 523, dur: 0.25, g: 0.01, at, atk: 0.02 }); } });   // 遠くのクラクション
+      every(40, 90, () => { const d = out(null, 0.6, 1400, bus); for (let i = 0; i < 12; i++) T(d, { type: 'triangle', f0: i % 2 ? 770 : 960, dur: 0.58, g: 0.016 * (1 - Math.abs(i - 6) / 8), at: 0.4 + i * 0.6, atk: 0.03 }); });   // 遠くの救急車（ピーポー）
     } else if (id === 'boss1') {
       // 仮想空間１：試聴して「今のまま（無音）」に決定（川や小鳥を鳴らさない）
     } else {

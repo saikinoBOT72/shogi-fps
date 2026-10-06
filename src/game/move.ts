@@ -72,7 +72,7 @@ export function collide(e) {
       nx = o[0]; nz = o[1]; push = o[2] + R;
     }
     e.pos.x += nx * push; e.pos.z += nz * push;
-    e.wallN = new V3(nx, 0, nz); e.wallTop = top;   // 壁登り用：触れている壁の向きと高さ
+    if (!c.noClimb) { e.wallN = new V3(nx, 0, nz); e.wallTop = top; }   // 壁登り用：触れている壁の向きと高さ（noClimb の壁は登れない）
     const vn = e.vel.x * nx + e.vel.z * nz;
     if (vn < 0) { e.vel.x -= vn * nx; e.vel.z -= vn * nz; }
   }

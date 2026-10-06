@@ -76,7 +76,8 @@ export const PHYS: any = (() => {
   let statics = [];
   function buildStatics() {
     statics.forEach(b => world.removeBody(b));
-    statics = colliders.flatMap(c => c.kind === 'hf' ? hfStatic(c) : c.kind === 'pyr'   // ピラミッド：面の内側に収まる階段状の箱
+    // noPhys：動く小物とは当たらなくてよい細かい置き物（夜の屋上のがらくた）。物理の計算を軽くする
+    statics = colliders.filter(c => !c.noPhys).flatMap(c => c.kind === 'hf' ? hfStatic(c) : c.kind === 'pyr'   // ピラミッド：面の内側に収まる階段状の箱
       ? c.phys.map(b => addStatic(new CANNON.Box(new CANNON.Vec3((b.max.x - b.min.x) / 2, (b.max.y - b.min.y) / 2, (b.max.z - b.min.z) / 2)), (b.max.x + b.min.x) / 2, (b.max.y + b.min.y) / 2, (b.max.z + b.min.z) / 2))
       : c.kind === 'ramp' ? rampStatic(c) : c.kind === 'box'
       ? addStatic(new CANNON.Box(new CANNON.Vec3((c.max.x - c.min.x) / 2, (c.max.y - c.min.y) / 2, (c.max.z - c.min.z) / 2)),

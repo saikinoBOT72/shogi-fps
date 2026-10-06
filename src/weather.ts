@@ -1,4 +1,5 @@
 import { updateGorge } from './maps/gorge';
+import { updateRoof } from './maps/roof';
 // 雪の温泉街の天気と地面：しんしんと降る雪、露天風呂と足湯の湯けむり、雪に残る足跡（10秒で消える）
 // 砂に埋もれた神殿：ときどき来る砂嵐（霧が濃い砂色になり、砂が横に流れる。CPU も近くしか見えない）と、砂に残る足跡
 import * as THREE from 'three';
@@ -123,6 +124,7 @@ export const Weather = {
   update(rdt: number, dt: number, show: boolean) {
     updateStorm(rdt, show && mapId === 'desert');
     if (show && mapId === 'gorge') updateGorge(rdt);   // 霧の渓谷：水車・流れの筋
+    if (show && mapId === 'roof') updateRoof(rdt);     // 夜の屋上：車の光・ネオン・探照灯・室外機の羽
     const on = show && mapId === 'onsen';
     snow.visible = on;
     fpMesh.visible = on || (show && mapId === 'desert');   // 足跡は雪と砂の上
