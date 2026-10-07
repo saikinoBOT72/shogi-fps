@@ -19,6 +19,7 @@ import { showMarket } from './marketScreen';
 import { Account, accountAvailable, onAccountChange } from './account';
 import { VS_TIME, showVsCut } from './vscut';
 import { showHero } from './hero';
+import { openTouchEdit } from './touch';
 
 // ================= 共通 =================
 const H_EN: Record<string, string> = {
@@ -58,6 +59,7 @@ export function settingsHTML() {
     <div class="row"><span>自動で解像度を下げる<small>重いとき画面を粗くして FPS を保つ。良い PC なら OFF</small></span>${seg('autoResSeg', [['1', 'ON'], ['0', 'OFF']], settings.autoRes ? '1' : '0')}</div>
     <div class="row"><span>FPS表示</span>${seg('fpsSeg', [['1', 'ON'], ['0', 'OFF']], settings.showFps ? '1' : '0')}</div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
+    <div class="row"><span>タッチ操作<small>スマホ・iPad のボタン配置・視点の感度</small></span><button class="small" id="touchEditBtn">配置を編集</button></div>
   </div>`;
 }
 export function bindSettings() {
@@ -74,6 +76,7 @@ export function bindSettings() {
   $('sensV').onkeydown = e => e.stopPropagation();   // 数字を打つときにゲームの操作に取られないように
   $('vol').oninput = e => { settings.vol = +e.target.value; SFX.setVol(settings.vol); saveSettings(); };
   ['sens', 'sensV', 'vol'].forEach(id => $(id).onclick = e => e.stopPropagation());
+  $('touchEditBtn').onclick = e => { e.stopPropagation(); openTouchEdit(); };
 }
 function showSettings(back: () => void) {
   overlay(`<div class="screen">

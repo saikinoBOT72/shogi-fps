@@ -240,7 +240,7 @@ export const Replay = (() => {
     done();
   }
 
-  const isSkip = e => e.type === 'mousedown' || e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape';
+  const isSkip = e => e.type === 'pointerdown' || e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape';
   const skip = e => {
     if (!play || !isSkip(e)) return;
     e.preventDefault();
@@ -250,7 +250,7 @@ export const Replay = (() => {
   };
   // 勝った相手がスキップした：こちらのリプレイも終わる（まだ始まっていなければ始めない）
   function foeSkip() { foeSkipped = true; if (play && !play.win) finish(); }
-  addEventListener('mousedown', skip);
+  addEventListener('pointerdown', skip);
   addEventListener('keydown', skip);
 
   return { clear, record, start, update, finish, foeSkip, get playing() { return !!play; } };

@@ -23,6 +23,7 @@ import './camera';
 import './replay';
 import './screens';
 import './boardmode';
+import { touchTick } from './touch';
 import { gs } from './state';
 import { updateVsCut } from './vscut';
 import { $, Q, TIME_LIMIT, V3, clamp, settings } from './core';
@@ -136,6 +137,7 @@ export function loop(now) {
   if (run && (gs.state === 'fight' || gs.state === 'end')) Replay.record(dt);
  
   Particles.update(pdt); Tracers.update(pdt); DmgNums.update(pdt);
+  touchTick();
   if (run) updateCamera(dt, rdt);
   if (gs.paused) gs.mdx = gs.mdy = 0;
  

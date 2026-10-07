@@ -18,7 +18,7 @@ export let lockGrace = 0, lockFailed = false;
 gs.mdx = 0;
 gs.mdy = 0;
 // キー・マウスのボタンを押したとき（押した瞬間だけの操作もここで）。マウスのボタンは 'Mouse1'（ホイール）'Mouse3'/'Mouse4'（横）
-function press(code: string) {
+export function press(code: string) {
   if (gs.rebinding) return;   // キー設定の入力待ち
   const K = (settings as any).keys, first = !keys[code];
   if (code === K.jump && first) gs.jumpPressed = 0.15;
@@ -67,6 +67,7 @@ addEventListener('mousemove', e => {
 });
 let rawInput = false;   // OS のマウス加速を通さない生の入力（VALORANT と同じ）が使えているか
 export function requestLock() {
+  if (document.body.classList.contains('touch')) { onLocked(); return; }   // タッチ操作：画面を固定せずにそのまま始める（touch.ts）
   const el = renderer.domElement;
   lockGrace = 2;
   const fallback = () => { lockFailed = true; onLocked(); };

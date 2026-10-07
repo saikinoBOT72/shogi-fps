@@ -29,8 +29,8 @@ export function updateVsCut() {
   if (el && (gs.state !== 'countdown' || gs.stateT >= 0)) hideVsCut();
 }
 
-// クリックで飛ばす（オンラインは相手と揃えるため、絵だけ消してカウントは待つ）
-addEventListener('mousedown', () => {
+// クリック・タップで飛ばす（オンラインは相手と揃えるため、絵だけ消してカウントは待つ）
+addEventListener('pointerdown', () => {
   if (!el || gs.state !== 'countdown' || gs.stateT >= 0) return;
   hideVsCut();
   if (!Net.on) gs.stateT = 0;
