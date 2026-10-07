@@ -314,10 +314,24 @@ input[type=range] { width: 180px; accent-color: var(--shiro-2) }
   -webkit-mask: radial-gradient(circle, transparent 19px, #000 20px); mask: radial-gradient(circle, transparent 19px, #000 20px) }
 #drawRing.full { background: var(--accent); box-shadow: 0 0 12px var(--accent) }
 /* スナイパーのスコープ */
-#scope { position: absolute; inset: 0; display: none; background: radial-gradient(circle at center, transparent 0, transparent 36vh, color-mix(in srgb, var(--sumi-0) 40%, transparent) 36.5vh, var(--sumi-0) 37.5vh) }
-#scope:before, #scope:after { content: ""; position: absolute; background: color-mix(in srgb, var(--sumi-0) 85%, transparent) }
-#scope:before { left: 50%; top: 14vh; bottom: 14vh; width: 2px; margin-left: -1px }
-#scope:after { top: 50%; left: calc(50% - 36vh); right: calc(50% - 36vh); height: 2px; margin-top: -1px }
+/* 接眼レンズの丸（--lx --ly --lr）の中だけに、内側の影・十字（--cx --cy）・赤い点（画面の真ん中）を描く */
+#scope, #kcScope { position: absolute; inset: 0; display: none; pointer-events: none }   /* 切り抜く形（clip-path）は drawScope が窓の形から決める */
+#scope i, #kcScope i { position: absolute; display: block }
+#scope .sc-shade, #kcScope .sc-shade { inset: 0; background: radial-gradient(circle var(--lr) at var(--lx) var(--ly), transparent 72%, color-mix(in srgb, var(--sumi-0) 55%, transparent) 100%) }
+#scope .sc-v, #kcScope .sc-v { left: var(--cx); width: 2px; margin-left: -1px; background: color-mix(in srgb, var(--sumi-0) 85%, transparent) }
+#scope .sc-h, #kcScope .sc-h { top: var(--cy); height: 2px; margin-top: -1px; background: color-mix(in srgb, var(--sumi-0) 85%, transparent) }
+#scope .sc-v.sc-a, #kcScope .sc-v.sc-a { top: 0; height: calc(var(--cy) - 7px) }
+#scope .sc-v.sc-b, #kcScope .sc-v.sc-b { top: calc(var(--cy) + 7px); bottom: 0 }
+#scope .sc-h.sc-a, #kcScope .sc-h.sc-a { left: 0; width: calc(var(--cx) - 7px) }
+#scope .sc-h.sc-b, #kcScope .sc-h.sc-b { left: calc(var(--cx) + 7px); right: 0 }
+#scope .sc-dot, #kcScope .sc-dot { left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--shu-2); box-shadow: 0 0 4px var(--shu-2) }
+#scope .sc-ring, #kcScope .sc-ring { display: none; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 2px solid var(--shu-2); box-sizing: border-box; box-shadow: 0 0 4px var(--shu-2) }
+/* ドットサイト：十字を消して輪を出す。筒の影は薄く */
+#scope[data-ret=ring] .sc-ring, #kcScope[data-ret=ring] .sc-ring { display: block }
+#scope[data-ret=ring] .sc-v, #scope[data-ret=ring] .sc-h, #kcScope[data-ret=ring] .sc-v, #kcScope[data-ret=ring] .sc-h { display: none }
+#scope[data-ret=ring] .sc-shade, #kcScope[data-ret=ring] .sc-shade { opacity: 0.4 }
+/* 赤い点だけ（開いたドットサイト）：十字・輪・筒の影なし */
+#scope[data-ret=dot] .sc-v, #scope[data-ret=dot] .sc-h, #scope[data-ret=dot] .sc-shade, #kcScope[data-ret=dot] .sc-v, #kcScope[data-ret=dot] .sc-h, #kcScope[data-ret=dot] .sc-shade { display: none }
 
 /* ================= 調整パネル ================= */
 #tune { position: fixed; right: 0; top: 0; bottom: 0; width: 380px; max-width: 92vw; overflow-y: auto; z-index: 20; display: none; box-sizing: border-box;
@@ -347,7 +361,6 @@ input[type=range] { width: 180px; accent-color: var(--shiro-2) }
 #killcam .kc-hm { position: absolute; left: 50%; top: 50%; opacity: 0 }
 #killcam .kc-hm i { position: absolute; width: 3px; height: 11px; background: var(--text); left: -1.5px; top: -5.5px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--sumi-0) 40%, transparent) }
 #killcam .kc-hm.kill i { background: var(--danger); height: 16px; top: -8px }
-#kcScope { position: absolute; inset: 0; display: none; background: radial-gradient(circle at center, transparent 0, transparent 36vh, color-mix(in srgb, var(--sumi-0) 40%, transparent) 36.5vh, var(--sumi-0) 37.5vh) }
 #kcHurt { position: absolute; inset: 0; box-shadow: inset 0 0 180px 50px color-mix(in srgb, var(--danger) 70%, transparent); opacity: 0 }
 #killcam .kc-bars { position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%); display: flex; gap: 40px; text-shadow: var(--shade) }
 #killcam .kc-bar span { display: block; font-size: 13px; font-weight: 700; margin-bottom: 4px }
@@ -715,3 +728,7 @@ body.touch #wep { bottom: auto; top: 14px }
 .te-panel .row { flex-wrap: wrap; gap: 6px 12px; padding: 6px 0 }
 .te-panel input[type=range] { flex: 1; min-width: 120px }
 .te-panel .menu { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px }
+/* 新しいバージョンのお知らせ（update.ts）。対戦中は隠す */
+#newVer { position: fixed; left: 50%; top: max(10px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 60; padding: 9px 18px; border-radius: var(--r-s);
+  border: 1px solid var(--shiro-2); background: var(--shiro-2); color: var(--sumi-0); font: 800 13px var(--font-ui); letter-spacing: .06em; cursor: pointer; box-shadow: var(--shade) }
+#hud[style*="block"] ~ #newVer { display: none }

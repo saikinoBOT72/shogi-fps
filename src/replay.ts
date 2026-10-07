@@ -13,7 +13,7 @@ import { bot, botActor, foeRef, paintFoe, player, playerActor, view } from './ga
 import { paintGun } from './loadout';
 import { Net } from './net';
 import { Sword } from './sword';
-import { animateActor, hipFov, poseViewModel } from './camera';
+import { animateActor, drawScope, hipFov, poseViewModel } from './camera';
 
 export const Replay = (() => {
   const KEEP = 9, BEFORE = 6, AFTER = 1.4;   // 覚えておく秒数・決着の何秒前から・何秒後まで
@@ -209,7 +209,7 @@ export const Replay = (() => {
     const hs = 8 + Math.max(0, P.hm) * 20;
     [...hm.children].forEach((c: any, i) => { c.style.transform = `rotate(${45 + i * 90}deg) translateY(${-hs}px)`; });
     $('kcHurt').style.opacity = P.hurt.toFixed(2);
-    $('kcScope').style.display = VM.scoped ? 'block' : 'none';
+    drawScope($('kcScope'), !!VM.scoped);
     ui.classList.toggle('scoped', !!VM.scoped);
     const pov = P.win ? f.p : f.b, tgt = P.win ? f.b : f.p;
     const povMax = (P.win ? player : bot).def.hp, tgtMax = (P.win ? bot : player).def.hp;

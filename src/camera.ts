@@ -105,17 +105,26 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   VM.equip = Math.max(0, VM.equip - rdt * 2.2);
   // リロード：部品が動く銃は、その動き（弾倉の抜き差し）に任せる
   VM.animate(rdt);
+  // スライドに付いたサイト：覗いている間はスライドの動きを小さく（目の前まで跳ねてこないように）
+  if (VM.pist.scope?.part && p.w && ads > 0) { const S0 = VM.pist.parts[VM.pist.scope.part]; S0.position.z = VM.pist.scopeRestZ + (S0.position.z - VM.pist.scopeRestZ) * (1 - ads * 0.8); }
   const rl = p.reloading > 0 && !VM.pist.anim ? Math.sin(Math.PI * (1 - p.reloading / p.w.reload)) : 0;
   VM.dash = damp(VM.dash || 0, dashing ? 1 : 0, 12, rdt);
   VM.guard = damp(VM.guard || 0, guarding ? 1 : 0, 14, rdt);
-  const base = (VM.pist.hip || HIP).clone().lerp(VM.pist.ads, ads);
+  // スコープ：覗くほど接眼レンズが目の前の真ん中へ。距離はスコープの外枠が画面の縦の scopeSize になるように
+  const sc = VM.pist.adsEye ? ads : 0, ssw = p.w.scopeSway ?? 1;
+  const adsPos = VM.pist.adsEye ? new V3(0, 0, -VM.pist.scopeR / ((p.w.scopeSize || 0.9) * Math.tan(25 * D2R))).sub(VM.pist.adsEye) : VM.pist.ads;
+  const base = (VM.pist.hip || HIP).clone().lerp(adsPos, ads);
   if (VM.pist.isBow && p.draw > 0) {
     base.lerp(new V3(0.11, -0.17, -0.4), p.draw * (1 - ads));
     if (p.draw >= 1) base.add(new V3(rand(-0.003, 0.003), rand(-0.003, 0.003), 0));
   }
-  // スナイパーを覗いている間は銃を消してスコープ画面に
-  VM.scoped = !!p.w.zoom && ads > 0.8 && !p.dead;
-  VM.root.visible = !VM.scoped;
+  // スコープ・ドットサイトを覗いている間：銃はそのまま、レンズの穴から景色を見せ、照準を重ねる（drawScope）
+  VM.scoped = sc > 0.55 && !p.dead;
+  VM.root.visible = true;
+  if (VM.pist.portal) VM.pist.portal.visible = sc > 0.3;
+  // 揺れの効き方：スコープは目の前にあるので、少し動くだけで大きくずれる。そのぶん小さく（scopeSway で調整）
+  const swK = sc ? lerp(1, 0.05 * ssw, sc) : 1 - ads * 0.7, swR = sc ? lerp(1, 0.08 * ssw, sc) : 1;
+  const bbK = sc ? lerp(1, 0.25 * ssw, sc) : 1 - ads;
   // 弓：弦を引く・追尾が準備できたら矢が光る
   if (VM.pist.isBow) {
     VM.pist.setDraw(p.draw || 0);
@@ -124,12 +133,12 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   }
   const r = VM.root;
   r.position.set(
-    base.x + VM.sway.x * (1 - ads * 0.7) + bobX * 0.6 * (1 - ads),
-    base.y - VM.sway.y * (1 - ads * 0.7) + bobY * 0.7 * (1 - ads) - rl * 0.12 - VM.dip * 0.05 - VM.equip * 0.35 - VM.dash * 0.08 - VM.guard * 0.1,
-    base.z + VM.kick * 0.07
+    base.x + VM.sway.x * swK + bobX * 0.6 * bbK,
+    base.y - VM.sway.y * swK + bobY * 0.7 * bbK - rl * 0.12 - VM.dip * 0.05 - VM.equip * 0.35 - VM.dash * 0.08 - VM.guard * 0.1,
+    base.z + VM.kick * 0.07 * (1 - sc * 0.95)
   );
   const ar = VM.pist.adsRot || [0, 0];   // 覗き込むと銃口をまっすぐ前へ
-  r.rotation.set(VM.kick * 0.22 - rl * 0.55 - VM.equip * 0.6 - VM.dash * 0.3 + ar[0] * ads, VM.sway.x * 1.5 + ar[1] * ads, VM.sway.x * 1.2 + rl * 0.45 + VM.dash * 0.35);
+  r.rotation.set(VM.kick * 0.22 * (1 - sc * 0.5) - rl * 0.55 - VM.equip * 0.6 - VM.dash * 0.3 + ar[0] * ads, VM.sway.x * 1.5 * swR + ar[1] * ads, VM.sway.x * 1.2 * swR + rl * 0.45 + VM.dash * 0.35);
   if (VM.pist.isSword) Sword.poseVM(p, rdt);   // 刀：振る動きは sword.ts が決める
   if (!VM.pist.anim) VM.pist.slide.position.z = VM.pist.slideZ + VM.slideT * VM.pist.slideAmt;
   // 盾（守りの構え）：下からせり上がる
@@ -142,6 +151,32 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   vmFlashLight.position.set(r.position.x, r.position.y + 0.05, r.position.z - 0.3);
   vmFlashLight.intensity = VM.flash.visible ? 2.5 * LIGHT : 0;
   vmCam.fov = lerp(58, 50, ads); vmCam.updateProjectionMatrix();
+  // 接眼レンズの穴が画面のどこにあるか（照準をその丸の中だけに出す）
+  if (VM.scoped && VM.pist.portal) {
+    const P0 = VM.pist.portal;
+    r.updateMatrixWorld(true);
+    const W = innerWidth / 2, H = innerHeight / 2;
+    const c = P0.getWorldPosition(new V3()).project(vmCam), cx = (c.x + 1) * W, cy = (1 - c.y) * H;
+    // 窓の形の点を画面へ（その形で照準を切り抜く）。r は中心から縁までの平均
+    let rs = 0;
+    const poly = VM.pist.lensPts.map(q => { const s = P0.localToWorld(q.clone()).project(vmCam), x = (s.x + 1) * W, y = (1 - s.y) * H; rs += Math.hypot(x - cx, y - cy); return x.toFixed(1) + 'px ' + y.toFixed(1) + 'px'; }).join(',');
+    VM.lens = { x: cx, y: cy, r: rs / VM.pist.lensPts.length, poly, k: clamp((sc - 0.55) / 0.3, 0, 1), inf: (p.w.crossInf || 0) >= 0.5, ret: p.w.reticle || 'cross' };
+  }
+}
+
+// スコープの照準（HUD とキルカメラで共通）：十字と赤い点（ドットサイトは赤い点と輪）をレンズの丸の中だけに描く
+//   赤い点はいつも画面の真ん中（＝弾が飛ぶ遠くの一点）。十字は crossInf が 0 なら枠と一緒に揺れる
+export function drawScope(el: HTMLElement, on: boolean) {
+  const L = VM.lens;
+  el.style.display = on && L ? 'block' : 'none';
+  if (!on || !L) return;
+  if (!el.firstChild) el.innerHTML = '<i class="sc-shade"></i><i class="sc-v sc-a"></i><i class="sc-v sc-b"></i><i class="sc-h sc-a"></i><i class="sc-h sc-b"></i><i class="sc-ring"></i><i class="sc-dot"></i>';
+  if (el.dataset.ret !== L.ret) el.dataset.ret = L.ret;
+  const s = el.style;
+  s.setProperty('--lx', L.x.toFixed(1) + 'px'); s.setProperty('--ly', L.y.toFixed(1) + 'px'); s.setProperty('--lr', L.r.toFixed(1) + 'px');
+  s.setProperty('--cx', (L.inf ? innerWidth / 2 : L.x).toFixed(1) + 'px'); s.setProperty('--cy', (L.inf ? innerHeight / 2 : L.y).toFixed(1) + 'px');
+  s.clipPath = `polygon(${L.poly})`;
+  s.opacity = L.k.toFixed(2);
 }
 
 // 駒のアニメーション（ぴょこぴょこ歩く・よろける・倒れる）

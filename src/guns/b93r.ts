@@ -5,11 +5,26 @@
 // 動き　　：fire（毎発スライドが往復）・fireLast（最後の1発でスライドが下がったまま）・release・reload・inspect・equip
 import * as THREE from 'three';
 import { Clip, Key, Track } from './anim';
-import { PartBuilder, makeSpace } from './kit';
+import { PartBuilder, flat, makeSpace } from './kit';
 import { Addon, handMesh, makeGun } from './model';
 
 const S = makeSpace(40, 80);    // 原点：グリップの付け根
 const RAKE = 0.2;               // グリップの傾き
+const DOT_SIGHT = false;        // ドットサイト（一旦外している。true にすると付く。設定は core.ts の WEAPONS.burst の scopeSize・reticle）
+// ドットサイトの窓：中心の高さ SV、枠の外形と窓（mm、窓の中心から）。上の角は丸い
+const SV = 133.25;
+const roundTop = (x: number, y0: number, y1: number, r: number) => {
+  const s = new THREE.Shape(); s.moveTo(-x, y0); s.lineTo(x, y0); s.lineTo(x, y1 - r); s.quadraticCurveTo(x, y1, x - r, y1); s.lineTo(-x + r, y1); s.quadraticCurveTo(-x, y1, -x, y1 - r); s.lineTo(-x, y0);
+  return s;
+};
+const hood = (u0: number, u1: number) => {
+  const sh = roundTop(12, -11.25, 9.75, 5); sh.holes.push(roundTop(9.5, -7.25, 7.25, 3) as unknown as THREE.Path);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: u1 - u0, bevelEnabled: false, curveSegments: 3 });
+  g.scale(1 / 1000, 1 / 1000, 1 / 1000);
+  const c = S.at(u1, SV); g.translate(c.x, c.y, c.z);
+  return flat(g);
+};
+const win = () => { const s = roundTop(9.5, -7.25, 7.25, 3); return new THREE.Shape(s.getPoints(3).map(p => p.multiplyScalar(1 / 1000))); };
 const LOCK = 0.035;             // スライドが下がる量（m）
 const COCK = 0.5;
 
@@ -26,6 +41,12 @@ export function buildB93R(opt: { skin?: string; hand?: THREE.Material } = {}) {
   for (const x of [-1, 1]) for (let u = 10; u <= 34; u += 5) B.add('slideDark', S.box(u, u + 2, 92, 114, 0.6, x * 13.3), slide);   // 後ろの滑り止め
   B.add('detail', S.box(4, 14, 118, 124, 18), slide);          // 照門
   B.add('detail', S.box(176, 184, 118, 125, 4), slide);        // 照星
+  // ドットサイト（開いた小型）：スライドに直接載せるので、撃つたびに一緒に動く。前の枠（フード）の窓から景色が見える（DOT_SIGHT が false の間は付けない）
+  if (DOT_SIGHT) {
+    B.add('frame', S.box(16, 50, 118, 122.5, 22), slide);                    // 台
+    B.add('detail', S.box(20, 24, 122.5, 126, 6), slide);                    // 赤い点を映す所
+    B.add('frame', hood(38, 46), slide);                                     // 窓の枠
+  }
   B.add('barrel', S.rod(60, 200, 104, 7, 8));
   // 補正器（銃口の先。上に穴）
   B.add('frame', S.extrude([[196, 88], [196, 116], [240, 116], [242, 110], [242, 88]], 24, { bevel: 1.5 }));
@@ -175,7 +196,7 @@ export function buildB93R(opt: { skin?: string; hand?: THREE.Material } = {}) {
   }
 
   return makeGun({
-    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane', scope: DOT_SIGHT ? { eye: S.at(37.8, SV), r: 0.0105, rin: 0.0073, shape: win(), part: 'slide' } : undefined,
     info: { name: 'ベレッタ 93R', real: '全長 240mm・銃身 156mm（3点バースト）', reload: 1.6 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.75 },
     events: { release: anim => { if (anim.has('fireLast')) { anim.stop('fireLast'); anim.play('release'); } } },

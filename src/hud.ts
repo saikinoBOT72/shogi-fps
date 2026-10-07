@@ -10,6 +10,7 @@ import { PHYS } from './physics';
 import { Particles, VM } from './effects';
 import { act, bot, botActor, currentSpread, eyeOf, player, stats, view } from './game';
 import { Replay } from './replay';
+import { drawScope } from './camera';
 import { sealHTML, showResult } from './screens';
 import { Net } from './net';
 import { mapId } from './world/base';
@@ -131,7 +132,7 @@ export function updateHUD(dt) {
   hud.lastCd = p.cd;
   setStyle($('cdBar'), 'opacity', ck >= 0 && !p.dead ? '1' : '0');
   if (ck >= 0) setStyle($('cdBar').firstChild, 'transform', `scaleX(${Math.max(0, ck).toFixed(2)})`);
-  setStyle($('scope'), 'display', VM.scoped ? 'block' : 'none');
+  drawScope($('scope'), !!VM.scoped);
   // 弓の引き具合のリング
   // 瞬を溜めている間も同じリングで溜め具合を見せる
   const dr = p.dead ? 0 : p.w.kind === 'bow' ? p.draw || 0 : p.blinkCh != null ? p.blinkCh / SKILLS.blink.chargeMax : 0;

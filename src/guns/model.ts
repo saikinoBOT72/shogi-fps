@@ -15,6 +15,9 @@ export type GunDef = {
   events?: Record<string, (anim: GunAnimator) => void>;   // 動きの中の出来事（銃の中で処理するもの）
   // スキンの付け足し（name がスキンの addons にあるときだけ見える）。slot の塗装を使う。part に付けると一緒に動く
   addons?: Addon[];
+  // スコープ（覗くと筒の中から景色が見える）：eye 接眼レンズの面の中心 / r 外枠の半径 / rin 景色が見える穴の半径（どれも銃の原点から、m）
+  //   shape：丸以外の窓の形（eye を中心にした m の平面の形）/ part：動く部品に付いているとき、その部品の名前（スライドなど）
+  scope?: { eye: THREE.Vector3; r: number; rin: number; shape?: THREE.Shape; part?: string };
 };
 
 export function makeGun(d: GunDef) {
@@ -35,6 +38,7 @@ export function makeGun(d: GunDef) {
     g: B.root, parts: B.parts, slots: B.slots, muzzle: d.muzzle, eject: d.eject, anim, info: d.info,
     slide: B.parts.carrier || B.parts.lever || new THREE.Object3D(), slideZ: 0, slideAmt: 0,
     vmScale: d.vm.scale, vmYaw: d.vm.yaw || 0, hip: d.vm.hip, ads: d.vm.ads, vmSize: d.vm.size || 1,
+    scope: d.scope,
     get skin() { return skin; }, setSkin,
     onEvent: null,
     fire(empty = false) { anim.stop('inspect'); anim.stop('equip'); anim.play(empty && d.clips.fireLast ? 'fireLast' : 'fire'); },

@@ -24,6 +24,7 @@ import './replay';
 import './screens';
 import './boardmode';
 import { touchTick } from './touch';
+import './update';
 import { gs } from './state';
 import { updateVsCut } from './vscut';
 import { $, Q, TIME_LIMIT, V3, clamp, settings } from './core';

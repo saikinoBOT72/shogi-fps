@@ -53,7 +53,7 @@ export const WEAPONS = {
   // 3発バースト（銀）。1発が重く、撃つほど上に跳ねる癖の強い銃。burstGap: バースト内の間隔
   burst: {
     name: 'ベレッタ 93R', model: 'burst', dmg: 26, head: 1.6, rate: 0.42, burst: 3, burstGap: 0.07, spread: 0.016, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
-    move: 0.035, air: 0.09, ads: 0.4, mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
+    move: 0.035, air: 0.09, ads: 0.4, scopeSize: 0.4, scopeSway: 1, reticle: 'dot', mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
   },
   // ナイフ（全員が持つ）：目の前を切りつける。ダメージは弱め、背中からは back 倍
   // range: 届く距離(m) / cone: 当たる向きの広さ(内積) / moveMul: 持っている間の移動の速さの倍率
@@ -82,14 +82,16 @@ export const WEAPONS = {
     move: 0.012, air: 0.03, ads: 0.6, mag: 1, reload: 0.45, auto: false, recoil: 0.012, falloff: [999, 1000, 1], pref: 16,
   },
   // 覗き込むとスコープ（zoom: 覗いたときの視野）。覗かないとほぼ当たらない（hip：覗いていないときだけ足すブレ）
+  // scopeSize：覗き切ったときのスコープの外枠の大きさ（画面の縦の半分に対する割合）/ scopeSway：覗いているときの揺れの倍率 / crossInf：1 なら十字も赤い点と同じく遠くを指す（0 は枠と一緒に揺れる）
+  // reticle：照準の模様（cross 十字＋赤い点 / ring 赤い点＋輪 / dot 赤い点だけ）
   sniper: {
     name: 'マークスマン Mk2', model: 'mk2', dmg: 68, head: 1.8, rate: 1.3, adsSpeed: 10, spread: 0.08, hip: 0.04, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
-    move: 0.06, air: 0.15, ads: 0.02, zoom: 22, mag: 5, reload: 2.4, auto: false, recoil: 0.07, falloff: [999, 1000, 1], pref: 26,
+    move: 0.06, air: 0.15, ads: 0.02, zoom: 22, scopeSize: 0.9, scopeSway: 1, crossInf: 0, reticle: 'cross', mag: 5, reload: 2.4, auto: false, recoil: 0.07, falloff: [999, 1000, 1], pref: 26,
   },
   // 万能の連射銃（王向け）
   ar: {
     name: 'AK-47', model: 'ak', dmg: 15, head: 1.5, rate: 0.1, spread: 0.015, bloomShot: 0.005, bloomMax: 0.035, bloomRecover: 0.14,
-    move: 0.028, air: 0.08, ads: 0.45, mag: 30, reload: 2.0, auto: true, recoil: 0.012, falloff: [20, 40, 0.7], pref: 14,
+    move: 0.028, air: 0.08, ads: 0.45, scopeSize: 0.5, scopeSway: 1, reticle: 'ring', mag: 30, reload: 2.0, auto: true, recoil: 0.012, falloff: [20, 40, 0.7], pref: 14,
   },
   // 放物線で飛び、跳ねて爆発。radius: 爆風の範囲 / fuse: 爆発までの秒 / speed: 撃ち出す速さ
   launcher: {

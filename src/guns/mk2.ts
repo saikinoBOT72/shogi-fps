@@ -43,6 +43,7 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('frame', S.box(330, 346, 108, 132, 18));
   B.add('frame', S.box(494, 510, 108, 132, 18));
   B.add('bore', S.rod(572, 573.5, 142, 16, 10));
+  B.add('bore', S.rod(289.4, 290, 142, 13.6, 20));                            // 接眼レンズ（覗くと真ん中が抜けて景色が見える）
   // 撃鉄・引き金・レバー（指を入れる輪）
   B.add('detail', S.extrude([[268, 104], [276, 104], [276, 112], [272, 122], [264, 126], [258, 124], [262, 116]], 7, { bevel: 0.6 }), hammer);
   B.add('detail', S.extrude([[342, 70], [348, 70], [349, 62], [352, 54], [349, 52], [346, 56], [343, 64]], 6, { bevel: 0.6 }), trigger);
@@ -248,7 +249,7 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   for (const [a, b] of [[[664, 66], [660, 30]], [[694, 66], [698, 30]]] as [number, number][][])
     addons.push({ name: 'ck_canteen', slot: 'rope', geo: S.put(new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(0, a[1], -a[0]), new THREE.Vector3(0, b[1], -b[0])), 2, 1, 4, false), 0, 0) });
   return makeGun({
-    B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume', scope: { eye: S.at(289.2, 142), r: 0.016, rin: 0.0122 },
     info: { name: 'マークスマン Mk2', real: '全長 約1030mm・銃身 580mm（レバーアクション）', reload: 2.4 },
     vm: { size: 1.12, scale: 0.95, yaw: -0.3, hip: new THREE.Vector3(0.17, -0.18, -0.28), ads: new THREE.Vector3(0.11, -0.22, -0.26) },
   });

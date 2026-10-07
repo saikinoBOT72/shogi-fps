@@ -160,7 +160,7 @@ export const DmgNums = (() => {
 
 // ================= 一人称の銃（別シーンで描画して壁にめり込まない） =================
 export const vmScene = new THREE.Scene();
-export const vmCam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.01, 10);
+export const vmCam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.004, 10);   // 手前を近くまで描く（スコープを目の前で覗くため）
 vmScene.add(new THREE.HemisphereLight(C(P.ao[2]), C(P.kiji[0]), 0.8 * LIGHT));
 export const vmSun = new THREE.DirectionalLight(C(P.shiro[2]), 1.6 * LIGHT); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
 export const vmFlashLight = new THREE.PointLight(C(P.kin[2]), 0, 2, 1); vmScene.add(vmFlashLight);
@@ -172,6 +172,18 @@ export const VM: any = (() => {
   for (const k of Object.keys(GUN_BUILDERS)) models[k] = buildGun(k);
   for (const [k, m] of Object.entries(models) as [string, any][]) {
     m.g.visible = false; root.add(m.g);
+    // スコープ：接眼レンズの穴。色は塗らずに奥行きだけ書き、筒や飾りがその奥に描かれないようにする → 穴から景色（先に描いた画面）が見える
+    //   窓の形の点（lensPts）は、画面のどこを切り抜いて照準を出すかに使う。スライドに付いたサイトはスライドと一緒に動く
+    if (m.scope) {
+      const sc = m.scope, shape = sc.shape;
+      const portal = new THREE.Mesh(shape ? new THREE.ShapeGeometry(shape) : new THREE.CircleGeometry(sc.rin, 28), new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide }));
+      const to = sc.part ? m.parts[sc.part] : m.g;
+      portal.position.copy(sc.eye); if (to !== m.g) portal.position.sub(to.userData.pivotAt);
+      portal.renderOrder = -1; portal.visible = false;
+      to.add(portal); m.portal = portal;
+      m.lensPts = shape ? shape.getPoints(3).map(p => new V3(p.x, p.y, 0)) : Array.from({ length: 32 }, (_, i) => new V3(Math.cos(i / 32 * Math.PI * 2) * sc.rin, Math.sin(i / 32 * Math.PI * 2) * sc.rin, 0));
+      if (sc.part) m.scopeRestZ = to.position.z;
+    }
     if (k === 'bow') m.g.scale.setScalar(0.44); else fitViewModel(m);
   }
   // 画面の大きさが変わったら構えを合わせ直す。銃口の光（flash）は銃の長さに数えないよう、いったん外す
@@ -305,6 +317,14 @@ export function fitViewModel(m) {
   m.adsRot = [-Math.atan2(dW.y, Math.hypot(dW.x, dW.z)), -Math.atan2(-dW.x, -dW.z)];
   const gd = 0.2, L = dW.length();
   m.ads = new V3(0.015, -F.adsBelow * th * (gd + L) - 0.012, -gd);
+  // スコープのある銃：筒をまっすぐ前へ向け、接眼レンズの真ん中を画面の中心に置く（目からの距離は camera.ts がスコープの大きさから決める）
+  if (m.scope) {
+    const R = new THREE.Matrix4().makeRotationFromEuler(m.g.rotation), s = m.g.scale.x;
+    const ax = new V3(0, 0, -1).applyMatrix4(R);
+    m.adsRot = [-Math.atan2(ax.y, Math.hypot(ax.x, ax.z)), -Math.atan2(-ax.x, -ax.z)];
+    m.adsEye = m.scope.eye.clone().multiplyScalar(s).applyMatrix4(R).applyEuler(new THREE.Euler(m.adsRot[0], m.adsRot[1], 0));
+    m.scopeR = m.scope.r * s;
+  }
 }
 // 撃ったときの銃の跳ね上がり
 export const kickOf = w => w.kind === 'melee' ? 0 : w.kind === 'bow' ? 0.6 : w.kind === 'grenade' ? 1.6 : clamp(w.recoil / 0.022, 1, 2.2);

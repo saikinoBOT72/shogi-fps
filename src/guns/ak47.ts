@@ -9,7 +9,8 @@ import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
 import { Addon, handMesh, makeGun } from './model';
 
-const S = makeSpace(320, 62);   // 原点：グリップの付け根
+const S = makeSpace(320, 62);
+const DOT_SIGHT = false;        // ドットサイト（一旦外している。true にすると付く。設定は core.ts の WEAPONS.ar の scopeSize・reticle）   // 原点：グリップの付け根
 const TRAVEL = 0.07;            // キャリアが下がる量（m）
 
 export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
@@ -32,6 +33,17 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('slide', S.extrude([[244, 99], [244, 104], [252, 106], [252, 99]], 18, { bevel: 1.5 }));   // 蓋の後ろの留め具
   B.add('frame', S.extrude([[468, 96], [468, 112], [480, 116], [518, 116], [518, 96]], 20, { bevel: 1.5 }));
   B.add('detail', S.box(482, 510, 113, 117, 14));
+  // ドットサイト（筒形）：上の蓋に直接載せる。筒は蓋と同じ塗り、台・両端の縁は機関部の塗り（DOT_SIGHT が false の間は付けない）
+  if (DOT_SIGHT) {
+  B.add('frame', S.box(325, 375, 109, 119, 18));                              // 台
+  B.add('slide', S.rod(300, 400, 131, 14, 12));                               // 筒
+  B.add('frame', S.rod(300, 306, 131, 15.5, 12));                             // 後ろの縁
+  B.add('frame', S.rod(394, 400, 131, 15.5, 12));                             // 前の縁
+  B.add('detail', S.box(341, 359, 144, 150, 12));                             // 上のつまみ
+  B.add('detail', S.box(342, 358, 125, 137, 6, 16));                          // 右のつまみ
+  B.add('bore', S.rod(299.4, 300, 131, 12.5, 20));                            // 後ろのレンズ（覗くと真ん中が抜けて景色が見える）
+  B.add('bore', S.rod(400, 400.6, 131, 12.5, 20));                            // 前のレンズ
+  }
   // 用心鉄と引き金
   B.add('frame', S.extrude([[330, 62], [330, 44], [336, 38], [398, 38], [404, 44], [404, 62]], 10, {
     bevel: 1, holes: [[[337, 58], [337, 46], [341, 43], [393, 43], [398, 47], [398, 58]]],
@@ -297,7 +309,7 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
   for (const [u, v, x, r] of [[898, 100, 8, 2], [912, 112, -6, 1.6], [906, 86, 4, 1.4], [930, 96, -3, 1.8], [948, 106, 6, 1.3]])
     addons.push({ name: 'kn_shards', slot: 'line', geo: S.put(new THREE.IcosahedronGeometry(r, 0), u, v, x) });
   return makeGun({
-    B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'mokume', scope: DOT_SIGHT ? { eye: S.at(299.2, 131), r: 0.0155, rin: 0.0118 } : undefined,
     info: { name: 'AK-47', real: '全長 880mm・銃身 415mm', reload: 2.0 },
     vm: { scale: 1.0, yaw: -0.3, hip: new THREE.Vector3(0.17, -0.17, -0.28), ads: new THREE.Vector3(0.11, -0.21, -0.26) },
   });
