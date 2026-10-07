@@ -711,10 +711,10 @@ body.touch #wep { bottom: auto; top: 14px }
 .tb { opacity: var(--tb-a, 1) }
 .tb.off { opacity: calc(var(--tb-a, 1) * .4) }
 .tb svg { width: 50%; height: 50%; flex: none }
-.tb.ic b { font-size: .6em; font-weight: 700; margin-top: 1px; color: var(--text-dim) }
-.tb.ic b:empty { display: none }
+.tb.ic b { display: none }   /* アイコンのボタンは字を出さない（刀・ナイフの .txt だけ字） */
+.tb small { font-size: .55em }
 .tb.txt svg { display: none }
-.tb.txt b { font-size: 1em; font-weight: 800; color: var(--text) }
+.tb.txt b { display: block; font-size: 1em; font-weight: 800; color: var(--text) }
 .tb.hide { display: none }
 .tb[data-id="fire"] { border-color: color-mix(in srgb, var(--aka-2) 70%, transparent); background: color-mix(in srgb, var(--aka-0) 30%, transparent) }
 .tb[data-id="fire"].down { background: color-mix(in srgb, var(--aka-1) 55%, transparent) }

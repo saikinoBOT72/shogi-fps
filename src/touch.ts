@@ -53,12 +53,19 @@ addEventListener('selectstart', e => { if (!(e.target as HTMLElement).closest?.(
 const lay = (id: string) => { const d = DEF[id], l = T.lay[id] || {}; return { x: l.x ?? d.x, y: l.y ?? d.y, s: l.s ?? 1 }; };
 const scaleK = () => Math.min(1.25, Math.max(0.7, Math.min(innerWidth, innerHeight) / 700));
 const sizeOf = (id: string) => DEF[id].size * lay(id).s * scaleK();
+// 字だけのボタン（スキル）：字数に合わせて、円からはみ出さない大きさにする
+function fitText(el: HTMLElement) {
+  const b = el.querySelector<HTMLElement>('b'), w = el.clientWidth || sizeOf(el.dataset.id), n = Math.max(2, (b?.textContent || '').length);
+  const fs = Math.min(w * 0.22, w * 0.7 / n).toFixed(1) + 'px';
+  if (b && b.style.fontSize !== fs) b.style.fontSize = fs;
+}
 function place(root: HTMLElement) {
   root.querySelectorAll<HTMLElement>('.tb').forEach(el => {
     const id = el.dataset.id, L = lay(id), sz = sizeOf(id);
     el.style.left = L.x * 100 + '%'; el.style.top = L.y * 100 + '%';
     el.style.width = el.style.height = sz + 'px';
     el.style.fontSize = Math.max(11, sz * (id === 'fire' ? 0.2 : 0.24)) + 'px';
+    if (!el.classList.contains('ic')) fitText(el);
   });
 }
 // edit：配置の編集画面（スキルは「スキル1」「スキル2」と出す）
@@ -193,6 +200,7 @@ export function touchTick() {
     const ready = s.charges > 0 && !(s.t > 0) && !(p.empT > 0);
     el.classList.toggle('off', !ready);
     txt(el, 'b', s.sk.name);
+    fitText(el);
     txt(el, 'small', s.t > 0 ? s.t.toFixed(0) : !ready && s.cd > 0 ? Math.ceil(s.cd) + '' : '');
   });
 }
