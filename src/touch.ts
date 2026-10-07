@@ -6,6 +6,7 @@ import { gs } from './state';
 import { $, saveSettings, settings } from './core';
 import { keys, press } from './input';
 import { isPlaying, player, switchWeapon } from './game';
+import { canFire } from './game/weapons';
 import { pause } from './screens';
 
 // ボタン：id / 名前 / 初めの位置（画面の横・縦の割合）/ 大きさ（px、画面の大きさで伸び縮み）/ 初めは隠す
@@ -224,9 +225,10 @@ function end(id: number) {
   if (still(f.role)) return;
   if (f.role === 'fire') {
     if (f.release && hit(f.x, f.y) === 'cancel') f.cancel = true;   // キャンセルのボタンの上で離した
-    if (f.release && !f.cancel && isPlaying()) {
+    // 今すぐ撃てるときだけ撃つ（クールダウン・リロード中に離したら撃たず、スコープもすぐ閉じる）。弾切れなら空撃ちしてリロード（ゲーム側の処理）
+    if (f.release && !f.cancel && isPlaying() && (canFire(player) || (player.ammo <= 0 && player.reloading <= 0))) {
       gs.mouseDown = true; gs.triggerUsed = false;
-      shot = { until: performance.now() + 350, ammo: player.ammo, ads: !!f.adsFire };
+      shot = { until: performance.now() + 150, ammo: player.ammo, ads: !!f.adsFire && player.ammo > 0 };
     } else if (!f.release) gs.mouseDown = false;
     syncAds();
   }
