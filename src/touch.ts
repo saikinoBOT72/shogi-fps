@@ -17,11 +17,24 @@ const BTNS: [string, string, number, number, number][] = [
   ['sk0', '', 0.73, 0.64, 60],
   ['sk1', '', 0.78, 0.42, 60],
   ['wep', '持替', 0.86, 0.2, 50],
-  ['pause', '❚❚', 0.035, 0.07, 42],
+  ['insp', '眺める', 0.75, 0.2, 46],
+  ['pause', '', 0.035, 0.07, 42],
 ];
+// アイコン（48×48。ユーザーが選んだ案：撃つ=弾 / 覗く=照準器 / 跳ぶ=二重山 / 装填=弾3つ / 持替=入れ替え矢印 / 一時停止=二本線 / 眺める=銃ときらり）。スキルは字だけ
+const BULLET = '<path d="M19 22C19 13 24 6 24 6S29 13 29 22Z"/><path d="M19 23.5H29V40H19Z"/><path d="M17.5 41H30.5V43.5H17.5Z"/>';
+const LINE = 'fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
+const ICONS: Record<string, string> = {
+  fire: BULLET,
+  ads: `<g ${LINE} stroke-width="3.2"><circle cx="24" cy="24" r="15"/><path d="M24 5v10M24 33v10M5 24h10M33 24h10"/></g><circle cx="24" cy="24" r="2.4"/>`,
+  jump: `<path ${LINE} stroke-width="5" d="M11 24L24 12L37 24M11 37L24 25L37 37"/>`,
+  reload: [-9, 0, 9].map(x => `<g transform="translate(${x} 0) scale(.85) translate(4 4)">${BULLET}</g>`).join(''),
+  wep: '<path d="M8 13H31V8L42 16.5L31 25V20H8Z"/><path d="M40 35H17V40L6 31.5L17 23V28H40Z" opacity=".7"/>',
+  pause: '<path d="M14 10H21V38H14ZM27 10H34V38H27Z"/>',
+  insp: '<g transform="translate(2 8) scale(.8)"><path d="M6 12H41V20H22L20.5 25H17.5L15 37H7L10 20H6Z"/></g><path d="M37 3L39 9L45 11L39 13L37 19L35 13L29 11L35 9Z"/>',
+};
 const DEF = Object.fromEntries(BTNS.map(([id, label, x, y, size]) => [id, { label, x, y, size }]));
-// stick：'float' 触った所に出る / 'fixed' 場所固定　ads：'toggle' タップで切り替え / 'hold' 押している間　sens：視点の速さ　lay：動かしたボタンの位置と大きさ
-const T = (settings as any).touch = Object.assign({ stick: 'float', ads: 'toggle', sens: 1, lay: {} }, (settings as any).touch || {});
+// stick：'float' 触った所に出る / 'fixed' 場所固定　ads：'toggle' タップで切り替え / 'hold' 押している間　sens：視点の速さ　alpha：ボタンの濃さ（1 = そのまま）　lay：動かしたボタンの位置と大きさ
+const T = (settings as any).touch = Object.assign({ stick: 'float', ads: 'toggle', sens: 1, alpha: 1, lay: {} }, (settings as any).touch || {});
 
 // タッチの端末か（指で触ったら ON、マウスを使ったら OFF）。body.touch でボタンを出す
 export const Touch = { on: matchMedia('(pointer: coarse)').matches };
@@ -48,10 +61,12 @@ function place(root: HTMLElement) {
     el.style.fontSize = Math.max(11, sz * (id === 'fire' ? 0.2 : 0.24)) + 'px';
   });
 }
-function build(root: HTMLElement) {
+// edit：配置の編集画面（スキルは「スキル1」「スキル2」と出す）
+function build(root: HTMLElement, edit = false) {
   root.innerHTML = BTNS.map(([id, label]) => id === 'stick'
     ? `<div class="tb stick" data-id="stick"><i class="knob"></i></div>`
-    : `<div class="tb" data-id="${id}"><b>${label}</b><small></small></div>`).join('');
+    : `<div class="tb${ICONS[id] ? ' ic' : ''}" data-id="${id}">${ICONS[id] ? `<svg viewBox="0 0 48 48" fill="currentColor">${ICONS[id]}</svg>` : ''}<b>${edit && id === 'sk0' ? 'スキル1' : edit && id === 'sk1' ? 'スキル2' : label}</b><small></small></div>`).join('');
+  root.style.setProperty('--tb-a', String(T.alpha));
   place(root);
 }
 const layer = document.createElement('div');
@@ -77,7 +92,7 @@ function hit(x: number, y: number) {
   });
   return best;
 }
-const KEY_OF = { jump: 'jump', reload: 'reload', sk0: 'skill', sk1: 'skill2' };
+const KEY_OF = { jump: 'jump', reload: 'reload', sk0: 'skill', sk1: 'skill2', insp: 'inspect' };
 function start(t: Touch) {
   const x = t.clientX, y = t.clientY, b = hit(x, y);
   if (b) {
@@ -165,6 +180,9 @@ export function touchTick() {
   if (p.w !== lastW) { if (lastW && T.ads === 'toggle') gs.rightDown = false; lastW = p.w; }   // 持ち替えたら覗き込み（構え）を解く
   txt(btn('fire'), 'b', kind === 'sword' || kind === 'melee' ? '斬る' : '撃つ');
   txt(btn('ads'), 'b', kind === 'sword' ? '構え' : '覗く');
+  // 刀・ナイフのときは銃のアイコンを隠して字だけ
+  btn('fire').classList.toggle('txt', kind === 'sword' || kind === 'melee');
+  btn('ads').classList.toggle('txt', kind === 'sword');
   btn('ads').classList.toggle('off', kind === 'melee');
   btn('ads').classList.toggle('on', !!gs.rightDown);
   btn('wep').classList.toggle('hide', p.mainW.kind === 'sword');   // 侍は刀だけ
@@ -187,13 +205,14 @@ export function openTouchEdit() {
   let sel = '';
   const seg = (id: string, items: [string, string][], cur: string) => `<div class="seg" id="${id}">${items.map(([k, n]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   const render = () => {
-    build(ed);
+    build(ed, true);
     ed.insertAdjacentHTML('beforeend', `<div class="te-panel panel form">
       <h3>タッチ操作の配置</h3>
       <p class="note">ボタンを指（マウス）で動かせます。選んだボタンは大きさも変えられます</p>
       <div class="row"><span>スティック</span>${seg('teStick', [['float', '触った所に出る'], ['fixed', '固定']], T.stick)}</div>
       <div class="row"><span>覗く・構え</span>${seg('teAds', [['toggle', 'タップで切り替え'], ['hold', '押している間']], T.ads)}</div>
       <div class="row"><span>視点の感度 <b id="teSensV">${T.sens.toFixed(2)}</b></span><input id="teSens" type="range" min="0.2" max="3" step="0.05" value="${T.sens}"></div>
+      <div class="row"><span>ボタンの濃さ <b id="teAlphaV">${Math.round(T.alpha * 100)}%</b></span><input id="teAlpha" type="range" min="0.15" max="1" step="0.05" value="${T.alpha}"></div>
       <div class="row"><span>大きさ <b id="teSizeV">${sel ? lay(sel).s.toFixed(2) : '－'}</b><small id="teSel">${sel ? '' : 'ボタンを選んでください'}</small></span><input id="teSize" type="range" min="0.5" max="2" step="0.05" value="${sel ? lay(sel).s : 1}" ${sel ? '' : 'disabled'}></div>
       <div class="menu"><button class="btn sub small" id="teReset">初期に戻す</button><button class="btn small" id="teDone">完了</button></div>
     </div>`);
@@ -201,6 +220,10 @@ export function openTouchEdit() {
     segBind('teStick', v => { T.stick = v; });
     segBind('teAds', v => { T.ads = v; });
     $('teSens').oninput = e => { T.sens = +(e.target as HTMLInputElement).value; $('teSensV').textContent = T.sens.toFixed(2); saveSettings(); };
+    $('teAlpha').oninput = e => {
+      T.alpha = +(e.target as HTMLInputElement).value; $('teAlphaV').textContent = Math.round(T.alpha * 100) + '%';
+      ed.style.setProperty('--tb-a', String(T.alpha)); layer.style.setProperty('--tb-a', String(T.alpha)); saveSettings();
+    };
     $('teSize').oninput = e => {
       if (!sel) return;
       const s = +(e.target as HTMLInputElement).value, L = lay(sel);

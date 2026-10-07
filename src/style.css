@@ -708,12 +708,18 @@ body.touch #wep { bottom: auto; top: 14px }
 .tb small { font-size: .7em; font-weight: 700; color: var(--text-dim) }
 .tb small:empty { display: none }
 .tb.down, .tb.on { background: color-mix(in srgb, var(--shiro-2) 28%, transparent); border-color: var(--shiro-2) }
-.tb.off { opacity: .4 }
+.tb { opacity: var(--tb-a, 1) }
+.tb.off { opacity: calc(var(--tb-a, 1) * .4) }
+.tb svg { width: 50%; height: 50%; flex: none }
+.tb.ic b { font-size: .6em; font-weight: 700; margin-top: 1px; color: var(--text-dim) }
+.tb.ic b:empty { display: none }
+.tb.txt svg { display: none }
+.tb.txt b { font-size: 1em; font-weight: 800; color: var(--text) }
 .tb.hide { display: none }
 .tb[data-id="fire"] { border-color: color-mix(in srgb, var(--aka-2) 70%, transparent); background: color-mix(in srgb, var(--aka-0) 30%, transparent) }
 .tb[data-id="fire"].down { background: color-mix(in srgb, var(--aka-1) 55%, transparent) }
-.tb.stick { background: color-mix(in srgb, var(--sumi-0) 18%, transparent); border-color: color-mix(in srgb, var(--shiro-2) 22%, transparent); opacity: .7 }
-.tb.stick.down { opacity: 1; background: color-mix(in srgb, var(--sumi-0) 25%, transparent) }
+.tb.stick { background: color-mix(in srgb, var(--sumi-0) 18%, transparent); border-color: color-mix(in srgb, var(--shiro-2) 22%, transparent); opacity: calc(var(--tb-a, 1) * .7) }
+.tb.stick.down { opacity: var(--tb-a, 1); background: color-mix(in srgb, var(--sumi-0) 25%, transparent) }
 .tb.stick .knob { position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; border-radius: 50%; transform: translate(-50%, -50%);
   background: color-mix(in srgb, var(--shiro-2) 55%, transparent); border: 1.5px solid var(--shiro-2) }
 /* 配置の編集：ゲームと同じボタンを並べて、引っぱって動かす */
