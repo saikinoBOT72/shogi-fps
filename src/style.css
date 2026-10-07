@@ -708,8 +708,10 @@ body.touch #wep { bottom: auto; top: 14px }
 .tb small { font-size: .7em; font-weight: 700; color: var(--text-dim) }
 .tb small:empty { display: none }
 .tb.down, .tb.on { background: color-mix(in srgb, var(--shiro-2) 28%, transparent); border-color: var(--shiro-2) }
-.tb { opacity: var(--tb-a, 1) }
-.tb.off { opacity: calc(var(--tb-a, 1) * .4) }
+.tb { opacity: calc(var(--tb-a, 1) * var(--b-a, 1)) }   /* 全体の濃さ × ボタンごとの濃さ */
+.tb.off { opacity: calc(var(--tb-a, 1) * var(--b-a, 1) * .4) }
+#touch .tb.uhide { display: none }
+#touchEdit .tb.uhide { opacity: .3; border-style: dashed }
 .tb svg { width: 50%; height: 50%; flex: none }
 .tb.ic b { display: none }   /* アイコンのボタンは字を出さない（刀・ナイフの .txt だけ字） */
 .tb small { font-size: .55em }
@@ -718,8 +720,8 @@ body.touch #wep { bottom: auto; top: 14px }
 .tb.hide { display: none }
 .tb[data-id="fire"] { border-color: color-mix(in srgb, var(--aka-2) 70%, transparent); background: color-mix(in srgb, var(--aka-0) 30%, transparent) }
 .tb[data-id="fire"].down { background: color-mix(in srgb, var(--aka-1) 55%, transparent) }
-.tb.stick { background: color-mix(in srgb, var(--sumi-0) 18%, transparent); border-color: color-mix(in srgb, var(--shiro-2) 22%, transparent); opacity: calc(var(--tb-a, 1) * .7) }
-.tb.stick.down { opacity: var(--tb-a, 1); background: color-mix(in srgb, var(--sumi-0) 25%, transparent) }
+.tb.stick { background: color-mix(in srgb, var(--sumi-0) 18%, transparent); border-color: color-mix(in srgb, var(--shiro-2) 22%, transparent); opacity: calc(var(--tb-a, 1) * var(--b-a, 1) * .7) }
+.tb.stick.down, .tb.stick.locked { opacity: calc(var(--tb-a, 1) * var(--b-a, 1)); background: color-mix(in srgb, var(--sumi-0) 25%, transparent) }
 .tb.stick .knob { position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; border-radius: 50%; transform: translate(-50%, -50%);
   background: color-mix(in srgb, var(--shiro-2) 55%, transparent); border: 1.5px solid var(--shiro-2) }
 /* 配置の編集：ゲームと同じボタンを並べて、引っぱって動かす */
@@ -748,3 +750,20 @@ body.touch #wep { bottom: auto; top: 14px }
   .mi.big { font-size: 18px; padding-top: 5px; padding-bottom: 5px }
   .home .hero { top: 14vh; bottom: 4vh }
 }
+/* 走りっぱなし：スティックの上の ▲。引いている間に見え、届くと赤くなる */
+.tb.stick .lk { position: absolute; left: 50%; top: -62%; width: 34%; height: 34%; transform: translateX(-50%); display: none; color: var(--text-dim) }
+.tb.stick .lk svg { width: 100%; height: 100% }
+.tb.stick.down .lk, .tb.stick.locked .lk { display: block }
+.tb.stick.lockReady .lk, .tb.stick.locked .lk { color: var(--aka-2) }
+#touchEdit .tb.stick .lk { display: block; opacity: .5 }
+/* 設定のタブ（共通 / キーマウ操作 / タッチ操作） */
+.set-tabs { justify-content: flex-start; margin: 0 0 12px }
+.set-tabs button { font-size: 14px; padding: 7px 18px }
+.tset { margin-bottom: 10px }
+.tset > .seg { justify-content: flex-start; margin-bottom: 4px }
+.tset-range { display: flex; align-items: center; gap: 10px }
+.tset-range b { min-width: 3.4em; text-align: right; font-size: 13px }
+.tset-btns { display: flex; gap: 6px }
+.tset .note { margin: 0 0 4px; font-size: 11px; color: var(--text-dim) }
+.te-sel { padding: 6px 0 2px; font-size: 13px; border-bottom: 1px solid var(--line) }
+.te-panel .tset-range input { width: 120px }

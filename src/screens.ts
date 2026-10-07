@@ -19,7 +19,7 @@ import { showMarket } from './marketScreen';
 import { Account, accountAvailable, onAccountChange } from './account';
 import { VS_TIME, showVsCut } from './vscut';
 import { showHero } from './hero';
-import { openTouchEdit } from './touch';
+import { bindTouchSettings, touchSettingsHTML } from './touch';
 
 // ================= 共通 =================
 const H_EN: Record<string, string> = {
@@ -54,12 +54,10 @@ export function settingsHTML() {
   const seg = (id, items, cur) => `<div class="seg" id="${id}">${items.map(([k, name]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}">${name}</button>`).join('')}</div>`;
   return `<div class="panel form">
     <div class="row"><span>CPUの強さ</span>${seg('diffSeg', Object.entries(DIFFS).map(([k, d]: any) => [k, d.name]), settings.diff)}</div>
-    <div class="row"><span>マウス感度<small>VALORANT と同じ数値</small> <input id="sensV" type="number" min="0.01" max="10" step="0.001" value="${settings.sens}" style="width:5.5em"></span><input id="sens" type="range" min="0.05" max="2" step="0.005" value="${settings.sens}"></div>
     <div class="row"><span>画質<small>重いときは「低」</small></span>${seg('qSeg', Object.entries(QUALITIES).map(([k, q]: any) => [k, q.name]), settings.quality)}</div>
     <div class="row"><span>自動で解像度を下げる<small>重いとき画面を粗くして FPS を保つ。良い PC なら OFF</small></span>${seg('autoResSeg', [['1', 'ON'], ['0', 'OFF']], settings.autoRes ? '1' : '0')}</div>
     <div class="row"><span>FPS表示</span>${seg('fpsSeg', [['1', 'ON'], ['0', 'OFF']], settings.showFps ? '1' : '0')}</div>
     <div class="row"><span>音量</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${settings.vol}"></div>
-    <div class="row"><span>タッチ操作<small>スマホ・iPad のボタン配置・視点の感度</small></span><button class="small" id="touchEditBtn">配置を編集</button></div>
   </div>`;
 }
 export function bindSettings() {
@@ -71,21 +69,28 @@ export function bindSettings() {
   segBind('qSeg', v => { settings.quality = v; if (gs.state === 'title') location.reload(); });   // 画質は作り直しが必要なので再読み込み
   segBind('autoResSeg', v => { settings.autoRes = v === '1'; });   // OFF にしたら、下がっていた解像度は perfTick ですぐ元に戻る
   segBind('fpsSeg', v => { settings.showFps = v === '1'; if (!settings.showFps) $('fps').textContent = ''; });
-  $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').value = String(settings.sens); saveSettings(); };
-  $('sensV').oninput = e => { const v = +e.target.value; if (!(v > 0)) return; settings.sens = v; $('sens').value = String(v); saveSettings(); };
-  $('sensV').onkeydown = e => e.stopPropagation();   // 数字を打つときにゲームの操作に取られないように
   $('vol').oninput = e => { settings.vol = +e.target.value; SFX.setVol(settings.vol); saveSettings(); };
-  ['sens', 'sensV', 'vol'].forEach(id => $(id).onclick = e => e.stopPropagation());
-  $('touchEditBtn').onclick = e => { e.stopPropagation(); openTouchEdit(); };
+  $('vol').onclick = e => e.stopPropagation();
 }
+// タブ：共通 / キーマウ操作（マウス感度・キー設定・駒とスキルの説明）/ タッチ操作（touch.ts）。タッチの端末なら最初はタッチのタブ
+let setTab = '';
+const SET_TABS: [string, string][] = [['common', '共通'], ['km', 'キーマウ操作'], ['touch', 'タッチ操作']];
 function showSettings(back: () => void) {
-  overlay(`<div class="screen">
+  if (!setTab) setTab = document.body.classList.contains('touch') ? 'touch' : 'common';
+  const again = () => showSettings(back);
+  const body = setTab === 'km' ? kmHTML() : setTab === 'touch' ? touchSettingsHTML() : settingsHTML();
+  overlay(`<div class="screen${setTab === 'common' ? '' : ' wide'}">
     <h2 class="h">設定</h2>
-    ${settingsHTML()}
+    <div class="seg set-tabs" id="setTabs">${SET_TABS.map(([k, n]) => `<button data-v="${k}" class="${setTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+    ${body}
     <div class="menu"><button class="btn sub" id="devBtn">開発者</button><button class="btn sub" id="back">戻る</button></div>
   </div>`, true);
-  bindSettings();
-  on('devBtn', () => showDevLogin(() => showSettings(back)));
+  ($('overlay').querySelector('.screen') as HTMLElement).onclick = e => e.stopPropagation();   // 一時停止中に設定の中を押しても再開しないように
+  document.querySelectorAll<HTMLElement>('#setTabs button').forEach(b => b.onclick = e => { e.stopPropagation(); setTab = b.dataset.v; again(); });
+  if (setTab === 'km') bindKm(again);
+  else if (setTab === 'touch') bindTouchSettings(again);
+  else bindSettings();
+  on('devBtn', () => showDevLogin(again));
   on('back', back);
 }
 
@@ -182,20 +187,23 @@ function bindKeys(rerender: () => void) {
     setTimeout(() => { addEventListener('keydown', onKey, true); addEventListener('mousedown', onMouse, true); }, 0);
   });
 }
-function showControls(back: () => void) {
+function kmHTML() {
   const rows = Object.values(PIECES).map((p: any) => {
     const w = WEAPONS[p.weapon];
     return `<tr><td>${koma(p.name, ' s')}</td><td>${w.name}</td><td>${p.skills.map(k => `<b>${SKILLS[k].name}</b>　${SKILLS[k].help}`).join('<br>') || 'なし'}</td></tr>`;
   }).join('');
-  overlay(`<div class="screen wide">
-    <h2 class="h">操作方法</h2>
-    <div class="panel">${keysHTML(true)}<p class="note">キーをクリックして、割り当てたいキーを押すと変えられます</p></div>
-    <div class="panel"><table class="skills">${rows}</table></div>
-    <div class="menu"><button class="btn sub" id="resetKeys">キーを初期設定に</button><button class="btn sub" id="back">戻る</button></div>
-  </div>`, true);
-  bindKeys(() => showControls(back));
-  on('resetKeys', () => { (settings as any).keys = Object.assign({}, DEFAULT_KEYS); saveSettings(); showControls(back); });
-  on('back', back);
+  return `<div class="panel form">
+      <div class="row"><span>マウス感度<small>VALORANT と同じ数値</small> <input id="sensV" type="number" min="0.01" max="10" step="0.001" value="${settings.sens}" style="width:5.5em"></span><input id="sens" type="range" min="0.05" max="2" step="0.005" value="${settings.sens}"></div>
+    </div>
+    <div class="panel">${keysHTML(true)}<p class="note">キーをクリックして、割り当てたいキーを押すと変えられます　<button class="small" id="resetKeys">キーを初期設定に</button></p></div>
+    <div class="panel"><table class="skills">${rows}</table></div>`;
+}
+function bindKm(rerender: () => void) {
+  $('sens').oninput = e => { settings.sens = +e.target.value; $('sensV').value = String(settings.sens); saveSettings(); };
+  $('sensV').oninput = e => { const v = +e.target.value; if (!(v > 0)) return; settings.sens = v; $('sens').value = String(v); saveSettings(); };
+  $('sensV').onkeydown = e => e.stopPropagation();   // 数字を打つときにゲームの操作に取られないように
+  bindKeys(rerender);
+  on('resetKeys', () => { (settings as any).keys = Object.assign({}, DEFAULT_KEYS); saveSettings(); rerender(); });
 }
 
 // ================= タイトル =================
@@ -213,7 +221,7 @@ export function showTitle() {
     <nav class="home-menu">
       ${mi('goSolo', '一人で遊ぶ', 'Solo', true)}${mi('goOnline', '友達と遊ぶ', 'Friends', true)}
       ${mi('openGacha', 'ガチャ', 'Gacha')}${mi('openInv', '持ち物', 'Collection')}${mi('openQuests', 'クエスト', 'Quests')}${mi('openMarket', 'マーケット', 'Market')}
-      ${mi('openSettings', '設定', 'Settings')}${mi('openControls', '操作方法', 'Controls')}
+      ${mi('openSettings', '設定', 'Settings')}
     </nav>
     <div class="home-top">
       ${accountAvailable ? `<button class="acct-chip" id="openAcct">${!Account.ready ? '…' : Account.user ? `<small>${Account.user.isAnonymous ? 'ゲスト' : 'ログイン中'}</small><b>${esc(Account.name)}</b>` : '<b>ログイン</b>'}</button>` : ''}
@@ -231,7 +239,6 @@ export function showTitle() {
   on('openGacha', () => showGacha(showTitle));
   on('openInv', () => showInventory(showTitle));
   on('openSettings', () => showSettings(showTitle));
-  on('openControls', () => showControls(showTitle));
 }
 
 // マップ（v: { map }。dis: 選べない＝部屋を作った人が決める）。山寺の暗さは「こわい」で固定
@@ -326,14 +333,12 @@ export function showPause() {
     <div class="menu col">
       <button class="btn" id="resume">再開</button>
       <button class="btn sub" id="pSettings">設定</button>
-      <button class="btn sub" id="pControls">操作方法</button>
       <button class="btn sub" id="quit">タイトルへ</button>
     </div>
     <p class="note">${Net.on ? '友達との対戦は止まっていません！ 画面をクリックで戻る' : '画面をクリックしても再開できます'}</p>
   </div>`, true);
   on('resume', () => { SFX.init(); requestLock(); });
   on('pSettings', () => showSettings(showPause));
-  on('pControls', () => showControls(showPause));
   on('quit', () => {
     gs.paused = false;
     if (Net.on) { leave(); return; }
