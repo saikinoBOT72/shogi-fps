@@ -732,3 +732,13 @@ body.touch #wep { bottom: auto; top: 14px }
 #newVer { position: fixed; left: 50%; top: max(10px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 60; padding: 9px 18px; border-radius: var(--r-s);
   border: 1px solid var(--shiro-2); background: var(--shiro-2); color: var(--sumi-0); font: 800 13px var(--font-ui); letter-spacing: .06em; cursor: pointer; box-shadow: var(--shade) }
 #hud[style*="block"] ~ #newVer { display: none }
+/* 背の低い画面（横向きのスマホ）：タイトルのロゴとメニューがぶつからないように小さく詰める */
+@media (max-height: 560px) {
+  .logo { top: 5vh; font-size: 40px }
+  .logo .lab { margin-top: 8px }
+  .tagline { display: none }
+  .home-menu { bottom: 4vh; min-width: 220px }
+  .mi { padding: 4px 14px 4px 12px; font-size: 15px }
+  .mi.big { font-size: 18px; padding-top: 5px; padding-bottom: 5px }
+  .home .hero { top: 14vh; bottom: 4vh }
+}

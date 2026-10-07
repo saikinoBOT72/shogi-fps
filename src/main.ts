@@ -139,6 +139,8 @@ export function loop(now) {
  
   Particles.update(pdt); Tracers.update(pdt); DmgNums.update(pdt);
   touchTick();
+  // iPhone を回したとき resize が来ない・早すぎることがあるので、毎フレーム大きさを確かめて、違えば resize を出し直す
+  if (renderer.domElement.clientWidth !== innerWidth || renderer.domElement.clientHeight !== innerHeight) dispatchEvent(new Event('resize'));
   if (run) updateCamera(dt, rdt);
   if (gs.paused) gs.mdx = gs.mdy = 0;
  

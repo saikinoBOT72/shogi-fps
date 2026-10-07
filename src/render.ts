@@ -31,6 +31,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = Q.shadow > 0;
 renderer.shadowMap.type = Q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 renderer.autoClear = false;
+renderer.domElement.style.cssText += ';position:fixed;left:0;top:0';   // 画面の左上に固定（ずれて表示されないように）
 document.body.prepend(renderer.domElement);
 export const ANISO = renderer.capabilities.getMaxAnisotropy();
 
