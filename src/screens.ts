@@ -39,7 +39,8 @@ export function overlay(html, dim?) {
   });
   const same = before !== null && before === key();
   o.scrollTop = same ? top : 0;
-  if (!same) { o.classList.remove('enter'); void o.offsetWidth; o.classList.add('enter'); }
+  o.classList.remove('enter');   // 同じ画面の描き直し（設定のボタンを押したときなど）では出てくる動きをつけない（チカチカする）
+  if (!same) { void o.offsetWidth; o.classList.add('enter'); }
 }
 export const hideOverlay = () => { $('overlay').style.display = 'none'; };
 const on = (id: string, fn: () => void) => { const el = $(id); if (el) el.onclick = e => { e.stopPropagation(); fn(); }; };

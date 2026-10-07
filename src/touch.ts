@@ -18,6 +18,7 @@ const BTNS: [string, string, number, number, number, boolean?][] = [
   ['reload', '装填', 0.77, 0.88, 52],
   ['sk0', 'スキル1', 0.73, 0.64, 60],
   ['sk1', 'スキル2', 0.78, 0.42, 60],
+  ['cancel', 'キャンセル', 0.86, 0.43, 52],
   ['wep', '持替', 0.86, 0.2, 50],
   ['insp', '眺める', 0.75, 0.2, 46],
   ['pause', '一時停止', 0.035, 0.07, 42],
@@ -34,6 +35,7 @@ const ICONS: Record<string, string> = {
   reload: [-9, 0, 9].map(x => `<g transform="translate(${x} 0) scale(.85) translate(4 4)">${BULLET}</g>`).join(''),
   wep: '<path d="M8 13H31V8L42 16.5L31 25V20H8Z"/><path d="M40 35H17V40L6 31.5L17 23V28H40Z" opacity=".7"/>',
   pause: '<path d="M14 10H21V38H14ZM27 10H34V38H27Z"/>',
+  cancel: `<path ${LINE} stroke-width="5" d="M14 14L34 34M34 14L14 34"/>`,
   insp: '<g transform="translate(2 8) scale(.8)"><path d="M6 12H41V20H22L20.5 25H17.5L15 37H7L10 20H6Z"/></g><path d="M37 3L39 9L45 11L39 13L37 19L35 13L29 11L35 9Z"/>',
 };
 
@@ -106,13 +108,20 @@ const stickEl = btn('stick'), knob = stickEl.querySelector<HTMLElement>('.knob')
 
 // ================= 指の動き =================
 // role：'fire' / 'ads' など（左の撃つボタンも 'fire'）。el：押したボタンの id
-type Finger = { role: string, el?: string, x: number, y: number, cx?: number, cy?: number, release?: boolean, adsBefore?: boolean, adsFire?: boolean, lockReady?: boolean };
+type Finger = { role: string, el?: string, x: number, y: number, cx?: number, cy?: number, release?: boolean, adsFire?: boolean, cancel?: boolean, lockReady?: boolean };
 const fingers = new Map<number, Finger>();
 const K = () => (settings as any).keys;
 const KEY_OF = { jump: 'jump', reload: 'reload', sk0: 'skill', sk1: 'skill2', insp: 'inspect' };
 let runLocked = false;
 // 離したら撃つ：撃つまで（弾が減るまで、長くて 0.35 秒）撃つ入力を入れておき、撃ったら覗きを元に戻す
-let shot: { until: number, ammo: number, ads: boolean | null } | null = null;
+let shot: { until: number, ammo: number, ads: boolean } | null = null;
+// 覗き込み（構え）：覗くボタンで切り替えた状態（adsOn）と、撃つボタンで覗いている間（指を押している・離して撃つのを待っている）を足したもの。
+// 毎回ここから決め直すので、撃つボタンを何度押しても覗いたままにならない
+let adsOn = false;
+const fireAds = () => [...fingers.values()].some(f => f.role === 'fire' && f.adsFire && !f.cancel) || !!(shot && shot.ads);
+const syncAds = () => { gs.rightDown = adsOn || fireAds(); };
+// 離したら撃つ：押している間だけキャンセルのボタンが出る
+const releaseHeld = () => [...fingers.values()].some(f => f.role === 'fire' && f.release && !f.cancel);
 // 指で押したボタン（スティックは除く）。見た目の円より少し広めに当たりをとる
 function hit(x: number, y: number) {
   let best = '', bd = Infinity;
@@ -133,13 +142,16 @@ function start(t: Touch) {
     btn(b).classList.add('down');
     if (role === 'fire') {
       const w = W(), kind = player.w.kind;
-      f.adsBefore = !!gs.rightDown;
       f.adsFire = w.adsFire && gunLike(kind);
-      if (f.adsFire) gs.rightDown = true;
       f.release = w.fire === 'release' && gunLike(kind) && kind !== 'bow';
       if (!f.release) { gs.mouseDown = true; gs.triggerUsed = false; }
+      syncAds();
     }
-    else if (role === 'ads') gs.rightDown = W().ads === 'hold' ? true : !gs.rightDown;
+    else if (role === 'ads') { adsOn = W().ads === 'hold' ? true : !adsOn; syncAds(); }
+    else if (role === 'cancel') {   // 離したら撃つのをやめる（撃つボタンの指はそのまま視点に使える）
+      for (const g of fingers.values()) if (g.role === 'fire' && g.release && !g.cancel) { g.cancel = true; btn(g.el).classList.remove('down'); }
+      syncAds();
+    }
     else if (KEY_OF[role]) press(K()[KEY_OF[role]]);
     else if (role === 'wep') { if (gs.state === 'fight') switchWeapon(player, 'toggle'); }
     else if (role === 'pause') { releaseAll(); pause(); }
@@ -211,21 +223,21 @@ function end(id: number) {
   btn(f.el).classList.remove('down');
   if (still(f.role)) return;
   if (f.role === 'fire') {
-    if (f.release && isPlaying()) {
+    if (f.release && hit(f.x, f.y) === 'cancel') f.cancel = true;   // キャンセルのボタンの上で離した
+    if (f.release && !f.cancel && isPlaying()) {
       gs.mouseDown = true; gs.triggerUsed = false;
-      shot = { until: performance.now() + 350, ammo: player.ammo, ads: f.adsFire ? f.adsBefore : null };
-    } else {
-      gs.mouseDown = false;
-      if (f.adsFire) gs.rightDown = f.adsBefore;
-    }
+      shot = { until: performance.now() + 350, ammo: player.ammo, ads: !!f.adsFire };
+    } else if (!f.release) gs.mouseDown = false;
+    syncAds();
   }
-  else if (f.role === 'ads' && W().ads === 'hold') gs.rightDown = false;
+  else if (f.role === 'ads' && W().ads === 'hold') { adsOn = false; syncAds(); }
   else if (KEY_OF[f.role]) keys[K()[KEY_OF[f.role]]] = false;
 }
 function releaseAll() {
   for (const id of [...fingers.keys()]) end(id);
   if (runLocked) setRunLock(false);
   if (shot) { gs.mouseDown = false; shot = null; }
+  adsOn = false; gs.rightDown = false;
 }
 layer.addEventListener('touchstart', e => {
   if (!isPlaying()) return;   // 止まっている間はそのまま（リプレイを飛ばすタップなど）
@@ -245,10 +257,11 @@ export function touchTick() {
   // 離したら撃つ：弾が減った（撃てた）か時間切れで、撃つ入力を止めて覗きを戻す
   if (shot && (p.ammo !== shot.ammo || performance.now() > shot.until || !gunLike(kind))) {
     if (![...fingers.values()].some(f => f.role === 'fire')) gs.mouseDown = false;
-    if (shot.ads !== null) gs.rightDown = shot.ads;
     shot = null;
   }
-  if (p.w !== lastW) { if (lastW && W().ads === 'toggle') gs.rightDown = false; lastW = p.w; }   // 持ち替えたら覗き込み（構え）を解く
+  if (p.w !== lastW) { if (lastW) adsOn = false; lastW = p.w; }   // 持ち替えたら覗き込み（構え）を解く
+  if (isPlaying()) syncAds();
+  btn('cancel').classList.toggle('hide', !releaseHeld());
   // 刀・ナイフのときは銃のアイコンを隠して字だけ
   for (const id of ['fire', 'fire2']) { btn(id).classList.toggle('txt', !gunLike(kind)); txt(btn(id), 'b', gunLike(kind) ? '' : '斬る'); }
   btn('ads').classList.toggle('txt', kind === 'sword');
@@ -289,7 +302,7 @@ export function touchSettingsHTML() {
   <div class="panel form tset">
     <h3>撃ち方（武器の種類ごと）</h3>
     ${seg('tsCat', CATS, wcat)}
-    ${sword ? '' : bow ? '' : `<div class="row"><span>撃つタイミング<small>離したら撃つ：押している間に狙って、指を離すと撃つ</small></span>${seg('tsFire', [['press', '押したら撃つ'], ['release', '離したら撃つ']], w.fire)}</div>`}
+    ${sword ? '' : bow ? '' : `<div class="row"><span>撃つタイミング<small>離したら撃つ：押している間に狙って、指を離すと撃つ。やめるときは × のボタン（押す・その上で指を離す）</small></span>${seg('tsFire', [['press', '押したら撃つ'], ['release', '離したら撃つ']], w.fire)}</div>`}
     ${sword ? '' : `<div class="row"><span>撃つボタンで覗く<small>撃つボタンを押すとスコープも開く（離すと元に戻る）</small></span>${onOff('tsAdsFire', w.adsFire)}</div>`}
     <div class="row"><span>${sword ? '構えボタン' : '覗くボタン'}</span>${seg('tsAds', [['toggle', 'タップで切り替え'], ['hold', '押している間']], w.ads)}</div>
     ${sword ? '' : `<div class="row"><span>覗いている間の視点の速さ<small>ふだんの速さに掛ける倍率</small></span>${range('tsAdsSens', 0.2, 2, 0.05, w.adsSens, '×' + w.adsSens.toFixed(2))}</div>`}
