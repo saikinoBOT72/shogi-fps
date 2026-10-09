@@ -140,7 +140,7 @@ function lost() {
   gs.paused = false;
   resetMatch(); showOnline('相手との接続が切れました');
 }
-addEventListener('beforeunload', () => { if (Net.on) Net.send({ t: 'bye' }); });
+addEventListener('pagehide', () => { if (Net.on) Net.send({ t: 'bye' }); });   // 閉じるのを確かめて、やめたときは送らない
 
 // ================= 相手から届いたもの =================
 Net.onClose = lost;

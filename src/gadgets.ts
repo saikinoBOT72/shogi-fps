@@ -365,7 +365,32 @@ function updateRopes() {
   }
 }
 
+// ランデブー（杏）：足元の目印（金の輪と、浮いて回る菱形）。もう一度押すとそこへ瞬間移動して消える。1人1つまで
+const anchors = new Map();
+const anchorRingGeo = new THREE.TorusGeometry(0.45, 0.04, 4, 24).rotateX(Math.PI / 2), anchorGemGeo = flatGeo(new THREE.OctahedronGeometry(0.14, 0));
+function placeAnchor(e) {
+  const old = anchors.get(e); if (old) old.m.visible = false;
+  const p = e.pos.clone(); p.y = floorBelow(p.x, p.z, e.pos.y + 0.5);
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(anchorRingGeo, new THREE.MeshBasicMaterial({ color: P.kin[2], transparent: true, opacity: 0.85, depthWrite: false })));
+  const gem = new THREE.Mesh(anchorGemGeo, new THREE.MeshBasicMaterial({ color: P.kin[2] })); gem.position.y = 0.5; g.add(gem);
+  g.userData.head = gem;   // リプレイで回る向きも再現する
+  g.position.copy(p); track(g);
+  anchors.set(e, { m: g, pos: p, gem });
+  for (let i = 0; i < 8; i++) Particles.glow(p.clone().add(new V3(rand(-0.4, 0.4), rand(0, 0.6), rand(-0.4, 0.4))), P.kin[2]);
+  SFX.play('skBoxes', e.isBot ? p : null);
+}
+function anchorWarp(e) {
+  const A = anchors.get(e); if (!A) return;
+  for (let i = 0; i < 14; i++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.kin[2]);
+  e.pos.copy(A.pos); e.pos.y += 0.05;
+  e.vel.set(0, 0, 0); e.vy = 0; e.onGround = false;
+  for (let i = 0; i < 14; i++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.kin[2]);
+  SFX.play('skPearl', e.isBot ? e.pos : null);
+  A.m.visible = false; anchors.delete(e);
+}
 export const Gadgets = {
+  placeAnchor, anchorWarp, anchorOf: e => anchors.get(e),
   throwC4, detonate, launch, toss, shockwave, grappleTarget, placeTurret, damageTurret,
   turretOfHit: (o: any) => o && o.userData && o.userData.turret,
   myTurret: () => turrets.find(T => T.owner === player),
@@ -375,8 +400,8 @@ export const Gadgets = {
   ctrlOf: e => missiles.find(m => m.owner === e && m.ctrl),
   // 操作をやめる（ミサイルはそのまままっすぐ飛ぶ）
   release(e) { const M = missiles.find(m => m.owner === e && m.ctrl); if (M) M.ctrl = false; },
-  update(dt) { updateRopes(); if (dt <= 0) return; updateC4(dt); updateMissiles(dt); updateThrows(dt); updateRings(dt); updateBubbles(dt); updateTurrets(dt); },
-  clear() { [...turrets].forEach(T => breakTurret(T, false)); reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; throws.length = 0; rings.length = 0; bubbles.length = 0; gs.flash = 0; },
+  update(dt) { updateRopes(); if (dt <= 0) return; anchors.forEach(A => { A.gem.rotation.y += dt * 2; }); updateC4(dt); updateMissiles(dt); updateThrows(dt); updateRings(dt); updateBubbles(dt); updateTurrets(dt); },
+  clear() { anchors.clear(); [...turrets].forEach(T => breakTurret(T, false)); reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; throws.length = 0; rings.length = 0; bubbles.length = 0; gs.flash = 0; },
   // リプレイ用：出ている物の位置・大きさ・濃さ
   snapshot: () => reg.map((o, i) => (o.visible ? [i, o.position.x, o.position.y, o.position.z, o.rotation.x, o.rotation.y, o.rotation.z, o.scale.x, opOf(o), o.userData.light ? +o.userData.light.visible : -1, o.userData.head ? o.userData.head.rotation.y : 0] : null)).filter(Boolean),   // 地雷の光・タレットの向き
   restore(s) {

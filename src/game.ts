@@ -165,6 +165,14 @@ export function useSkill(e, i, dir, force = false) {
   if (!force && e.empT > 0) { if (!e.isBot) SFX.play('empty'); return false; }   // EMP を受けている間はスキルが使えない
   if (!force && (s.charges <= 0 || (s.t > 0 && !chain))) return false;
   if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple', 'blink', 'roll'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
+  // ランデブー：目印が無ければ足元に置く（回数は減らない）、あれば目印へ戻る（回数を使う）
+  if (sk.type === 'rendezvous') {
+    if (!Gadgets.anchorOf(e)) { Gadgets.placeAnchor(e); return true; }
+    cancelMedkit(e, s);
+    s.charges--; if (s.cd <= 0) s.cd = sk.cooldown;
+    Gadgets.anchorWarp(e);
+    return true;
+  }
   // 狙っている向き（上下も含む）
   const aim = e.isBot && e.skillAim ? e.skillAim.clone() : e.isBot && e.netAim ? e.netAim.clone() : e.isBot ? new V3(player.pos.x, player.pos.y + player.height * 0.6, player.pos.z).sub(eyeOf(e)).normalize() : new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   // 鉤縄は掛ける所が無ければ使わない（回数も減らさない）

@@ -33,8 +33,18 @@ addEventListener('keydown', e => {
   if (gs.rebinding || (e.target as HTMLElement).tagName === 'INPUT') return;   // 文字の入力中（部屋のコードなど）
   const K = (settings as any).keys;
   if (e.code === K.jump || e.code === 'Space' || e.code === 'Tab') e.preventDefault();
+  if ((e.ctrlKey || e.metaKey) && gs.state !== 'title') e.preventDefault();   // 対局中の Ctrl＋キー（保存・ブックマークなど）をブラウザに渡さない
   press(e.code);
 });
+// Ctrl+W でタブが閉じないように
+//   全画面のときは、W・T・N のキーをゲームが受け取る（Keyboard Lock。Chrome・Edge。Esc はふだん通り）
+//   全画面でないときは止められないので、対局中・盤面で閉じようとしたら確かめる
+document.addEventListener('fullscreenchange', () => {
+  const kb = (navigator as any).keyboard;
+  if (!kb?.lock) return;
+  if (document.fullscreenElement) kb.lock(['KeyW', 'KeyT', 'KeyN']).catch(() => {}); else kb.unlock();
+});
+addEventListener('beforeunload', e => { if (gs.state !== 'title') { e.preventDefault(); e.returnValue = ''; } });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('mousedown', e => {
   if (e.button !== 0 && e.button !== 2) { if (e.button >= 3) e.preventDefault(); press('Mouse' + e.button); return; }

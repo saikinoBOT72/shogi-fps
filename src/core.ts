@@ -33,7 +33,7 @@ export const PIECES = {
   // 成駒（promo：元の駒）：将棋モードで成った駒が一騎打ちでなる姿。字は盤と同じ赤い字（red）。ランダムには出ない
   //   性格：と＝成り上がりの足軽 / 成香＝重い狙撃手 / 成桂＝身軽な射手 / 成銀＝万能の兵 / 馬＝重装の砲兵 / 龍＝機動の切り込み役 / 帝＝威厳の王
   'P+': { name: 'と', value: 6, hp: 110, size: 0.8,  speed: 7.0, jump: 7.5, weapon: 'pistol', skills: ['dual', 'roll'], promo: 'P', red: true },
-  'L+': { name: '杏', value: 6, hp: 100, size: 0.85, speed: 6.4, jump: 7,   weapon: 'awm',    skills: ['pierce', 'hearing'], strafe: 0.6, promo: 'L', red: true },
+  'L+': { name: '杏', value: 6, hp: 100, size: 0.85, speed: 6.4, jump: 7,   weapon: 'awm',    skills: ['rendezvous', 'hearing'], strafe: 0.6, promo: 'L', red: true },
   'N+': { name: '圭', value: 6, hp: 100, size: 0.85, speed: 7.4, jump: 10,  weapon: 'xbow',   skills: ['poison', 'multishot'], promo: 'N', red: true },
   'S+': { name: '全', value: 6, hp: 115, size: 0.85, speed: 7,   jump: 7.5, weapon: 'famas',  skills: ['medkit', 'dome'], promo: 'S', red: true },
   'B+': { name: '馬', value: 10, hp: 140, size: 0.95, speed: 6.0, jump: 7,  weapon: 'mgl',    skills: ['mine', 'smoke2'], promo: 'B', red: true },
@@ -78,8 +78,8 @@ export const WEAPONS = {
   },
   // 3点バースト。1回押すと3発、次のバーストまで間が空く。跳ね上がりが強く扱いにくい
   famas: {
-    name: 'FAMAS', model: 'famas', dmg: 17, head: 1.5, rate: 0.42, burst: 3, burstGap: 0.065, spread: 0.017, bloomShot: 0.013, bloomMax: 0.05, bloomRecover: 0.11,
-    move: 0.035, air: 0.09, ads: 0.45, mag: 24, reload: 2.1, auto: false, recoil: 0.03, falloff: [18, 38, 0.65], pref: 14,
+    name: 'FAMAS', model: 'famas', dmg: 17, head: 1.5, rate: 0.42, burst: 3, burstGap: 0.065, spread: 0.017, bloomShot: 0.006, bloomMax: 0.05, bloomRecover: 0.11,
+    move: 0.035, air: 0.09, ads: 0.45, mag: 24, reload: 2.1, auto: false, recoil: 0.008, falloff: [18, 38, 0.65], pref: 14,
   },
   mgl: {
     name: 'MGL', model: 'mgl', kind: 'grenade', dmg: 50, knock: 16, lift: 18, self: 0.1, radius: 4.6, speed: 36, gravity: 9, fuse: 3, rate: 0.75, spread: 0.012,
@@ -144,7 +144,7 @@ export const WEAPONS = {
   },
   // 近いほど強い。8粒 × 8 ダメージ
   shotgun: {
-    name: 'M870', model: 'm870', dmg: 9, pellets: 10, head: 1.3, rate: 0.7, spread: 0.045, bloomShot: 0.01, bloomMax: 0.02, bloomRecover: 0.1,
+    name: 'M870', model: 'm870', dmg: 9, pellets: 10, head: 1.3, rate: 0.7, spread: 0.06, bloomShot: 0.01, bloomMax: 0.02, bloomRecover: 0.1,
     move: 0.01, air: 0.025, ads: 0.7, mag: 6, reload: 2.2, auto: false, recoil: 0.06, falloff: [12, 30, 0.4], pref: 6,
   },
 };
@@ -228,6 +228,9 @@ export const SKILLS = {
   dual: { name: '早撃ち', type: 'dual', cooldown: 28, duration: 4, rateMul: 0.7, spreadAdd: 0.012, damageTaken: 1, help: '4秒間 2丁持ち。左右交互に撃てて連射が少し速くなる・弾も2丁分（覗き込めない）' },
   roll: { name: '前転', type: 'roll', cooldown: 10, duration: 0.42, speed: 11, damageTaken: 0.5, help: '押した方向へ前転（被ダメ半分）。転がり終わるとリロードも済む' },
   pierce: { name: '貫通', type: 'pierce', cooldown: 24, duration: 12, walls: 2, wallMul: 0.7, damageTaken: 1, help: '次の1発が壁を2枚まで抜ける。1枚ごとにダメージ3割減（頭も同じ）' },
+  // ランデブー（杏）：VALORANT のチェンバーのランデブーに似せたもの。距離の制限なし・目印は1人1つまで
+  rendezvous: { name: 'ランデブー', type: 'rendezvous', cooldown: 25, duration: 0, damageTaken: 1,
+    help: '押すと足元に目印を置く（1つまで）。もう一度押すと、どこからでも目印へ瞬間移動して目印は消える' },
   // stepRange：足音が見える距離（足音が聞こえる距離のおよそ8割）・shotRange：銃声が見える距離
   hearing: { name: '聴覚強化', type: 'hearing', cooldown: 30, duration: 20, stepRange: 24, shotRange: 120, damageTaken: 1,
     help: '20秒間、相手の足音・銃声がした向きを照準のまわりに出す（足音は白・銃声は金）' },
@@ -244,7 +247,7 @@ export const SKILLS = {
   // 発煙筒を投げ、落ちた所のまわり（area m）に time 秒、count 発の砲弾がばらばらに降る。自分が巻き込まれたときは self 倍
   airstrike: { name: '空爆要請', type: 'airstrike', cooldown: 50, duration: 0, speed: 32, delay: 2, time: 6, count: 30, area: 8, dmg: 32, radius: 3.8, knock: 6, lift: 5, self: 0.25, damageTaken: 1,
     help: 'キーを押している間は投げる線が出て、離すと発煙筒を投げる。2秒後、落ちた所のまわり8mに6秒間砲弾が降り続ける（自分が巻き込まれても少ししか減らない）' },
-  tornado: { name: '竜巻', type: 'tornado', cooldown: 30, duration: 1.1, radius: 8, pull: 16, lift: 3, damageTaken: 1, help: 'まわり8mの相手を1秒ほど自分の方へ引き寄せる' },
+  tornado: { name: '竜巻', type: 'tornado', cooldown: 30, duration: 1.1, radius: 16, pull: 16, lift: 3, damageTaken: 1, help: 'まわり16mの相手を1秒ほど自分の方へ引き寄せる' },
 };
 export const skillType = e => SKILLS[e.def.skill].type;
 export const DIFFS = {

@@ -548,6 +548,13 @@ export const SKILL_AI = {
   pierce(b, c, i, s) {
     if (ready(s) && c.los && b.seen > 0.5 && Math.random() < c.dt * 0.6) useSkill(b, i, c.toP);
   },
+  // ランデブー：見えていない所で元気なうちに目印を置き、体力が減って撃たれたら離れた目印へ逃げる
+  rendezvous(b, c, i, s) {
+    if (!ready(s)) return;
+    const A = Gadgets.anchorOf(b);
+    if (!A) { if (!c.los && b.hp > b.def.hp * 0.7 && Math.random() < c.dt * 0.5) useSkill(b, i, c.toP); }
+    else if (b.hp < b.def.hp * 0.45 && (c.los || b.hurtT > 0.5) && A.pos.distanceTo(b.pos) > 6) useSkill(b, i, c.toP);
+  },
   // 毒矢・拡散：見えている相手へ
   poison(b, c, i, s) {
     if (ready(s) && c.los && c.dist > 6 && Math.random() < c.dt * 0.6 * b.persona.eager) useSkill(b, i, c.toP);
