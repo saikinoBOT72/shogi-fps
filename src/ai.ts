@@ -8,7 +8,7 @@ import { cam } from './render';
 import { MAPS, groundAt, insideCollider, mapId, propMeshes } from './world';
 import { Nav } from './nav';
 import { Smoke } from './grenades';
-import { act, bot, botActor, canFire, eyeOf, fire, fireGrenade, hasLOS, moveEntity, player, ray, regenTick, shootArrow, skillTick, startReload, stats, tryJump, useSkill, view, weaponTick } from './game';
+import { act, bot, botActor, canFire, holdFire, eyeOf, fire, fireGrenade, hasLOS, moveEntity, player, ray, regenTick, shootArrow, skillTick, startReload, stats, tryJump, useSkill, view, weaponTick } from './game';
 import { addDamageDir, heardFoe, hud, killPlayer } from './hud';
 import { Clones } from './clones';
 import { Sword } from './sword';
@@ -285,7 +285,7 @@ export function updateBot(dt) {
       // 弓：引き絞ってから、相手の動きと矢の落ちを見越して放つ。追尾中は見えていなくても撃つ
       const armed = !!act(b, 'homing');
       const canShoot = !b.coverPt && ((los && b.seen > D.react) || (armed && b.lostT < 3));
-      if (canShoot && b.cd <= 0) {
+      if (canShoot && b.cd <= 0 && !holdFire()) {
         b.draw = Math.min(1, b.draw + dt / b.w.drawTime);
         if (!b.drawGoal) b.drawGoal = clamp(dist / 22, 0.55, 1) * rand(0.9, 1);
         if (b.draw >= b.drawGoal) {

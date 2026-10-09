@@ -33,7 +33,10 @@ export function currentSpread(e) {
   else s *= w.ads;   // CPU はいつも覗き込んでいる扱い
   return s;
 }
-export const canFire = e => e.cd <= 0 && e.reloading <= 0 && e.ammo > 0 && !e.dead;
+// 試合が始まってから FIRE_LOCK 秒は撃てない（FIGHT! と同時の撃ち合いを防ぐ。stateT は fight に入っても 3 から数え続ける）
+export const FIRE_LOCK = 0.5;
+export const holdFire = () => gs.state === 'fight' && gs.stateT < 3 + FIRE_LOCK;
+export const canFire = e => e.cd <= 0 && e.reloading <= 0 && e.ammo > 0 && !e.dead && !holdFire();
 export function startReload(e) {
   if (e.reloading > 0 || e.ammo >= e.w.mag) return;
   e.reloading = e.w.reload; e.burstLeft = 0;

@@ -20,7 +20,7 @@ import { questEvent } from './quests';
 import { equippedRef, paintGun, skinKey, validRef } from './loadout';
 import { skinMaterials } from './guns/skins';
 import { eyeOf, surfOf, hasLOS, act, moveEntity, tryJump } from './game/move';
-import { currentSpread, canFire, startReload, weaponTick, facingOf, skillDamageMul, fire } from './game/weapons';
+import { currentSpread, canFire, holdFire, startReload, weaponTick, facingOf, skillDamageMul, fire } from './game/weapons';
 import { Sword } from './sword';
 import { Clones } from './clones';
 import { Promo, callAirstrike, showThrowArc, spawnDome, startTornado, tossFlare } from './promo';
@@ -361,7 +361,7 @@ export function updatePlayer(dt) {
   }
 
   weaponTick(p, dt);
-  if (gs.state !== 'fight' || p.dead || gs.paused || Gadgets.ctrlOf(p)) { if (p.w.kind === 'sword') Sword.input(p, false, false); return; }
+  if (gs.state !== 'fight' || holdFire() || p.dead || gs.paused || Gadgets.ctrlOf(p)) { if (p.w.kind === 'sword') Sword.input(p, false, false); return; }
   // 刀：連打で1段目・長押しで4段目まで（sword.ts）
   if (p.w.kind === 'sword') { Sword.input(p, !!gs.mouseDown, !!gs.rightDown); return; }
   // 弓：押している間は引き絞り、離したら放つ

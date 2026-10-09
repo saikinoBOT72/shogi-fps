@@ -68,7 +68,7 @@ export const WEAPONS = {
   },
   // ---------- 成駒の武器（元の武器と強さは同じくらい、性格が違う） ----------
   awm: {
-    name: 'AWM', model: 'awm', dmg: 80, head: 1.8, rate: 1.5, adsSpeed: 9, spread: 0.09, hip: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    name: 'AWM', model: 'awm', dmg: 80, head: 1.8, rate: 1.8, adsSpeed: 9, spread: 0.09, hip: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.07, air: 0.16, ads: 0.015, zoom: 26, scopeSize: 0.9, scopeSway: 1.1, crossInf: 0, reticle: 'cross', mag: 5, reload: 2.8, auto: false, recoil: 0.09, falloff: [999, 1000, 1], pref: 30,
   },
   xbow: {

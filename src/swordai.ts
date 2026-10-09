@@ -6,7 +6,7 @@
 // 刀の入力は自分と同じ Sword.input（押す・離す・右クリック）で動かす
 import * as THREE from 'three';
 import { DIFFS, V3, clamp, rand, settings } from './core';
-import { act, eyeOf, hasLOS, moveEntity, player, tryJump, useSkill, weaponTick } from './game';
+import { act, eyeOf, hasLOS, holdFire, moveEntity, player, tryJump, useSkill, weaponTick } from './game';
 import { navNext, steer } from './ai';
 import { Sword } from './sword';
 
@@ -107,5 +107,5 @@ function finish(b, wish: THREE.Vector3, dt: number, down: boolean, right: boolea
   b.wantClimb = !!(b.wallN && steered.dot(b.wallN) < -0.2 && (s.stuckT > 0.2 || player.pos.y > b.pos.y + 0.8));
   b.speedMul = (b.swGuard ? 0.35 : 1) * (b.blinkCharging ? 0.5 : 1);
   moveEntity(b, steered, dt);
-  Sword.input(b, down, right);
+  Sword.input(b, down && !holdFire(), right);
 }
