@@ -242,6 +242,10 @@ export const SFX = (() => {
     kunaiTick(pos, n = 0) { const d = out(pos, 0.1); scrape(d, 0, 0.07, 2200 + n * 260, 0.06); tick(d, 0.03, 2600 + n * 320, 0.22, 0.05); },
     kunaiFull(pos) { const d = out(pos, 0.5); tick(d, 0, 3600, 0.5, 0.08); metal(d, 0, 3000, 1.1, 0.06); },
     kunaiFire(pos) { const d = out(pos, 0.05); N(d, { dur: 0.12, type: 'bandpass', f0: 1400, f1: 4200, q: 2, g: pos ? 0.35 : 0.18, atk: 0.02 }); },
+    // 忍の残像疾風（仮の音）：走り出す「ドッ・シュウ」・走っている間の風・止まる「ザッ」
+    shippu(pos) { const d = out(pos, 0.15); N(d, { dur: 0.35, type: 'bandpass', f0: 400, f1: 3200, q: 1.2, g: 0.45, atk: 0.03 }); T(d, { f0: 130, f1: 55, dur: 0.22, g: 0.35 }); },
+    shippuWind(pos) { const d = out(pos, 0.05); N(d, { dur: 0.42, type: 'bandpass', f0: 800 + Math.random() * 300, f1: 1300, q: 1.1, g: pos ? 0.18 : 0.09, atk: 0.16 }); },
+    shippuEnd(pos) { const d = out(pos, 0.1); N(d, { dur: 0.28, f0: 2400, f1: 350, g: 0.35, atk: 0.01 }); },
     chin() { const d = out(null, 0.6); scrape(d, 0, 0.22, 2600, 0.08); tick(d, 0.24, 3400, 0.6, 0.1); metal(d, 0.24, 2700, 1.4, 0.07); },
     // ナイフを振る
     knife(pos) { N(out(pos, 0.05), { dur: 0.22, type: 'bandpass', f0: 500, f1: 3200, q: 2.2, g: 0.6, atk: 0.06 }); },

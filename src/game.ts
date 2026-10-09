@@ -163,7 +163,8 @@ export function useSkill(e, i, dir, force = false) {
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
   // 鉤縄（2回）：引き寄せられている途中なら、縄を掛け替えて勢いのまま向きを変える
   const chain = sk.type === 'grapple' && sk.chain && s.t > 0 && s.charges > 0;
-  if (sk.type === 'shippu' || sk.type === 'kawarimi') { if (!e.isBot) SFX.play('empty'); return false; }   // 忍のスキルはまだ作っていない（段階3・4でここを外す）
+  if (sk.type === 'kawarimi') { if (!e.isBot) SFX.play('empty'); return false; }   // 変わり身はまだ作っていない（段階4でここを外す）
+  if (sk.type === 'shippu' && s.t > 0) { s.t = 0; return true; }   // 残像疾風：使っている間にもう一度押すと終わる
   if (!force && e.empT > 0) { if (!e.isBot) SFX.play('empty'); return false; }   // EMP を受けている間はスキルが使えない
   if (!force && (s.charges <= 0 || (s.t > 0 && !chain))) return false;
   if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple', 'blink', 'roll'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
@@ -220,6 +221,8 @@ export function useSkill(e, i, dir, force = false) {
     onAttack(e); callAirstrike(e, aim, sk);
   } else if (t === 'tornado') {
     onAttack(e); startTornado(e, sk);
+  } else if (t === 'shippu') {
+    Ninja.shippuStart(e);
   } else if (t === 'hagakure') {
     if (!e.isBot) SFX.play('skCloak');
     Sword.leaves(e);
@@ -286,7 +289,7 @@ export function useSkill(e, i, dir, force = false) {
 // 構えを解く（撃ったとき）
 export function endGuard(e) { const g = act(e, 'guard'); if (g) g.t = 0; }
 // 攻撃したら透明化が解ける
-export function onAttack(e) { const c = act(e, 'cloak'); if (c) c.t = 0; cancelMedkit(e); }
+export function onAttack(e) { const c = act(e, 'cloak'); if (c) c.t = 0; const sp = act(e, 'shippu'); if (sp) sp.t = 0; cancelMedkit(e); }   // 攻撃すると透明化・残像疾風が終わる
 // 救急キットを中断（回復しない）。keep：使ったばかりのその枠は除く
 export function cancelMedkit(e, keep?) {
   for (const s of e.slots || []) if (s !== keep && s.t > 0 && s.sk.type === 'medkit') {
@@ -370,7 +373,8 @@ export function updatePlayer(dt) {
   if (p.onGround && p.moving) {
     const prev = Math.sin(view.bobPhase * 2);
     view.bobPhase += dt * Math.hypot(p.vel.x, p.vel.z) * 1.35;
-    if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { const sf = surfOf(p); if (p.running) SFX.play('step', null, 0.7, sf); if (sf === 'squeak') aiHear(p.pos, 30); else if ((p.adsT || 0) < 0.5) aiHear(p.pos, p.running ? 10 : 4); }   // 鳴る床は忍び足でも遠くまで聞こえる。歩きは聞こえる範囲が狭い
+    if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0 && act(p, 'shippu')) aiHear(p.pos, 8);   // 残像疾風：足音の代わりに風の音（ninja.ts）
+    else if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { const sf = surfOf(p); if (p.running) SFX.play('step', null, 0.7, sf); if (sf === 'squeak') aiHear(p.pos, 30); else if ((p.adsT || 0) < 0.5) aiHear(p.pos, p.running ? 10 : 4); }   // 鳴る床は忍び足でも遠くまで聞こえる。歩きは聞こえる範囲が狭い
   }
 
   weaponTick(p, dt);

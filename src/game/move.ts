@@ -171,7 +171,7 @@ export function moveEntity(e, wish, dt) {
   } else if (lp) {
     lp.t -= dt;   // 跳んでいる間は勢いのまま（空中で向きを変えられない）
   } else {
-    const gd = act(e, 'guard'), bf = act(e, 'buff'), slow = (gd ? gd.sk.slow : 1) * (bf ? bf.sk.speedMul : 1) * (e.empT > 0 ? e.empSlow : 1) * (e.pos.y < WATER_Y ? 0.6 : 1) * (e.poisonT > 0 ? e.poisonSk.slow : 1);   // 毒は遅い   // 川の中は遅い・身体強化中は速い・EMP を受けると遅い
+    const gd = act(e, 'guard'), bf = act(e, 'buff'), slow = (gd ? gd.sk.slow : 1) * (bf ? bf.sk.speedMul : 1) * (e.empT > 0 ? e.empSlow : 1) * (e.pos.y < WATER_Y ? 0.6 : 1) * (e.poisonT > 0 ? e.poisonSk.slow : 1) * (act(e, 'shippu') ? act(e, 'shippu').sk.speedMul : 1);   // 毒は遅い・忍の残像疾風はとても速い   // 川の中は遅い・身体強化中は速い・EMP を受けると遅い
     e.knockT = Math.max(0, (e.knockT || 0) - dt);
     const flung = e.knockT > 0 && !e.onGround;   // 爆風で飛ばされている間
     const target = wish.clone().multiplyScalar(e.def.speed * RULES.speed * (e.isBot || e.running ? 1 : RULES.walk) * (e.speedMul || 1) * slow);

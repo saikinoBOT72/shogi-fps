@@ -394,8 +394,9 @@ export function updateBot(dt) {
       } else if (los && b.seen > D.react && !holdFire() && !b.coverPt && !busy && dist > 5 && dist < 35 && !Ninja.busy(b) && Math.random() < dt * 0.5) {   // 見えている間、平均 2 秒に 1 回くらい
         b.njHoldT = rand(0.8, 1.4); b.njLostT = 0; Ninja.aiHold(b, true);
       }
-      // 手裏剣（忍）：相手の動きと落ちを見越して投げる
-      if (!(b.njHoldT > 0) && !Ninja.busy(b) && los && b.seen > D.react && b.cd <= 0 && !holdFire() && b.fireDelay <= 0 && !b.coverPt && !busy) {
+      // 手裏剣（忍）：相手の動きと落ちを見越して投げる（残像疾風の残りが長いうちは投げない：投げると終わるため）
+      const dashing = act(b, 'shippu') && act(b, 'shippu').t > 0.4;
+      if (!dashing && !(b.njHoldT > 0) && !Ninja.busy(b) && los && b.seen > D.react && b.cd <= 0 && !holdFire() && b.fireDelay <= 0 && !b.coverPt && !busy) {
         const tgt = b.aimPt.clone(), speed = b.w.speed;
         let t = bEye.distanceTo(tgt) / speed;
         const lead = player.vel.clone().multiplyScalar(D.lead);
@@ -464,6 +465,10 @@ export function updateBot(dt) {
 const ready = s => s.charges > 0 && s.t <= 0;
 const chestOf = e => new V3(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z);
 export const SKILL_AI = {
+  // 残像疾風（忍）：撃たれて体力が減ったら逃げる・遠い相手へ一気に詰める・狙われたらときどき（その間は無敵、投げると終わる）
+  shippu(b, c, i, s) {
+    if (ready(s) && c.los && ((b.hurtT > 0.6 && b.hp < b.def.hp * 0.55) || b.retreating || c.dist > c.pref + 8 || (c.aimedAt && Math.random() < c.dt * 0.8 * b.persona.eager))) useSkill(b, i, c.toP);
+  },
   // 突撃：相手がリロード中、または遠いときに一気に詰める（突撃型ほど積極的）
   charge(b, c, i, s) {
     if (ready(s) && c.los && c.dist > 5 && b.seen > 0.5 && (player.reloading > 0 || c.dist > c.pref + 8 / b.persona.eager)) useSkill(b, i, c.toP);

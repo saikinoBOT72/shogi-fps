@@ -19,7 +19,8 @@ import { aiHear } from './ai';
 import { heardFoe } from './hud';
 import { gs } from './state';
 import { makeKunai, hangTassel } from './guns/kunai';
-import { bot, botActor, player, playerActor, stats, view, onAttack, eyeOf, ray, currentSpread, facingOf } from './game';
+import { act, bot, botActor, player, playerActor, stats, view, onAttack, eyeOf, ray, currentSpread, facingOf } from './game';
+import { afterimage } from './swordfx';
 
 const ROLL = -0.35, TILT = 0.75;   // 右手で横に投げるので少し右下がり。面も前へ倒す（投げた人からも相手からも、回る星の形が見えるように）
 const BUFFER = 0.12;  // 投げられるようになる少し前に押しても、間に合ったら投げる
@@ -168,6 +169,96 @@ function place(e, S: NJ, dt: number) {
   }
 }
 
+// ---------- 残像疾風（E） ----------
+//   出だし：足元に土煙が「ドン」。自分の画面は視野が広がって集中線（camera.ts・sword.ts の speedLines）
+//   走っている間：頭・胸・足の高さから白い線が3本尾を引き（約1秒で消える）、通った跡に半透明の残像が並ぶ
+//     自分の画面のふちは白く揺らぎ、足音の代わりに風の音。弾も矢も体をすり抜ける（game/weapons.ts の phased）
+//   終わり（時間切れ・攻撃した・もう一度押した）：ブレーキの土ぼこりが立ち、線がパッと散る
+const LINE = { N: 72, LIFE: 1.0, W: 0.045, H: [0.12, 0.55, 0.9] };   // 線の点の数・残る秒・太さ（半分）・高さ（背の高さに対する割合）
+type Trail = { pts: { p: THREE.Vector3; t: number }[]; geo: THREE.BufferGeometry; mesh: THREE.Mesh; fast: boolean };
+const lineMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false });
+function makeTrail(): Trail {
+  const geo = new THREE.BufferGeometry(), n = LINE.N;
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 2 * 4), 4));
+  const idx: number[] = [];
+  for (let i = 0; i < n - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, lineMat); mesh.frustumCulled = false; mesh.renderOrder = 3; scene.add(mesh);
+  return { pts: [], geo, mesh, fast: false };
+}
+let clock = 0;
+const trailSets: Record<string, Trail[]> = {};   // 自分・相手ごとに使い回す（対局ごとに作り直さない）
+const trailsOf = (e): Trail[] => trailSets[e === player ? 'p' : 'b'] || (trailSets[e === player ? 'p' : 'b'] = LINE.H.map(() => makeTrail()));
+const _a = new V3(), _b = new V3(), _s = new V3(), _c = new V3();
+// 線を作り直す：点ごとに、カメラに向いた幅を持つ帯にする。古いほど細く薄い
+function drawTrail(T: Trail) {
+  const pos = T.geo.attributes.position as THREE.BufferAttribute, col = T.geo.attributes.color as THREE.BufferAttribute, n = T.pts.length;
+  for (let i = 0; i < n; i++) {
+    const p = T.pts[i].p, k = 1 - (clock - T.pts[i].t) / LINE.LIFE;
+    _a.copy(T.pts[Math.min(n - 1, i + 1)].p).sub(T.pts[Math.max(0, i - 1)].p);
+    _c.copy(cam.position).sub(p);
+    const near = clamp((_c.length() - 1.0) / 1.2, 0, 1);   // 自分の目の近くの線は見せない（画面いっぱいに白くならないように）
+    _s.crossVectors(_a, _c).normalize().multiplyScalar(LINE.W * (0.35 + 0.65 * k));
+    _b.copy(p).add(_s); pos.setXYZ(i * 2, _b.x, _b.y, _b.z);
+    _b.copy(p).sub(_s); pos.setXYZ(i * 2 + 1, _b.x, _b.y, _b.z);
+    const al = clamp(k, 0, 1) * 0.9 * near;
+    col.setXYZW(i * 2, 1, 1, 1, al); col.setXYZW(i * 2 + 1, 1, 1, 1, al);
+  }
+  pos.needsUpdate = true; col.needsUpdate = true;
+  T.geo.setDrawRange(0, Math.max(0, n - 1) * 6);
+}
+// 線の残り：消える・散る
+function trailsTick(e, active: boolean, dt: number) {
+  trailsOf(e).forEach((T: Trail, i: number) => {
+    if (active) {
+      const p = e.pos.clone().setY(e.pos.y + e.height * LINE.H[i]);
+      const last = T.pts[T.pts.length - 1];
+      if (last && last.p.distanceToSquared(p) > 9) T.pts.length = 0;   // 瞬間移動などで飛んだときは線をつなげない
+      if (!last || last.p.distanceToSquared(p) > 0.0025) { T.pts.push({ p, t: clock }); if (T.pts.length > LINE.N) T.pts.shift(); }
+      T.fast = false;
+    }
+    const life = LINE.LIFE / (T.fast ? 3 : 1);
+    while (T.pts.length && clock - T.pts[0].t > life) T.pts.shift();
+    if (T.fast) for (const q of T.pts) q.t -= dt * 2;   // 散る：残りを速く消す
+    drawTrail(T);
+  });
+}
+// 自分の画面のふちが白く揺らぐ
+let edgeEl: HTMLDivElement = null, edgeK = 0;
+function edgeTick(on: boolean, dt: number) {
+  edgeK = on ? Math.min(1, edgeK + dt * 6) : Math.max(0, edgeK - dt * 3);
+  if (!edgeEl) {
+    if (!edgeK) return;
+    edgeEl = document.createElement('div');
+    edgeEl.style.cssText = 'position:fixed;inset:-4%;pointer-events:none;z-index:3;mix-blend-mode:screen;background:radial-gradient(ellipse at center, transparent 52%, rgba(240,244,255,.10) 66%, rgba(240,244,255,.55) 100%)';
+    document.body.appendChild(edgeEl);
+  }
+  edgeEl.style.opacity = (edgeK * (0.75 + 0.25 * Math.sin(clock * 13))).toFixed(3);
+  edgeEl.style.transform = `scale(${(1 + 0.025 * Math.sin(clock * 9)).toFixed(4)}) rotate(${(Math.sin(clock * 5) * 0.6).toFixed(2)}deg)`;
+  edgeEl.style.display = edgeK > 0.01 ? '' : 'none';
+}
+function shippuEndFx(e) {
+  Particles.dust(e.pos, 16, 1.8);
+  for (const T of trailsOf(e)) {
+    T.fast = true;
+    for (let i = 0; i < T.pts.length; i += 5) Particles.glow(T.pts[i].p, P.shiro[2]);   // 線がパッと散る
+  }
+  SFX.play('shippuEnd', e === player ? null : e.pos);
+}
+function shippuTick(e, dt: number) {
+  const on = !!act(e, 'shippu') && !e.dead;
+  if (on && !e.shippuOn) e.shippuWindT = 0;
+  if (!on && e.shippuOn) shippuEndFx(e);
+  e.shippuOn = on;
+  trailsTick(e, on, dt);
+  if (!on) return;
+  // 通った跡の残像（相手の駒。自分の駒は自分の画面では見えない）
+  if (e === bot && botActor && (e.ghostT = (e.ghostT || 0) - dt) <= 0 && Math.hypot(e.vel.x, e.vel.z) > 3) { e.ghostT = 0.06; afterimage(botActor.hitMesh); }
+  // 足音の代わりに風の音
+  if ((e.shippuWindT = (e.shippuWindT || 0) - dt) <= 0) { e.shippuWindT = 0.3; SFX.play('shippuWind', e === player ? null : e.pos); }
+}
+
 export const Ninja = {
   // 自分：押した瞬間に手裏剣を1枚（押しっぱなしでは続けて投げない）。押し続けると苦無を並べ、離すと飛ばす
   input(p, down: boolean, dt: number) {
@@ -208,6 +299,9 @@ export const Ninja = {
   // 毎フレーム：苦無を出す・飛ばす・置き直す。駒が持つ手裏剣（ほかの人から見える）
   update(dt: number) {
     inkTick(dt);
+    clock += dt;
+    for (const e of [player, bot]) if (e) shippuTick(e, dt);
+    edgeTick(!!player && !!player.shippuOn, dt);
     for (const e of [player, bot]) {
       if (!e) continue;
       const S = nj(e);
@@ -243,7 +337,16 @@ export const Ninja = {
       A.gun.parts.rhand.rotation.y = t < 0.06 ? t / 0.06 * 0.6 : t < 0.16 ? 0.6 - (t - 0.06) / 0.1 * 1.4 : t < 0.34 ? -0.8 * (1 - (t - 0.16) / 0.18) : 0;
     }
   },
+  // 残像疾風が始まった：足元に土煙と音
+  shippuStart(e) {
+    Particles.dust(e.pos, 22, 2.4);
+    SFX.play('shippu', e === player ? null : e.pos);
+    if (e === player) view.shake = Math.max(view.shake, 0.18);
+  },
   clear() {
+    for (const e of [player, bot]) if (e) e.shippuOn = false;
+    for (const set of Object.values(trailSets)) for (const T of set) { T.pts.length = 0; drawTrail(T); }
+    edgeK = 0; if (edgeEl) edgeEl.style.display = 'none';
     clearOf(player, false); clearOf(bot, false);
     for (const k of inks) { scene.remove(k.m); (k.m.material as THREE.Material).dispose(); }
     inks.length = 0;

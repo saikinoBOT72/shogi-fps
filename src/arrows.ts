@@ -10,7 +10,7 @@ import { SFX } from './audio';
 import { mat, scene, toon } from './render';
 import { PHYS, blockers, physOf } from './physics';
 import { Particles } from './effects';
-import { act, botActor, damageBot, eyeOf, player, ray, skillDamageMul } from './game';
+import { act, botActor, damageBot, eyeOf, phased, player, ray, skillDamageMul } from './game';
 import { damagePlayer } from './ai';
 import { applyPoison } from './promo';
 import { skinMaterials } from './guns/skins';
@@ -151,7 +151,7 @@ export const Arrows = (() => {
       ray.set(a.pos, dir); ray.far = len + tipOf(a);
       const wall = ray.intersectObjects(blockers, true)[0];
       let hit = null;
-      if (!tgt.dead) {
+      if (!tgt.dead && !phased(tgt)) {   // 忍の残像疾風中などはすり抜ける
         if (tgt.isBot) {
           const h = !botActor.dead && ray.intersectObject(botActor.hitMesh, false)[0];
           if (h) hit = { point: h.point, dist: h.distance };

@@ -77,7 +77,7 @@ export function updateCamera(dt, rdt) {
     cam.rotation.set(view.pitch + sy, view.yaw + sx, sr);
   }
   const dashing = !!act(p, 'dash'), guarding = !!act(p, 'guard'), blinking = !!act(p, 'blink');
-  const targetFov = 2 * Math.atan(Math.tan(hipFov() / 2 * D2R) * zoomK) / D2R + (dashing ? 14 : 0) + (blinking ? 26 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
+  const targetFov = 2 * Math.atan(Math.tan(hipFov() / 2 * D2R) * zoomK) / D2R + (dashing ? 14 : 0) + (blinking ? 26 : 0) + (act(p, 'shippu') ? 16 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
   const rl0 = act(p, 'roll');
   if (rl0) { const k = Math.sin(Math.PI * (1 - rl0.t / rl0.sk.duration)); cam.position.y -= k * 0.85; cam.rotation.x -= k * 0.55; }
   // すり足：ステップした方向へ少し傾く

@@ -69,6 +69,8 @@ export function facingOf(e) {
   if (e.isBot) { const y = botActor.root.rotation.y; return new V3(Math.sin(y), 0, Math.cos(y)); }
   return new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw));
 }
+// 忍の残像疾風・変わり身の直後：何も当たらない（弾・矢はすり抜けて後ろへ抜ける）
+export const phased = t => !!t && (!!act(t, 'shippu') || (t.nInv || 0) > 0);
 // スキルによる被ダメージ倍率（守りの構えは前からの弾だけ減らす）
 export function skillDamageMul(target, from) {
   let m = 1;
@@ -134,6 +136,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
     const hp = ray.ray.intersectBox(box, new V3());
     if (hp && hp.distanceTo(origin) < wallDist) hit = { point: hp, dist: hp.distanceTo(origin) };
   }
+  if (hit && phased(target)) hit = null;   // すり抜ける（火花も出さず、弾は後ろの壁まで飛ぶ）
   // 撃たれる側の影分身が手前にいたら、分身に当たって消える（ダメージなし）
   const ch = Clones.rayHit(ray.ray, hit ? hit.dist : wallDist, target);
   if (ch) {
