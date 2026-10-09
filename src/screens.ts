@@ -278,7 +278,8 @@ export function pieceCard(k) {
   return `${koma(p.name)}<span class="val">価値 ${p.value >= 99 ? '∞' : p.value}</span><span>HP ${p.hp}</span><span>${w.name}</span>`;
 }
 // 駒の正式な名前と読み（駒選びの右側の見出し）
-export const FULL_NAME = { 歩: ['歩兵', 'Fuhyo'], 香: ['香車', 'Kyosha'], 桂: ['桂馬', 'Keima'], 銀: ['銀将', 'Ginsho'], 金: ['金将', 'Kinsho'], 角: ['角行', 'Kakugyo'], 飛: ['飛車', 'Hisha'], 王: ['王将', 'Osho'], 侍: ['侍', 'Samurai'] };
+export const FULL_NAME = { 歩: ['歩兵', 'Fuhyo'], 香: ['香車', 'Kyosha'], 桂: ['桂馬', 'Keima'], 銀: ['銀将', 'Ginsho'], 金: ['金将', 'Kinsho'], 角: ['角行', 'Kakugyo'], 飛: ['飛車', 'Hisha'], 王: ['王将', 'Osho'], 侍: ['侍', 'Samurai'],
+  と: ['と金', 'Tokin'], 杏: ['成香', 'Narikyo'], 圭: ['成桂', 'Narikei'], 全: ['成銀', 'Narigin'], 馬: ['竜馬', 'Ryuma'], 龍: ['竜王', 'Ryuo'], 帝: ['帝', 'Mikado'] };
 // 性能（右側）：名前・価値・HP の目盛り・武器・スキル
 export function pieceInfoHTML(k: string) {
   if (k === 'random') return `<div class="nm">？</div><span class="lab">Random</span><p class="note">対局ごとに、どの駒になるかが変わる</p>`;

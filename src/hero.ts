@@ -32,7 +32,7 @@ function init() {
 function actorFor(type: string, mine: boolean) {
   const d = PIECES[type] || PIECES.P, model = WEAPONS[d.weapon].model, key = type + (mine ? ':me' : ':foe');
   if (!actors.has(key)) {
-    const A = buildActor(d.name, d.size, model);
+    const A = buildActor(d.name, d.size, model, !!d.red);
     mainScene.remove(A.root);   // buildActor はゲームの場面に置くので、こちらへ移す
     actors.set(key, A);
   }

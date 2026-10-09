@@ -190,9 +190,13 @@ export const VM: any = (() => {
   addEventListener('resize', () => {
     const fp = flash.parent; if (fp) fp.remove(flash);
     for (const [k, m] of Object.entries(models) as [string, any][]) if (k !== 'bow') fitViewModel(m);
+    if (vm.left) fitViewModel(vm.left);
     if (fp) fp.add(flash);
   });
   vmScene.add(root);
+  const leftMirror = new THREE.Group(); leftMirror.scale.x = -1; vmScene.add(leftMirror);
+  const leftRoot = new THREE.Group(); leftMirror.add(leftRoot);
+  const left = buildGun('pistol'); fitViewModel(left); leftRoot.add(left.g); leftMirror.visible = false;
   const pist = models.pistol;
   const flash = new THREE.Group();
   const fm = new THREE.MeshBasicMaterial({ map: starTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
@@ -225,11 +229,11 @@ export const VM: any = (() => {
     return root.worldToLocal(out);
   };
   const vm = {
-    root, models, pist, flash, fx: {} as any, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
+    root, models, pist, flash, fx: {} as any, left, leftRoot, leftMirror, flashLeft: false, kickL: 0, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
     // 持っている銃の見た目を切り替える
     setWeapon(model) {
       for (const [k, m] of Object.entries(models) as [string, any][]) m.g.visible = k === model;
-      vm.pist = models[model]; vm.pist.muzzle.add(flash);
+      vm.pist = models[model]; vm.pist.muzzle.add(flash); vm.flashLeft = false;
       if (vm.pist.anim) vm.pist.anim.clear();
       vm.fx = SKINS[vm.pist.skin]?.fx || {};
       fm.color.setHex(vm.fx.flash ?? 0xffffff);
@@ -237,11 +241,14 @@ export const VM: any = (() => {
     },
     // 撃った（反動・光・部品の動き）。empty：最後の1発
     fire(w, empty = false) {
+      if (vm.flashLeft) { vm.pist.muzzle.add(flash); vm.flashLeft = false; }
       vm.kick = kickOf(w); vm.slideT = 1;
       if (w.kind !== 'bow' && w.kind !== 'melee') vm.flashT = 0.05;
       if (vm.pist.fire) vm.pist.fire(empty);
     },
-    reload(dur) { if (vm.pist.reload) vm.pist.reload(dur); },
+    reload(dur) { if (vm.pist.reload) vm.pist.reload(dur); if (vm.leftMirror.visible && left.reload) left.reload(dur); },
+    // 2丁持ち：左の銃で撃つ（光は左の銃口へ付け替える）
+    fireLeft(w) { vm.kickL = kickOf(w); left.muzzle.add(flash); vm.flashT = 0.05; vm.flashLeft = true; if (left.fire) left.fire(false); },
     inspect() {
       if (vm.pist.inspect) vm.pist.inspect();
       if (vm.fx.aura === undefined) return;
@@ -254,12 +261,14 @@ export const VM: any = (() => {
     // 装備しているスキンで全部の銃を塗り直す
     applyLoadout() {
       for (const [k, m] of Object.entries(models) as [string, any][]) paintGun(m, equippedRef(k));
+      paintGun(left, equippedRef('pistol'));
       vm.setWeapon(Object.keys(models).find(k => models[k] === vm.pist) || 'pistol');
     },
     ready() { vm.equip = 1; if (vm.pist.equip) vm.pist.equip(); },   // 構える（対局の始め）
     // 部品の動きと薬莢を進める
     animate(dt) {
       if (vm.pist.anim) vm.pist.anim.update(dt);
+      if (vm.leftMirror.visible && left.anim) left.anim.update(dt);
       for (const c of casings) {
         if (!c.m.visible) continue;
         c.t += dt; c.v.y -= 9.8 * dt; c.m.position.addScaledVector(c.v, dt);
@@ -332,11 +341,11 @@ export const kickOf = w => w.kind === 'melee' ? 0 : w.kind === 'bow' ? 0.6 : w.k
 export const HIP = new V3(0.2, -0.24, -0.48);
 
 // ================= 駒のキャラクター =================
-export function buildActor(ch, size, model = 'pistol'): any {
+export function buildActor(ch, size, model = 'pistol', red = false): any {
   const root = new THREE.Group(), body = new THREE.Group();
   const w = 1.2 * size, h = 1.85 * size, t = 0.42 * size;
   const wood = pieceWoodMat.clone();
-  const piece = makePiece(ch, w, h, t, wood, true);
+  const piece = makePiece(ch, w, h, t, wood, true, red);   // 成駒は赤い字
   const eyes = makeEyes(w, h, t / 2 + 0.008); piece.add(eyes);
   // 貫きの準備中に壁越しに見える姿
   const xray = new THREE.Mesh(pieceGeo, new THREE.MeshBasicMaterial({ color: P.shu[1], transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
@@ -351,7 +360,7 @@ export function buildActor(ch, size, model = 'pistol'): any {
   const gun = buildGun(model);
   gun.g.traverse(o => { o.castShadow = false; });   // 駒が持つ銃は影を落とさない（小さくてほとんど見えないため）
   // 相手から見て分かりやすいよう、銃と手は大きめ（1.4倍）。体の正面は +z なので、右手は -x 側
-  gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3, katana: 0.62 }[model] || 2.2) * 1.4 * size); gun.g.rotation.y = Math.PI;
+  gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3, katana: 0.62, awm: 0.95, xbow: 1.05, famas: 1.3, mgl: 1.25, vector: 1.45, m4: 1.15 }[model] || 2.2) * 1.4 * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(-w * 0.55, h * 0.5, t + 0.16);
   body.add(gun.g);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));

@@ -11,6 +11,7 @@ import { bot, damageBot, eyeOf, hasLOS, player, ray, skillDamageMul, view } from
 import { damagePlayer } from './ai';
 import { killBot } from './hud';
 import { Net } from './net';
+import { placeMine } from './promo';
 
 // 爆発：範囲内の駒にダメージと吹き飛ばし
 // o.knock: 横に飛ばす強さ / o.lift: 上に飛ばす強さ / o.self: 自分へのダメージ倍率 / o.big: 大玉（見た目も大きく）
@@ -62,6 +63,7 @@ export const Grenades = (() => {
 
   function explode(g) {
     scene.remove(g.mesh);
+    if (g.mine) { placeMine(g.owner, g.pos.clone(), g.mine); return; }
     explodeAt(g.pos, g.owner, g.dmg, g.radius, { knock: g.knock, lift: g.lift, self: g.self, big: g.big });
   }
 

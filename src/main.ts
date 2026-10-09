@@ -1,4 +1,5 @@
 import { initAccount } from './account';
+import { Promo } from './promo';
 // メインループ
 import { Gadgets } from './gadgets';
 import { P } from './palette';
@@ -133,7 +134,7 @@ export function loop(now) {
   animateActor(botActor, bot, pdt, bot.dead ? null : bot.aimPt || player.pos);
  
   PHYS.step(pdt, [['player', player], ['bot', bot]]);
-  if (run) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); Gadgets.update(dt); Sword.update(dt); Clones.update(dt); }
+  if (run) { Arrows.update(dt); Grenades.update(dt); Smoke.update(dt); Gadgets.update(dt); Promo.update(dt); Sword.update(dt); Clones.update(dt); }
  
   if (run && (gs.state === 'fight' || gs.state === 'end')) Replay.record(dt);
  

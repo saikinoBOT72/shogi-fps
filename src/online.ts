@@ -5,6 +5,7 @@
 import { P } from './palette';
 import { gs } from './state';
 import { $, PIECES, SKILLS, V3, WEAPONS, pieceUsable, saveSettings, settings } from './core';
+import { applyPoison } from './promo';
 import { SFX } from './audio';
 import { Net, hostRoom, joinRoom, leaveRoom, r2, vec } from './net';
 import { Account, NAME_RE } from './account';
@@ -165,7 +166,7 @@ Net.onMsg = (m: any) => {
     case 'gren':
       if (!inMatch()) break;
       Grenades.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, radius: m.r, gravity: m.g, fuse: m.fu,
-        big: !!m.big, knock: m.kn, lift: m.li, self: m.se });
+        big: !!m.big, knock: m.kn, lift: m.li, self: m.se, mine: m.mn ? SKILLS.mine : null });
       SFX.play('m79', V(m.p));
       break;
     case 'skill':
@@ -175,7 +176,8 @@ Net.onMsg = (m: any) => {
       break;
     case 'hit':
       if (!inMatch() || player.dead) break;
-      damagePlayer(m.dmg, bot.pos);
+      damagePlayer(m.dmg, bot.pos, m.po > 0 && m.po < 1);   // 毒のじわじわ（0.6）は静かに
+      if (m.po && !(player.poisonT > 0.3)) applyPoison(player, SKILLS.poison, bot);   // 毒：ダメージは相手から届く。こちらは鈍足と見た目
       if (m.kv) { player.vel.x = m.kv[0]; player.vel.z = m.kv[2]; player.vy = m.kv[1]; player.onGround = false; player.airT = 1; player.knockT = 0.6; }
       break;
     case 'dead': if (inMatch() && !bot.dead) { bot.hp = 0; killBot(); } break;

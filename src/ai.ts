@@ -8,6 +8,7 @@ import { cam } from './render';
 import { MAPS, groundAt, insideCollider, mapId, propMeshes } from './world';
 import { Nav } from './nav';
 import { Smoke } from './grenades';
+import { endGhost } from './promo';
 import { act, bot, botActor, canFire, eyeOf, fire, fireGrenade, hasLOS, moveEntity, player, ray, regenTick, shootArrow, skillTick, startReload, stats, tryJump, useSkill, view, weaponTick } from './game';
 import { addDamageDir, hud, killPlayer } from './hud';
 import { Clones } from './clones';
@@ -280,7 +281,7 @@ export function updateBot(dt) {
     b.aimPt.lerp(chest, 1 - Math.exp(-D.track * dt));
     weaponTick(b, dt);
     b.fireDelay -= dt;
-    const busy = b.slots.some(s => s.t > 0 && ['dash', 'leap', 'heal', 'guard', 'grapple'].includes(s.sk.type)) || peekIn;   // 引っ込んでいる間は撃たない
+    const busy = b.slots.some(s => s.t > 0 && ['dash', 'leap', 'heal', 'guard', 'grapple', 'roll', 'medkit'].includes(s.sk.type)) || peekIn;   // 引っ込んでいる間・回復中は撃たない
     if (b.w.kind === 'bow') {
       // 弓：引き絞ってから、相手の動きと矢の落ちを見越して放つ。追尾中は見えていなくても撃つ
       const armed = !!act(b, 'homing');
@@ -308,6 +309,19 @@ export function updateBot(dt) {
           b.cd += rand(D.gap[0], D.gap[1]) * 1.2;   // 次の矢を番えるまで少し間を置く
         }
       } else if (!canShoot) b.draw = Math.max(0, b.draw - dt * 2);
+    } else if (b.w.kind === 'xbow') {
+      if (los && b.seen > D.react && canFire(b) && b.fireDelay <= 0 && !b.coverPt && !busy) {
+        const tgt = b.aimPt.clone(), speed = b.w.speedMax;
+        let t = bEye.distanceTo(tgt) / speed;
+        const lead = player.vel.clone().multiplyScalar(D.lead);
+        for (let k = 0; k < 2; k++) t = bEye.distanceTo(tgt.clone().addScaledVector(lead, t)) / speed;
+        const p = tgt.clone().addScaledVector(lead, t); p.y += 0.5 * b.w.gravity * t * t;
+        const aim = p.sub(bEye).normalize(), err = D.err * 0.7;
+        aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
+        b.draw = 1;
+        shootArrow(b, aim, bEye.clone().addScaledVector(aim, 0.7));
+        b.fireDelay = Math.max(rand(D.gap[0], D.gap[1]), b.w.dmg / D.dps - b.w.reload);
+      }
     } else if (b.w.kind === 'grenade') {
       // グレネード：相手の足元へ、動きと落ちを見越して撃つ（近すぎると自分も巻き込むので撃たない）
       if (los && b.seen > D.react && canFire(b) && b.fireDelay <= 0 && !b.coverPt && !busy && dist > 3.5) {
@@ -460,6 +474,53 @@ export const SKILL_AI = {
   heal(b, c, i, s) {
     if (ready(s) && b.hp < b.def.hp * 0.45) useSkill(b, i, c.toP);
   },
+  // ---------- 成駒 ----------
+  // 早撃ち：見えている相手と撃ち合うとき
+  dual(b, c, i, s) {
+    if (ready(s) && c.los && c.dist < 22 && b.seen > 0.4 && Math.random() < c.dt * 0.8 * b.persona.eager) useSkill(b, i, c.toP);
+  },
+  // 前転：撃たれた・狙われているときに横へ転がる（弾が切れかけでも：転がるとリロードが済む）
+  roll(b, c, i, s) {
+    if (ready(s) && ((c.los && (b.hurtT > 0.9 || (c.aimedAt && Math.random() < c.dt * 2 * b.persona.eager))) || (b.ammo <= 1 && c.los))) useSkill(b, i, c.side);
+  },
+  // 貫通：見えている相手に次の1発を
+  pierce(b, c, i, s) {
+    if (ready(s) && c.los && b.seen > 0.5 && Math.random() < c.dt * 0.6) useSkill(b, i, c.toP);
+  },
+  // 毒矢・拡散：見えている相手へ
+  poison(b, c, i, s) {
+    if (ready(s) && c.los && c.dist > 6 && Math.random() < c.dt * 0.6 * b.persona.eager) useSkill(b, i, c.toP);
+  },
+  multishot(b, c, i, s) {
+    if (ready(s) && c.los && c.dist > 5 && c.dist < 35 && Math.random() < c.dt * 0.5 * b.persona.eager) useSkill(b, i, c.toP);
+  },
+  // 救急キット：見えていない所で体力が減っているとき
+  medkit(b, c, i, s) {
+    if (ready(s) && !c.los && b.lostT > 0.6 && b.hp < b.def.hp * 0.65) useSkill(b, i, c.toP);
+  },
+  // ドーム：撃たれて体力が減ってきたら張る
+  dome(b, c, i, s) {
+    if (ready(s) && c.los && b.hurtT > 0 && b.hp < b.def.hp * 0.6) useSkill(b, i, c.toP);
+  },
+  // 地雷：相手の足元へ撃ち込む前に（次の弾が地雷になる）
+  mine(b, c, i, s) {
+    if (ready(s) && c.los && c.dist > 6 && c.dist < 28 && Math.random() < c.dt * 0.5 * b.persona.eager) useSkill(b, i, c.toP);
+  },
+  // フレア弾：中距離で撃ち合う前に投げる
+  flare(b, c, i, s) {
+    if (ready(s) && c.los && c.dist > 6 && c.dist < 20 && Math.random() < c.dt * 0.3 * b.persona.eager) useSkill(b, i, c.toP);
+  },
+  // 空爆要請：見えている相手の足元へ
+  airstrike(b, c, i, s) {
+    if (!ready(s) || !c.los || c.dist < 10 || c.dist > 60 || Math.random() > c.dt * 0.5 * b.persona.eager) return;
+    const e = new V3(b.pos.x, b.pos.y + b.eyeH, b.pos.z);
+    b.skillAim = player.pos.clone().sub(e).normalize();
+    useSkill(b, i, c.toP); b.skillAim = null;
+  },
+  // 竜巻：刀の届かない少し先の相手を引き寄せる
+  tornado(b, c, i, s) {
+    if (ready(s) && c.los && c.dist > 4 && c.dist < s.sk.radius - 0.5) useSkill(b, i, c.toP);
+  },
   // 守りの構え：撃たれているのに遠いとき、構えて距離を詰める
   guard(b, c, i, s) {
     if (ready(s) && c.los && c.dist > c.pref + 2 && b.seen > 0.3 && (b.hurtT > 0 || Math.random() < c.dt * 0.4 * b.persona.eager)) useSkill(b, i, c.toP);
@@ -478,13 +539,17 @@ export function aiHear(pos, radius) {
   bot.lastKnown.copy(pos); bot.lostT = 0.01; bot.wp = null;
 }
 
-export function damagePlayer(dmg, from) {
+// quiet：毒のじわじわ（揺れ・音を小さく）
+export function damagePlayer(dmg, from, quiet = false) {
   player.hp -= dmg; stats.taken += dmg; player.sinceHit = 0;
-  hud.hurt = 0.85;
-  view.shake = Math.max(view.shake, 0.35);
-  view.pitch += rand(0.005, 0.015); view.yaw += rand(-0.01, 0.01);
-  addDamageDir(from);
-  SFX.play('hurt');
+  if (player.ghost) endGhost(player);   // 幽体離脱中に本体が撃たれたら戻る
+  hud.hurt = quiet ? Math.max(hud.hurt || 0, 0.3) : 0.85;
+  if (!quiet) {
+    view.shake = Math.max(view.shake, 0.35);
+    view.pitch += rand(0.005, 0.015); view.yaw += rand(-0.01, 0.01);
+    addDamageDir(from);
+    SFX.play('hurt');
+  }
   if (player.hp <= 0 && !player.dead) killPlayer();
 }
 

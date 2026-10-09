@@ -28,6 +28,15 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   // 機関部・装填口（右）
   B.add('frame', S.extrude([[262, 70], [262, 104], [270, 110], [440, 110], [450, 104], [450, 70]], 26, { bevel: 2 }));
   B.add('bore', S.box(372, 410, 78, 90, 0.8, 13.3));
+  // 細部：機関部のねじ（撃鉄とレバーの軸）・上の排莢口・床尾板のねじ・負い紐の金具
+  //   スキンの飾り（左の鞍の輪 372〜388・火の玉 318,90・ストックの鋲や帯）の場所はよける
+  const screw = (u: number, v: number, x: number, r = 3) => S.put(new THREE.CylinderGeometry(r, r, 1.4, 8).rotateZ(Math.PI / 2), u, v, x);
+  for (const s of [1, -1]) for (const [u, v] of [[278, 98], [434, 76], [432, 100]]) B.add('detail', screw(u, v, s * 13.4));
+  for (const s of [1, -1]) B.add('slideDark', S.box(300, 430, 104, 106, 0.6, s * 13.1));   // 側板の合わせ目
+  B.add('bore', S.box(372, 412, 108.6, 110.6, 12));                          // 上の排莢口
+  for (const v of [32, 84]) B.add('detail', S.put(new THREE.CylinderGeometry(3, 3, 1.4, 8).rotateX(Math.PI / 2), -8.6, v));   // 床尾板のねじ
+  B.add('frame', S.put(new THREE.TorusGeometry(4.5, 1.4, 5, 10), 160, 40, 0, [0, Math.PI / 2, 0]));       // 負い紐の金具（ストックの下）
+  B.add('frame', S.put(new THREE.TorusGeometry(4.5, 1.4, 5, 10), 700, 62, 0, [0, Math.PI / 2, 0]));       // 負い紐の金具（先台の下）
   // 銃身（八角）・筒型弾倉・銃身バンド・照星・銃口
   B.add('barrel', S.rod(450, 1030, 100, 9, 8));
   B.add('barrel', S.rod(450, 745, 80, 7, 8));
@@ -40,6 +49,8 @@ export function buildMk2(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('slide', S.rod(290, 330, 142, 16, 10));
   B.add('slide', S.rod(520, 572, 142, 19, 10));
   B.add('slide', S.box(410, 432, 154, 164, 14));
+  B.add('slide', S.put(new THREE.CylinderGeometry(7, 7, 10, 10).rotateZ(Math.PI / 2), 421, 142, 16));   // 右のつまみ
+  for (const u of [338, 502]) for (const s of [1, -1]) B.add('detail', screw(u, 124, s * 9.4, 2.2));     // 台のねじ
   B.add('frame', S.box(330, 346, 108, 132, 18));
   B.add('frame', S.box(494, 510, 108, 132, 18));
   B.add('bore', S.rod(572, 573.5, 142, 16, 10));

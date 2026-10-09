@@ -25,6 +25,16 @@ export function buildMP5(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('frame', S.extrude([[20, 70], [20, 104], [300, 104], [300, 60], [248, 60], [248, 70]], 28, { bevel: 1.5 }));
   B.add('frame', S.half(20, 300, 103, 14, 10));
   B.add('bore', S.box(160, 290, 112, 116, 1, -10.5));   // レバーの溝
+  // 細部：機関部の横の補強の筋・後ろの蓋のピン・下の箱の押しピン・弾倉を外すレバー・銃身の3つの突起
+  //   スキンの飾り（LR の歯車・下の縁の鋲 v67・右の管 v97、SR の光る線 v63/v86）の場所はよける
+  const pin = (u: number, v: number, x: number, r = 2.6) => S.put(new THREE.CylinderGeometry(r, r, 1.4, 8).rotateZ(Math.PI / 2), u, v, x);
+  for (const s of [1, -1]) {
+    B.add('frame', S.box(26, 296, 90, 93, 2.2, s * 14.6));
+    for (const v of [80, 104]) B.add('detail', pin(10, v, s * 15.2));
+    for (const u of [50, 178]) B.add('detail', pin(u, 69, s * 15.3));
+  }
+  B.add('frame', S.box(182, 190, 50, 58, 12));
+  for (const a of [Math.PI / 2, Math.PI / 2 + 2.094, Math.PI / 2 - 2.094]) B.add('barrel', S.put(new THREE.BoxGeometry(5, 5, 12), 324, 100 + Math.sin(a) * 11, Math.cos(a) * 11, [-a + Math.PI / 2, 0, 0]));
   // 照門（ドラム）・照星（輪）
   B.add('frame', S.box(34, 56, 112, 128, 24));
   B.add('frame', S.box(292, 308, 108, 122, 14));

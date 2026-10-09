@@ -4,7 +4,7 @@
 import { P, css, rgba } from './palette';
 import * as THREE from 'three';
 import { gs } from './state';
-import { $, BH, C, LIGHT, PIECES, Q, TIME_LIMIT, V3, rand, settings } from './core';
+import { $, BH, C, LIGHT, PIECES, Q, TIME_LIMIT, V3, duelType, rand, settings } from './core';
 import { MAP_LIST, pickMap, selectableMaps } from './world';
 import { questEvent } from './quests';
 import { SFX } from './audio';
@@ -343,7 +343,7 @@ export const BoardMode = (() => {
     return new Promise(resolve => {
       battleDone = resolve;
       const me = playerIsAttacker ? att : def, foe = playerIsAttacker ? def : att;
-      gs.matchCtx = { myType: me.type, foeType: foe.type, playerIsAttacker };
+      gs.matchCtx = { myType: duelType(me.type, me.promoted), foeType: duelType(foe.type, foe.promoted), playerIsAttacker };   // 成っていれば成駒で戦う
       showUI(false);
       SFX.play('battle');
       const mn = label(me), hideFoe = blind, fn = hideFoe ? '？' : label(foe);
@@ -360,7 +360,6 @@ export const BoardMode = (() => {
         overlay(`${playerIsAttacker ? sealHTML('攻め', 'ATTACK', false, 'mid') : sealHTML('守り', 'DEFENSE', true, 'mid')}
         <div class="vs-line"><b class="bm-koma"${me.promoted ? ' style="color:var(--shu-0)"' : ''}>${mn}</b><span>あなた</span><em>VS</em><span>相手</span><b class="bm-koma"${foe.promoted && !hideFoe ? ' style="color:var(--shu-0)"' : ''}>${fn}</b></div>
         <p>${hideFoe ? (playerIsAttacker ? '勝てば相手の駒を取れる（何の駒かは、一騎打ちで姿を見るまで分からない）' : '守り切れば攻めてきた駒を取れる（何の駒かは、一騎打ちで姿を見るまで分からない）') : playerIsAttacker ? `勝てば相手の「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}` : `守り切れば攻めてきた「${fn}」を${foe.cracked ? '割れる（ひび入りなので消える）' : '取れる'}`}。負けるとあなたの「${mn}」は${me.cracked ? 'ひび入りなので割れて消える' : '取られる'}</p>
-        ${me.promoted || (foe.promoted && !hideFoe) ? '<p style="opacity:.7">※成駒の一騎打ちはまだ元の駒の性能です</p>' : ''}
         ${stageHTML}
         ${online ? '' : '<button class="btn" id="bmFight">一騎打ち開始</button>'}${keysHTML()}`, true);
         if (!online) $('bmFight').onclick = e => { e.stopPropagation(); gs.boardMap = stage; startMatch(); };
@@ -530,7 +529,7 @@ export const BoardMode = (() => {
     return new Promise(res => {
       overlay(`<div class="res" style="font-size:46px">成りますか？</div>
         <div class="vs-line"><b class="bm-koma">${label(p)}</b><em>→</em><b class="bm-koma" style="color:var(--shu-0)">${PRO[p.type]}</b></div>
-        <p>成ると盤上の動きが変わります（一騎打ちの性能はまだ元の駒のままです）</p>
+        <p>${p.type === 'K' ? '帝になると、盤の上の動きは王のままで、一騎打ちでは武器・スキル・性能が変わります' : '成ると盤の上の動きが変わり、一騎打ちでは武器・スキル・性能が変わります'}</p>
         <div style="display:flex;gap:14px;justify-content:center"><button class="btn" id="bmPro">成る</button><button class="btn ghost" id="bmNoPro">成らない</button></div>`, true);
       $('bmPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(true); };
       $('bmNoPro').onclick = e => { e.stopPropagation(); hideOverlay(); res(false); };

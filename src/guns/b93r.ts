@@ -60,6 +60,16 @@ export function buildB93R(opt: { skin?: string; hand?: THREE.Material } = {}) {
   }));
   B.add('frame', S.extrude([[140, 80], [162, 80], [158, 26], [144, 26]], 16, { bevel: 2 }));
   B.add('detail', S.rod(138, 164, 84, 3, 6));                  // 折りたたみの軸
+  // 細部：スライド後ろの安全レバー（左右）・左のスライドストップ・分解レバー・引き金のピン・グリップの板のねじ
+  //   スキンの飾り（スライドの銀の渦 u34〜66/154〜186・握りの楕円の枠 12,38）の場所はよける
+  const pin = (u: number, v: number, x: number, r = 2.4) => S.put(new THREE.CylinderGeometry(r, r, 1.4, 8).rotateZ(Math.PI / 2), u, v, x);
+  for (const s of [1, -1]) {
+    B.add('detail', S.extrude([[8, 104], [24, 104], [27, 110], [22, 113], [8, 112]], 2.2, { bevel: 0.4, x: s * 14.1 }), slide);
+    B.add('detail', pin(84, 85, s * 12.4));
+    for (const [u, v] of [[27, 70], [11, 8]]) B.add('detail', pin(u, v, s * 15.4, 2.6));
+  }
+  B.add('detail', S.box(66, 104, 83, 87.5, 2, -13.4));                     // スライドストップ（左）
+  B.add('detail', S.extrude([[118, 82], [126, 82], [126, 88], [120, 88]], 2.2, { bevel: 0.4, x: -13.4 }));   // 分解レバー（左）
   // 撃鉄・引き金
   B.add('detail', S.extrude([[-1, 96], [5, 96], [3, 106], [-3, 114], [-9, 114], [-7, 106]], 7, { bevel: 0.6 }), hammer);
   B.add('detail', S.extrude([[81, 80], [87, 80], [88, 72], [91, 64], [88, 62], [85, 66], [82, 74]], 6, { bevel: 0.6 }), trigger);

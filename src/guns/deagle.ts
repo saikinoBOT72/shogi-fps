@@ -40,12 +40,19 @@ export function buildDeagle(opt: GunOpt = {}) {
   // スライドストップ（左側のレバー）
   B.add('detail', S.box(72, 112, 95.5, 100, 2, -(FRAME_W / 2 + 1)));
   B.add('detail', S.box(104, 114, 92, 100, 2.4, -(FRAME_W / 2 + 1.2)));
+  // 細部：撃鉄・シア・引き金のピン（左右）・右の分解ボタン・左の弾倉ボタン
+  //   スキンの飾り（グリップの真ん中の勲章や宝石・フレーム前の月桂樹 u166〜）の場所はよける
+  const pin = (u: number, v: number, x: number, r = 2.4) => S.put(new THREE.CylinderGeometry(r, r, 1.4, 8).rotateZ(Math.PI / 2), u, v, x);
+  for (const s of [1, -1]) for (const [u, v] of [[2, 94], [22, 92], [104, 89]]) B.add('detail', pin(u, v, s * (FRAME_W / 2 + 0.3)));
+  B.add('detail', pin(126, 94, FRAME_W / 2 + 0.6, 3.6));
+  B.add('detail', S.box(64, 72, 78, 86, 2.4, -(FRAME_W / 2 + 0.6)));
 
   // グリップの板（滑り止め）
   const inset = 4.5;
   B.add('grip', S.extrude([
     [gripBack(80) + inset, 80], [gripFront(80) - inset, 80], [gripFront(6) - inset, 6], [gripBack(6) + inset, 6],
   ], FRAME_W + 7, { bevel: 1.6 }));
+  for (const s of [1, -1]) for (const v of [72, 14]) B.add('detail', S.put(new THREE.CylinderGeometry(2.6, 2.6, 1.2, 8).rotateZ(Math.PI / 2), 22 + v * RAKE, v, s * ((FRAME_W + 7) / 2 + 0.3)));   // グリップの板のねじ
 
   // ---------- 銃身（前の大きな塊・上にレール） ----------
   // 下半分はまっすぐ、上半分は細くなる（面が折れないよう2つに分ける。境目の線も Mark XIX らしさ）

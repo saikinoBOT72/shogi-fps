@@ -170,11 +170,13 @@ export const SFX = (() => {
     } },
     break: { len: 1.3, play(d, k) { click(d, 0, 1300, 0.55); metal(d, 0.05 * k, 520, 0.25, 0.08); T(d, { at: 0.35 * k, f0: 420, f1: 300, dur: 0.12, g: 0.15 }); T(d, { at: 0.7 * k, f0: 130, f1: 72, dur: 0.09, g: 0.7 }); N(d, { at: 0.7 * k, dur: 0.05, type: 'bandpass', f0: 780, q: 2, g: 0.35 }); metal(d, 1.0 * k, 380, 0.3, 0.12); click(d, 1.0 * k, 1800, 0.6); } },
   };
-  const RELOAD_OF = { pistol: 'magP', burst: 'magP', mp5: 'magR', ak: 'magR', mk2: 'lever', m870: 'shell', m79: 'break' };
+  const RELOAD_OF = { pistol: 'magP', burst: 'magP', mp5: 'magR', ak: 'magR', mk2: 'lever', m870: 'shell', m79: 'break',
+    glock: 'magP', awm: 'magR', xbow: 'lever', famas: 'magR', mgl: 'break', vector: 'magR', m4: 'magR' };   // 成駒の武器は今ある音の流用（仮）
 
   const sounds = {
     // 撃つ（model：武器の見た目の名前）
     shot(pos, model) {
+      model = ({ glock: 'burst', awm: 'mk2', famas: 'ak', m4: 'ak', vector: 'mp5' } as any)[model] || model;   // 成駒の武器は今ある音の流用（仮）
       const r = rand(0.95, 1.05);
       if (model === 'mk2') {
         const d = out(pos, 0.6);

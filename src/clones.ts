@@ -27,7 +27,7 @@ function actorsFor(type: string, n: number) {
   let pool = pools.get(type);
   if (!pool) pools.set(type, pool = []);
   while (pool.length < n) {
-    const d = PIECES[type], A = buildActor(d.name, d.size, WEAPONS[d.weapon].model);
+    const d = PIECES[type], A = buildActor(d.name, d.size, WEAPONS[d.weapon].model, !!d.red);
     A.root.visible = false; pool.push(A);
   }
   return pool;

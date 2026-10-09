@@ -2,7 +2,7 @@
 //   ・遠い：一閃の斬撃を飛ばす。見えていて遠ければ、瞬を溜めて一気に詰める（届く分だけ溜める）
 //   ・近い：長押しの連撃（2〜4段のどこまで続けるかは毎回変える）
 //   ・撃たれると：守りの構え（被ダメ半分・遅い）で受けながら近づく
-//   ・近く（25m 以内）で見失ったとき・HP が減ったとき：葉隠れで消えて待ち伏せし、近づいてきたら斬りかかる
+//   ・刀の届かない少し先（4〜8m）に相手がいるとき：竜巻で引き寄せて斬りかかる
 // 刀の入力は自分と同じ Sword.input（押す・離す・右クリック）で動かす
 import * as THREE from 'three';
 import { DIFFS, V3, clamp, rand, settings } from './core';
@@ -10,7 +10,7 @@ import { act, eyeOf, hasLOS, moveEntity, player, tryJump, useSkill, weaponTick }
 import { navNext, steer } from './ai';
 import { Sword } from './sword';
 
-const BLINK = 0, HIDE = 1;   // スキルの枠（侍：E 瞬・Q 葉隠れ）
+const BLINK = 0, PULL = 1;   // スキルの枠（侍：E 瞬・Q 竜巻）
 const ready = s => s && s.charges > 0 && !(s.t > 0);
 
 export function swordTick(b, dt) {
@@ -31,16 +31,11 @@ export function swordTick(b, dt) {
   let down = false, right = false;
   const wish = new V3();
 
-  // ---------- 葉隠れで待ち伏せ ----------
-  const hide = b.slots[HIDE];
-  if (s.hideT <= 0 && ready(hide) && !swinging && s.charge < 0 && ((b.lostT > 1.5 && b.lostT < 6 && dist < 25) || (b.hp < b.def.hp * 0.5 && dist > 8 && dist < 25 && Math.random() < dt * 0.3))) {
-    useSkill(b, HIDE, toP); s.hideT = rand(4, 7);
-  }
-  if (s.hideT > 0) {
-    s.hideT -= dt;
-    // 止まって待つ。近づいてきたら（見えていなくても気配で）斬りかかる
-    if (dist < 4.2 && !T.dead) { s.hideT = 0; s.hold = true; s.holdTo = Math.random() < 0.5 ? 4 : 3; }
-    else { finish(b, wish, dt, false, false); return; }
+  // ---------- 竜巻で引き寄せて斬る ----------
+  const pull = b.slots[PULL];
+  if (ready(pull) && pull.sk.type === 'tornado' && los && dist > 4 && dist < pull.sk.radius - 0.5 && !swinging && s.charge < 0 && Math.random() < dt * 2) {
+    useSkill(b, PULL, toP);
+    s.hold = true; s.holdTo = 3 + Math.floor(Math.random() * 2);   // 寄ってきたところへ連撃
   }
 
   // ---------- 瞬：溜めてから詰める ----------

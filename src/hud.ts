@@ -80,11 +80,12 @@ const skillKey = i => keyName((settings as any).keys[i === 0 ? 'skill' : 'skill2
 const statusEl = document.createElement('div'); statusEl.id = 'status'; $('hud').appendChild(statusEl);
 const empFx = document.createElement('div'); empFx.id = 'empfx'; $('hud').prepend(empFx);     // EMP を受けている：画面が青くちらつく（HP などの字より下に敷く）
 const buffFx = document.createElement('div'); buffFx.id = 'bufffx'; $('hud').prepend(buffFx);  // 身体強化中：画面の縁が金色に（字より下に敷く）
-const BUFFS = ['buff', 'guard', 'cloak', 'xray', 'heal', 'homing', 'bigshot', 'volley', 'hagakure'];
+const BUFFS = ['buff', 'guard', 'cloak', 'xray', 'heal', 'homing', 'bigshot', 'volley', 'hagakure', 'dual', 'pierce', 'poison', 'multishot', 'medkit', 'dome', 'mine', 'ghost'];
 function statusesOf(e, me: boolean) {
   const out = [];
   for (const s of e.slots) if (s.t > 0 && BUFFS.includes(s.sk.type) && s.sk.duration >= 1) out.push({ cls: 'buff', name: s.sk.name, k: s.t / s.sk.duration, t: s.t });
   if (e.empT > 0) out.push({ cls: 'emp', name: 'EMP', sub: 'スキル封じ・鈍足', k: e.empT / (e.empMax || 5), t: e.empT });
+  if (e.poisonT > 0) out.push({ cls: 'debuff', name: '毒', sub: 'じわじわ減る・鈍足', k: e.poisonT / (e.poisonSk?.time || 5), t: e.poisonT });
   if (me && gs.flash > 0.3) out.push({ cls: 'debuff', name: '目くらみ', k: Math.min(1, gs.flash / 3), t: gs.flash });
   return out;
 }
@@ -190,14 +191,15 @@ export function updateHUD(dt) {
     const k = s.charges >= max ? 1 : 1 - s.cd / sk.cooldown;
     const pk = Math.round(Math.max(0, Math.min(1, k)) * 100);
     setStyle(el.querySelector('.key'), 'background', pk >= 100 ? '' : `linear-gradient(0deg, rgba(243,238,230,.28) ${pk}%, rgba(26,21,18,.5) ${pk}%)`);
-    const again = (sk.type === 'c4' && Gadgets.c4Of(p)) || (sk.type === 'missile' && Gadgets.ctrlOf(p));
+    const again = (sk.type === 'c4' && Gadgets.c4Of(p)) || (sk.type === 'missile' && Gadgets.ctrlOf(p)) || (sk.type === 'ghost' && p.ghost) || (sk.type === 'grapple' && sk.chain && s.t > 0 && s.charges > 0);
     const jam = p.empT > 0 && !again;   // EMP でスキル封じ
     if (changed('skj' + i, jam)) el.classList.toggle('jam', jam);
     const ready = (s.charges > 0 || !!again) && !jam;
     if (changed('skr' + i, ready)) el.classList.toggle('ready', ready);
-    const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak', 'volley', 'hagakure'].includes(sk.type);   // 鉤縄・投げ物はすぐ終わるので出さない
-    const name = sk.type === 'c4' && Gadgets.c4Of(p) ? 'C4 起爆' : sk.type === 'missile' && Gadgets.ctrlOf(p) ? '戻る'
-      : armed ? `${sk.name} ${sk.type === 'xray' || sk.type === 'cloak' || sk.type === 'buff' || sk.type === 'hagakure' ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
+    const armed = s.t > 0 && ['homing', 'bigshot', 'xray', 'cloak', 'volley', 'hagakure', 'dual', 'pierce', 'poison', 'multishot', 'mine', 'medkit', 'dome'].includes(sk.type);   // 鉤縄・投げ物はすぐ終わるので出さない
+    const timed = ['xray', 'cloak', 'buff', 'hagakure', 'dual', 'multishot', 'medkit', 'dome'].includes(sk.type);   // 効いている残り時間を出す（それ以外は「次の1発」の準備OK）
+    const name = sk.type === 'c4' && Gadgets.c4Of(p) ? 'C4 起爆' : (sk.type === 'missile' && Gadgets.ctrlOf(p)) || (sk.type === 'ghost' && p.ghost) ? '戻る'
+      : armed ? `${sk.name} ${timed ? s.t.toFixed(1) : '準備OK'}` : s.charges > 0 ? sk.name : `${sk.name} ${s.cd.toFixed(1)}`;
     const nm = el.querySelector('.nm'), txt = jam ? `${sk.name} 封じ ${p.empT.toFixed(1)}` : name + (max > 1 ? ` ×${s.charges}` : '');
     if (changed('skn' + i, txt)) nm.textContent = txt;
   });
@@ -210,7 +212,9 @@ export function updateHUD(dt) {
   if (gs.flash > 0) gs.flash = Math.max(0, gs.flash - dt);
   setStyle(flashFx, 'opacity', Math.min(1, gs.flash || 0).toFixed(2));
   const mi = p.slots.findIndex(s => s.sk.type === 'missile');
-  setText('guideTxt', Gadgets.ctrlOf(p) ? `ミサイル操作中　マウスで曲げる・${skillKey(mi)} で自分に戻る` : '');
+  const gi = p.slots.findIndex(s => s.sk.type === 'ghost');
+  setText('guideTxt', Gadgets.ctrlOf(p) ? `ミサイル操作中　マウスで曲げる・${skillKey(mi)} で自分に戻る`
+    : p.ghost ? `幽体離脱中　ジャンプ長押しで上昇・離すと下降・${skillKey(gi)} で戻る（本体は無防備）` : '');
   if (changed('regen', !!p.regen)) $('meBar').classList.toggle('regen', !!p.regen);
 }
 // 前回と同じ値なら DOM に触らない（毎フレームの書き換えは重い）

@@ -132,7 +132,7 @@ export function hasLOS(a, b, ignoreSmoke?) {
 export const act = (e, type) => e && e.slots && e.slots.find(s => s.t > 0 && s.sk.type === type);
 export function moveEntity(e, wish, dt) {
   wish = wish.clone();
-  const mv = e.slots.find(s => s.t > 0 && (s.sk.type === 'dash' || s.sk.type === 'step')), lp = act(e, 'leap'), gp = act(e, 'grapple');
+  const mv = e.slots.find(s => s.t > 0 && (s.sk.type === 'dash' || s.sk.type === 'step' || s.sk.type === 'roll')), lp = act(e, 'leap'), gp = act(e, 'grapple');
   // 横移動が遅い駒（香）：向いている方向に対して横の成分を縮める
   if (e.def.strafe && wish.lengthSq() > 0) {
     const f = facingOf(e), along = wish.dot(f);
@@ -159,7 +159,10 @@ export function moveEntity(e, wish, dt) {
   } else if (mv) {
     mv.t -= dt;
     e.vel.copy(mv.dir).multiplyScalar(mv.sk.speed);
-    if (mv.t <= 0) e.vel.multiplyScalar(0.35);
+    if (mv.t <= 0) {
+      e.vel.multiplyScalar(0.35);
+      if (mv.sk.type === 'roll' && !e.dead) { e.ammo = Math.max(e.ammo, e.w.mag * (act(e, 'dual') ? 2 : 1)); e.reloading = 0; }   // 前転し終わるとリロードも済む
+    }
   } else if (e.lungeT > 0) {
     // 刀の踏み込み（横薙ぎ）：決まった向きへ短く進む
     e.lungeT -= dt;
@@ -168,7 +171,7 @@ export function moveEntity(e, wish, dt) {
   } else if (lp) {
     lp.t -= dt;   // 跳んでいる間は勢いのまま（空中で向きを変えられない）
   } else {
-    const gd = act(e, 'guard'), bf = act(e, 'buff'), slow = (gd ? gd.sk.slow : 1) * (bf ? bf.sk.speedMul : 1) * (e.empT > 0 ? e.empSlow : 1) * (e.pos.y < WATER_Y ? 0.6 : 1);   // 川の中は遅い・身体強化中は速い・EMP を受けると遅い
+    const gd = act(e, 'guard'), bf = act(e, 'buff'), slow = (gd ? gd.sk.slow : 1) * (bf ? bf.sk.speedMul : 1) * (e.empT > 0 ? e.empSlow : 1) * (e.pos.y < WATER_Y ? 0.6 : 1) * (e.poisonT > 0 ? e.poisonSk.slow : 1);   // 毒は遅い   // 川の中は遅い・身体強化中は速い・EMP を受けると遅い
     e.knockT = Math.max(0, (e.knockT || 0) - dt);
     const flung = e.knockT > 0 && !e.onGround;   // 爆風で飛ばされている間
     const target = wish.clone().multiplyScalar(e.def.speed * RULES.speed * (e.isBot || e.running ? 1 : RULES.walk) * (e.speedMul || 1) * slow);

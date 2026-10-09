@@ -32,6 +32,15 @@ export function buildM870(opt: { skin?: string; hand?: THREE.Material } = {}) {
     bevel: 1, holes: [[[338, 60], [338, 48], [342, 45], [406, 45], [411, 50], [411, 60]]],
   }));
   B.add('detail', S.extrude([[369, 64], [375, 64], [376, 56], [379, 48], [376, 46], [372, 50], [370, 58]], 6, { bevel: 0.6 }), trigger);
+  // 細部：引き金の組のピン・後ろの安全ボタン・左のスライドを外すレバー・排莢口の奥のボルト・床尾のゴムのねじ・負い紐の金具
+  //   スキンの飾り（左の予備弾 318〜394・機関部の光る線 v70/79・LR の装甲板）の場所はよける
+  const pin = (u: number, v: number, x: number, r = 2.6) => S.put(new THREE.CylinderGeometry(r, r, 1.4, 8).rotateZ(Math.PI / 2), u, v, x);
+  for (const s of [1, -1]) for (const u of [350, 392]) B.add('detail', pin(u, 75, s * 15.3));
+  B.add('detail', S.put(new THREE.CylinderGeometry(3.4, 3.4, 34, 8).rotateZ(Math.PI / 2), 424, 70));   // 安全ボタン（左右に貫く）
+  B.add('detail', S.extrude([[424, 64], [432, 64], [436, 52], [430, 50]], 2.4, { bevel: 0.4, x: -7 }));   // スライドを外すレバー（左）
+  B.add('slideDark', S.box(406, 464, 90, 102, 1, 13.6));                     // 排莢口の奥のボルト
+  for (const v of [34, 80]) B.add('detail', S.put(new THREE.CylinderGeometry(3, 3, 1.4, 8).rotateX(Math.PI / 2), -10.6, v));   // 床尾のゴムのねじ
+  B.add('frame', S.put(new THREE.TorusGeometry(4.5, 1.4, 5, 10), 150, 34, 0, [0, Math.PI / 2, 0]));     // 負い紐の金具
   // 銃身・筒型弾倉・バンド・照星・銃口
   B.add('barrel', S.rod(504, 970, 100, 11, 8));
   B.add('barrel', S.rod(504, 900, 76, 10, 8));

@@ -14,8 +14,9 @@ export type Hands = string[][];
 export type Move = { kind: 'move' | 'drop'; fx?: number; fy?: number; tx: number; ty: number; type?: string; lost?: boolean; quiet?: boolean };
 
 export const HAND_ORDER = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
-// 成駒の字（赤）。成駒は盤上の動きが変わる（一騎打ちの性能は元の駒のまま）
-export const PRO = { P: 'と', L: '杏', N: '圭', S: '全', R: '龍', B: '馬' };
+// 成駒の字（赤）。成駒は盤上の動きが変わり、一騎打ちでは成駒（core.ts の 'P+' など）になる
+//   王も成れる（本物の将棋にはない決まり）：帝。盤の上の動きは王のまま
+export const PRO = { P: 'と', L: '杏', N: '圭', S: '全', R: '龍', B: '馬', K: '帝' };
 export const label = (p: Piece) => (p.promoted ? PRO[p.type] : p.type === 'K' && p.owner === 1 ? '玉' : PIECES[p.type].name);
 export const canPromote = (p: Piece) => !p.promoted && !!PRO[p.type];
 export const inZone = (o: number, y: number) => (o === 0 ? y <= 2 : y >= 6);   // 敵陣（成れる所）

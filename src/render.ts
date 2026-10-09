@@ -18,6 +18,13 @@ import { buildB93R } from './guns/b93r';
 import { buildM79 } from './guns/m79';
 import { buildYumi } from './guns/yumi';
 import { buildKarambit } from './guns/karambit';
+import { buildGlock17 } from './guns/glock17';
+import { buildAWM } from './guns/awm';
+import { buildCrossbow } from './guns/crossbow';
+import { buildFAMAS } from './guns/famas';
+import { buildMGL } from './guns/mgl';
+import { buildVector } from './guns/vector';
+import { buildM4A1 } from './guns/m4a1';
 import { buildKatana } from './guns/katana';
 import { TOON_RAMP, flatGeo, flatten, mat, toon } from './materials';
 export { TOON_RAMP, flatGeo, flatten, mat, toon };   // 前からの読み込み先を変えずに使えるように
@@ -182,6 +189,9 @@ export const GUN_BUILDERS = {
   mk2: () => buildMk2({ hand: handMat }), m870: () => buildM870({ hand: handMat }), mp5: () => buildMP5({ hand: handMat }),
   ak: () => buildAK47({ hand: handMat }), m79: () => buildM79({ hand: handMat }), karambit: () => buildKarambit({ hand: handMat }),
   katana: () => buildKatana({ hand: handMat }),
+  // 成駒の武器（と＝デザートイーグル pistol、歩は Glock になった）
+  glock: () => buildGlock17({ hand: handMat }), awm: () => buildAWM({ hand: handMat }), xbow: () => buildCrossbow({ hand: handMat }),
+  famas: () => buildFAMAS({ hand: handMat }), mgl: () => buildMGL({ hand: handMat }), vector: () => buildVector({ hand: handMat }), m4: () => buildM4A1({ hand: handMat }),
 };
 delete GUN_BUILDERS.sniper;
 export const buildGun = model => (GUN_BUILDERS[model] || buildPistol)();

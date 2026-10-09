@@ -27,6 +27,7 @@ export function currentSpread(e) {
   const w = e.w;
   let s = w.spread + e.bloom + (w.kind === 'bow' ? (1 - (e.draw || 0)) * w.drawSpread : 0);
   if (e.moving) s += w.move * clamp(Math.hypot(e.vel.x, e.vel.z) / e.def.speed, 0, 1);
+  const du = act(e, 'dual'); if (du) s += du.sk.spreadAdd;   // 2丁持ちは少しばらける
   if (!e.onGround) s += w.air;
   if (!e.isBot) s = (s + (w.hip || 0) * (1 - (e.adsT || 0))) * lerp(1, w.ads, e.adsT || 0);   // hip：覗いていない時だけ足すブレ（覗き切ると 0）
   else s *= w.ads;   // CPU はいつも覗き込んでいる扱い
@@ -56,7 +57,7 @@ export function weaponTick(e, dt) {
   e.bloom = Math.max(0, e.bloom - e.w.bloomRecover * dt);
   if (e.reloading > 0) {
     e.reloading -= dt;
-    if (e.reloading <= 0) e.ammo = e.w.mag;
+    if (e.reloading <= 0) e.ammo = e.w.mag * (act(e, 'dual') ? 2 : 1);
   }
 }
 
@@ -81,6 +82,10 @@ export function skillDamageMul(target, from) {
 // 撃つ：origin から dir に撃つ。ショットガンは粒ごとに判定して合計する
 export function fire(shooter, target, origin, muzzle, dir) {
   const w = shooter.w, sp = currentSpread(shooter);
+  // 貫通：この1発だけ壁を抜ける
+  const pc = act(shooter, 'pierce');
+  shooter.pierce = pc ? pc.sk : null;
+  if (pc) pc.t = 0;
   let dmg = 0, head = false, point = null, miss = null, wallDist = 300, blocked = false, first = true;
   const ends = [];
   for (let i = 0; i < (w.pellets || 1); i++) {
@@ -89,7 +94,9 @@ export function fire(shooter, target, origin, muzzle, dir) {
     if (r.dmg > 0) { dmg += r.dmg; head = head || r.head; point = point || r.point; blocked = blocked || r.blocked; }
     else if (!miss) { miss = r.miss; wallDist = r.wallDist; }
   }
-  shooter.ammo--; shooter.cd = w.rate;
+  shooter.pierce = null;
+  const du = act(shooter, 'dual');
+  shooter.ammo--; shooter.cd = w.rate * (du ? du.sk.rateMul : 1);
   onAttack(shooter);
   if (Net.on && shooter === player) Net.send({ t: 'fire', e: ends });
   // バースト：決まった数だけ短い間隔で続けて撃つ
@@ -109,8 +116,10 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
   const d = dir.clone().add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0, sp))).normalize();
   ray.set(origin, d); ray.far = 300;
   const walls = ray.intersectObjects(blockers, true);
-  const wall = walls[0];
+  const pierce = shooter.pierce, skip = pierce ? Math.min(pierce.walls, walls.length) : 0;   // 貫通：手前の壁を何枚まで抜けるか
+  const wall = walls[skip];
   const wallDist = wall ? wall.distance : 300;
+  for (let k = 0; k < skip; k++) { const pw = walls[k]; Particles.impact(pw.point, pw.face ? pw.face.normal.clone().transformDirection(pw.object.matrixWorld) : d.clone().negate()); }
   const tracerColor = shooter.isBot ? P.shu[2] : VM.fx.tracer ?? P.kin[2];   // 自分の弾の線は、LR スキンならその色
   let hit = null;
   if (target.isBot) {
@@ -135,6 +144,7 @@ export function castShot(shooter, target, origin, muzzle, dir, sp, sound) {
     let dmg = w.dmg * lerp(1, fm, clamp((hit.dist - f0) / (f1 - f0), 0, 1));
     const head = hit.point.y > target.pos.y + target.height * 0.76;
     if (head) dmg *= w.head;
+    if (pierce) dmg *= Math.pow(pierce.wallMul, walls.filter((h, k) => k < skip && h.distance < hit.dist).length);   // 抜けた壁1枚ごとに減る（頭も同じ）
     const mul = skillDamageMul(target, shooter.pos);
     dmg *= mul;
     res = { dmg, head, point: hit.point, blocked: mul < 1 && (!!act(target, 'guard') || !!target.swGuard), end: hit.point };

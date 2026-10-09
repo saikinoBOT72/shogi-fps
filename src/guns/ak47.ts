@@ -30,6 +30,7 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('frame', S.extrude([[236, 62], [236, 98], [244, 101], [470, 101], [470, 96], [520, 96], [520, 66], [470, 62]], 26, { bevel: 1.5 }));   // 前は照門の台とハンドガードまで続く
   B.add('frame', S.box(514, 524, 66, 106, 30));   // ハンドガードの留め金
   B.add('slide', S.half(250, 468, 99, 12.5, 10));                         // 上の蓋（丸い）
+  for (const u of [300, 344, 388, 432]) B.add('slide', S.half(u, u + 4, 99, 13.4, 10));     // 蓋の補強の段
   B.add('slide', S.extrude([[244, 99], [244, 104], [252, 106], [252, 99]], 18, { bevel: 1.5 }));   // 蓋の後ろの留め具
   B.add('frame', S.extrude([[468, 96], [468, 112], [480, 116], [518, 116], [518, 96]], 20, { bevel: 1.5 }));
   B.add('detail', S.box(482, 510, 113, 117, 14));
@@ -51,6 +52,23 @@ export function buildAK47(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('detail', S.extrude([[357, 62], [363, 62], [364, 54], [368, 47], [365, 45], [361, 49], [358, 56]], 7, { bevel: 0.7 }), trigger);
   // セレクター（右側の長いレバー）
   B.add('detail', S.extrude([[330, 86], [455, 90], [455, 95], [330, 92]], 2, { bevel: 0.4, x: 14 }));
+  // 細部：機関部の鋲（前後の受け）・引き金と撃鉄のピン・弾倉の留め金・グリップの底のねじ・床尾板のねじ
+  //   スキンの飾り（宝石 296,88／火の玉 398,80／鎖 250〜／光る線 v78〜80）の場所はよける
+  const dome = (u: number, v: number, x: number, r = 3.2) => S.put(new THREE.CylinderGeometry(r, r * 0.8, 1.6, 8).rotateZ(Math.PI / 2 * Math.sign(x)), u, v, x);
+  for (const s of [1, -1]) {
+    for (const [u, v] of [[446, 70], [458, 70], [470, 67], [264, 70], [276, 70]]) B.add('frame', dome(u, v, s * 13.6));
+    for (const u of [358, 378]) B.add('detail', dome(u, 72, s * 13.6, 2));
+  }
+  B.add('frame', S.extrude([[398, 62], [404, 62], [404, 44], [400, 42], [398, 46]], 10, { bevel: 0.8 }));   // 弾倉の留め金
+  B.add('detail', S.put(new THREE.CylinderGeometry(3, 3, 1.6, 8), 294, -41.5));                              // グリップの底のねじ
+  for (const v of [6, 52]) B.add('detail', S.put(new THREE.CylinderGeometry(3.2, 3.2, 1.6, 8).rotateX(Math.PI / 2), -5.6, v));   // 床尾板のねじ
+  // ガスチューブの逃がし穴・上のハンドガードの通気穴・照星の耳・負い紐の輪
+  for (const s of [1, -1]) {
+    for (const u of [704, 716]) B.add('bore', S.box(u, u + 6, 110, 116, 1, s * 8.4));
+    for (const u of [544, 562, 580]) B.add('bore', S.box(u, u + 10, 106, 111, 1, s * 13.8));
+    B.add('frame', S.extrude([[826, 112], [838, 112], [837, 140], [827, 140]], 2, { bevel: 0.4, x: s * 7 }));
+  }
+  B.add('frame', S.put(new THREE.TorusGeometry(5, 1.5, 5, 10), 836, 92, -9, [0, Math.PI / 2, 0]));
   // ガスチューブ・ガスブロック・銃身・照星・銃口・クリーニングロッド
   B.add('barrel', S.rod(700, 760, 113, 9, 8));
   B.add('frame', S.extrude([[755, 96], [755, 122], [782, 122], [788, 108], [788, 96]], 20, { bevel: 1.5 }));

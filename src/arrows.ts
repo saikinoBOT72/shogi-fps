@@ -10,6 +10,7 @@ import { PHYS, blockers, physOf } from './physics';
 import { Particles } from './effects';
 import { act, botActor, damageBot, eyeOf, player, ray, skillDamageMul } from './game';
 import { damagePlayer } from './ai';
+import { applyPoison } from './promo';
 
 export const Arrows = (() => {
   const shaftGeo = new THREE.CylinderGeometry(0.016, 0.016, 1, 5); shaftGeo.rotateX(Math.PI / 2);
@@ -53,8 +54,9 @@ export const Arrows = (() => {
     const dmg = a.dmg * (head ? a.head : 1) * mul;
     if (mul < 1 && act(t, 'guard')) SFX.play('guard', point);
     SFX.play('arrowHit', point);
+    if (a.poison && !t.dead) applyPoison(t, a.poison, a.owner);   // 毒矢
     if (t.isBot) {
-      damageBot({ dmg, head, point });
+      damageBot({ dmg, head, point, po: a.poison ? 1 : 0 });
       SFX.play('ding');   // 当たった「ピン」
       // 駒に刺さったまま残る
       a.mesh.position.copy(point).addScaledVector(dir, 0.25 - TIP);

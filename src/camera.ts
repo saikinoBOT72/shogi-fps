@@ -37,6 +37,20 @@ export function updateCamera(dt, rdt) {
     return;
   }
   const canLook = (gs.state === 'fight' || (gs.state === 'countdown' && gs.stateT > 1.3)) && !p.dead;
+  if (p.ghost) {
+    if (canLook) { view.yaw -= gs.mdx * sens; view.pitch = clamp(view.pitch - gs.mdy * sens, -1.52, 1.52); }
+    gs.mdx = 0; gs.mdy = 0;
+    playerActor.root.visible = true;
+    animateActor(playerActor, p, dt, p.pos.clone().add(new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw))));
+    const t = performance.now() / 1000;
+    cam.position.copy(p.ghost.pos).add(new V3(0, Math.sin(t * 2) * 0.05, 0));
+    cam.rotation.set(view.pitch, view.yaw, Math.sin(t * 1.3) * 0.02);
+    cam.fov = damp(cam.fov, hipFov() + 6, 6, rdt); cam.updateProjectionMatrix();
+    sky.position.copy(cam.position); SFX.listener(cam);
+    VM.root.visible = false; VM.shield.visible = false; VM.leftMirror.visible = false;
+    botActor.xray.visible = false;
+    return;
+  }
   if (canLook) { view.yaw -= gs.mdx * sens; view.pitch = clamp(view.pitch - gs.mdy * sens, -1.52, 1.52); }
   // オートエイム（開発者メニュー）：キーを押している間、照準を相手の頭に合わせる
   const aimKey = (settings as any).dev.aimKey;
@@ -76,6 +90,8 @@ export function updateCamera(dt, rdt) {
   }
   const dashing = !!act(p, 'dash'), guarding = !!act(p, 'guard'), blinking = !!act(p, 'blink');
   const targetFov = 2 * Math.atan(Math.tan(hipFov() / 2 * D2R) * zoomK) / D2R + (dashing ? 14 : 0) + (blinking ? 26 : 0) - (guarding ? 6 : 0) - (p.draw || 0) * 11;
+  const rl0 = act(p, 'roll');
+  if (rl0) { const k = Math.sin(Math.PI * (1 - rl0.t / rl0.sk.duration)); cam.position.y -= k * 0.85; cam.rotation.x -= k * 0.55; }
   // すり足：ステップした方向へ少し傾く
   view.stepRoll = damp(view.stepRoll || 0, 0, 6, rdt);
   if (act(p, 'step')) cam.rotation.z += (view.stepRoll || 0) * 0.06;
@@ -142,6 +158,15 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
   if (VM.pist.isSword) Sword.poseVM(p, rdt);   // 刀：振る動きは sword.ts が決める
   if (!VM.pist.anim) VM.pist.slide.position.z = VM.pist.slideZ + VM.slideT * VM.pist.slideAmt;
   // 盾（守りの構え）：下からせり上がる
+  const du = !!act(p, 'dual');
+  VM.leftMirror.visible = du && !p.dead;
+  if (du) {
+    VM.kickL = Math.max(0, (VM.kickL || 0) - rdt * 9);
+    VM.leftRoot.position.set(r.position.x, r.position.y, r.position.z + (VM.kickL - VM.kick) * 0.07);
+    VM.leftRoot.rotation.set(r.rotation.x + (VM.kickL - VM.kick) * 0.22, r.rotation.y, r.rotation.z);
+  }
+  VM.low = damp(VM.low || 0, act(p, 'medkit') || act(p, 'roll') ? 1 : 0, 10, rdt);
+  if (VM.low > 0.01) { r.position.y -= VM.low * 0.22; r.rotation.x -= VM.low * 0.6; }
   VM.shield.visible = VM.guard > 0.02;
   VM.shield.position.set(-0.04 + VM.sway.x, lerp(-0.75, -0.3, VM.guard) + bobY * 0.5, -0.56);
   VM.shield.rotation.set(-0.12, 0.1, 0);

@@ -39,6 +39,19 @@ export function buildM79(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('frame', S.box(437, 447, 168, 173, 24), barrel);
   B.add('detail', S.box(705, 712, 122, 134, 4), barrel);
 
+  // 細部：蝶番の軸・機関部のねじ・上の安全の滑り子・照門のはしごの段と覗き穴・先台のねじ・床尾のゴムのねじ・負い紐の金具
+  //   スキンの飾り（機関部の横の弁や氷の核 346〜350,86・ストックの霜・先台の霜 480,69）の場所はよける
+  const screw = (u: number, v: number, x: number, r = 3) => S.put(new THREE.CylinderGeometry(r, r, 1.4, 8).rotateZ(Math.PI / 2), u, v, x);
+  for (const s of [1, -1]) {
+    B.add('frame', S.put(new THREE.CylinderGeometry(6, 6, 2, 10).rotateZ(Math.PI / 2), 392, 72, s * 18.6));
+    for (const [u, v] of [[312, 98], [318, 72]]) B.add('detail', screw(u, v, s * 18.3));
+    B.add('detail', screw(520, 69, s * 17.3), barrel);
+  }
+  B.add('detail', S.box(330, 348, 106, 109, 10));                          // 安全の滑り子
+  for (const v of [136, 146, 156]) B.add('frame', S.box(441, 443, v, v + 1.6, 20), barrel);   // はしごの段
+  B.add('frame', S.extrude([[436, 160], [448, 160], [448, 166], [436, 166]], 22, { bevel: 0.6, holes: [[[440, 161.5], [444, 161.5], [444, 164.5], [440, 164.5]]] }), barrel);   // 覗き穴の滑り子
+  for (const v of [40, 80]) B.add('detail', S.put(new THREE.CylinderGeometry(3, 3, 1.4, 8).rotateX(Math.PI / 2), -14.6, v));   // 床尾のゴムのねじ
+  B.add('frame', S.put(new THREE.TorusGeometry(4.5, 1.4, 5, 10), 150, 37, 0, [0, Math.PI / 2, 0]));     // 負い紐の金具
   // 手・左手の40mm弾
   if (opt.hand) {
     const rh = handMesh(opt.hand); rh.position.copy(S.at(282, 66, 48)); B.root.add(rh);
