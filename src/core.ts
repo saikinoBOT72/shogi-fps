@@ -23,7 +23,7 @@ export const PIECES = {
   L: { name: '香', value: 3, hp: 95,  size: 0.85, speed: 6.8, jump: 7,   weapon: 'sniper',   skills: ['xray', 'boxes'], strafe: 0.7 },
   N: { name: '桂', value: 4, hp: 100, size: 0.85, speed: 7,   jump: 9,   weapon: 'bow',      skills: ['homing', 'volley'] },
   S: { name: '銀', value: 5, hp: 110, size: 0.85, speed: 7,   jump: 7.5, weapon: 'burst',    skills: ['emp', 'missile'] },
-  G: { name: '金', value: 6, hp: 120, size: 0.9,  speed: 6.5, jump: 7,   weapon: 'shotgun',  skills: ['physical', 'guard'] },
+  G: { name: '金', value: 6, hp: 140, size: 0.9,  speed: 7, jump: 7,   weapon: 'shotgun',  skills: ['physical', 'guard'] },
   B: { name: '角', value: 8, hp: 125, size: 0.95, speed: 6.3, jump: 7,   weapon: 'launcher', skills: ['smoke', 'bigshot'] },
   R: { name: '飛', value: 10, hp: 130, size: 0.95, speed: 6.5, jump: 7,  weapon: 'smg',      skills: ['grapple', 'flash'] },
   // 王は取られたら負けの駒。価値は ∞（99 以上は ∞ と表示）
@@ -143,8 +143,8 @@ export const WEAPONS = {
   },
   // 近いほど強い。8粒 × 8 ダメージ
   shotgun: {
-    name: 'M870', model: 'm870', dmg: 9, pellets: 8, head: 1.3, rate: 0.7, spread: 0.055, bloomShot: 0.01, bloomMax: 0.02, bloomRecover: 0.1,
-    move: 0.01, air: 0.025, ads: 0.7, mag: 6, reload: 2.2, auto: false, recoil: 0.06, falloff: [7, 20, 0.25], pref: 6,
+    name: 'M870', model: 'm870', dmg: 9, pellets: 10, head: 1.3, rate: 0.7, spread: 0.045, bloomShot: 0.01, bloomMax: 0.02, bloomRecover: 0.1,
+    move: 0.01, air: 0.025, ads: 0.7, mag: 6, reload: 2.2, auto: false, recoil: 0.06, falloff: [12, 30, 0.4], pref: 6,
   },
 };
 export const SKILLS = {
