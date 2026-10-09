@@ -59,7 +59,7 @@ export const WEAPONS = {
   // model: 見た目 / pellets: 1回に出る弾の数
   // 歩：Glock（軽く速く撃てる） / と：デザートイーグル（1発が重く連射は遅い）
   glock: {
-    name: 'Glock 17', model: 'glock', dmg: 18, head: 1.6, rate: 0.15, spread: 0.013, bloomShot: 0.01, bloomMax: 0.04, bloomRecover: 0.13,
+    name: 'Glock 17', model: 'glock', dmg: 15, head: 1.6, rate: 0.21, spread: 0.013, bloomShot: 0.01, bloomMax: 0.04, bloomRecover: 0.13,
     move: 0.03, air: 0.09, ads: 0.35, mag: 17, reload: 1.5, auto: false, recoil: 0.016, falloff: [16, 38, 0.65], pref: 12,
   },
   pistol: {
@@ -68,16 +68,16 @@ export const WEAPONS = {
   },
   // ---------- 成駒の武器（元の武器と強さは同じくらい、性格が違う） ----------
   awm: {
-    name: 'AWM', model: 'awm', dmg: 95, head: 1.8, rate: 1.5, adsSpeed: 9, spread: 0.09, hip: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    name: 'AWM', model: 'awm', dmg: 85, head: 1.8, rate: 1.5, adsSpeed: 9, spread: 0.09, hip: 0.05, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.07, air: 0.16, ads: 0.015, zoom: 26, scopeSize: 0.9, scopeSway: 1.1, crossInf: 0, reticle: 'cross', mag: 5, reload: 2.8, auto: false, recoil: 0.09, falloff: [999, 1000, 1], pref: 30,
   },
   xbow: {
-    name: 'クロスボウ', model: 'xbow', kind: 'xbow', dmg: 54, dmgMin: 54, head: 1.6, speedMin: 82, speedMax: 82, gravity: 7, drag: 0.01, rate: 0.25, spread: 0.004, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    name: 'クロスボウ', model: 'xbow', kind: 'xbow', dmg: 45, dmgMin: 45, head: 1.6, speedMin: 82, speedMax: 82, gravity: 7, drag: 0.01, rate: 0.25, spread: 0.004, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.02, air: 0.05, ads: 0.5, mag: 1, reload: 0.85, auto: false, recoil: 0.03, falloff: [999, 1000, 1], pref: 18,
   },
   // 3点バースト。1回押すと3発、次のバーストまで間が空く。跳ね上がりが強く扱いにくい
   famas: {
-    name: 'FAMAS', model: 'famas', dmg: 15, head: 1.5, rate: 0.38, burst: 3, burstGap: 0.065, spread: 0.017, bloomShot: 0.013, bloomMax: 0.05, bloomRecover: 0.11,
+    name: 'FAMAS', model: 'famas', dmg: 21, head: 1.5, rate: 0.38, burst: 3, burstGap: 0.065, spread: 0.017, bloomShot: 0.013, bloomMax: 0.05, bloomRecover: 0.11,
     move: 0.035, air: 0.09, ads: 0.45, mag: 24, reload: 2.1, auto: false, recoil: 0.03, falloff: [18, 38, 0.65], pref: 14,
   },
   mgl: {
@@ -86,7 +86,7 @@ export const WEAPONS = {
   },
   vector: {
     name: 'KRISS Vector', model: 'vector', dmg: 8.5, head: 1.4, rate: 0.05, spread: 0.026, bloomShot: 0.005, bloomMax: 0.06, bloomRecover: 0.16,
-    move: 0.03, air: 0.1, ads: 0.5, mag: 30, reload: 1.8, auto: true, recoil: 0.006, falloff: [6, 18, 0.45], pref: 8,
+    move: 0.03, air: 0.1, ads: 0.5, mag: 30, reload: 1.8, auto: true, recoil: 0.006, falloff: [9, 24, 0.5], pref: 8,
   },
   m4: {
     name: 'M4A1', model: 'm4', dmg: 13, head: 1.5, rate: 0.09, spread: 0.012, bloomShot: 0.004, bloomMax: 0.028, bloomRecover: 0.15,

@@ -337,7 +337,12 @@ export function fitViewModel(m) {
   const gd = 0.2, L = dW.length();
   m.ads = new V3(0.015, -F.adsBelow * th * (gd + L) - 0.012 - (m.adsDrop || 0), -gd);
   // スコープの無い銃は、真ん中まで持ってこず、少しだけ寄せる（覗いている気持ち程度。照準で狙う）
-  if (!m.scope) { const k = F.adsPull; m.ads = G.clone().lerp(m.ads, k); m.adsRot = [m.adsRot[0] * k, m.adsRot[1] * k]; }
+  //   向きは寄せる量に関係なく、銃身（模型の -z）を視線と平行に＝画面の真ん中（消失点）へ向ける
+  if (!m.scope) {
+    const k = F.adsPull; m.ads = G.clone().lerp(m.ads, k);
+    const ax = new V3(0, 0, -1).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(m.g.rotation));
+    m.adsRot = [-Math.atan2(ax.y, Math.hypot(ax.x, ax.z)), -Math.atan2(-ax.x, -ax.z)];
+  }
   // スコープのある銃：筒をまっすぐ前へ向け、接眼レンズの真ん中を画面の中心に置く（目からの距離は camera.ts がスコープの大きさから決める）
   if (m.scope) {
     const R = new THREE.Matrix4().makeRotationFromEuler(m.g.rotation), s = m.g.scale.x;
