@@ -1,5 +1,6 @@
 // 矢（弓の弾）：重力で落ちる飛び道具。刺さった矢はしばらく残る。追尾の矢は相手を追いかける
 //   kind：'arrow' 矢（ふつう）/ 'shuriken' 忍の手裏剣（回りながら飛ぶ。光の輪と白い尾。壁には刃の1本を斜めに立てて刺さる）
+//         'kunai' 忍の苦無（まっすぐ飛び、朱の尾を引く。刺さると房が下へ垂れる）
 import { Net } from './net';
 import { Gadgets } from './gadgets';
 import { P } from './palette';
@@ -14,6 +15,7 @@ import { damagePlayer } from './ai';
 import { applyPoison } from './promo';
 import { skinMaterials } from './guns/skins';
 import { starMeshGeo } from './guns/shuriken';
+import { KUNAI_LEN, KUNAI_SCALE, hangTassel, makeKunai } from './guns/kunai';
 
 export const Arrows = (() => {
   const shaftGeo = new THREE.CylinderGeometry(0.016, 0.016, 1, 5); shaftGeo.rotateX(Math.PI / 2);
@@ -24,7 +26,8 @@ export const Arrows = (() => {
   const glowM = toon({ color: C(P.kiji[0]), emissive: C(P.mizu[1]), emissiveIntensity: 1.2 });
   const TIP = 0.56;   // 矢の中心から先端まで
   const STAR = 2.1, STAR_TIP = 0.062 * STAR;   // 飛ぶ手裏剣は見やすいよう本物の 2.1 倍・中心から刃先まで
-  const KINDS = ['arrow', 'shuriken'];
+  const KINDS = ['arrow', 'shuriken', 'kunai'];
+  const KUNAI_TIP = KUNAI_LEN.tip * KUNAI_SCALE / 1000, DOWN = new V3(0, -1, 0);
   // 手裏剣の回る残光：刃先のまわりの細い光の輪
   const ringGeo = new THREE.RingGeometry(STAR_TIP * 0.86, STAR_TIP * 1.04, 28); ringGeo.rotateX(-Math.PI / 2);
   const ringM = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
@@ -37,8 +40,14 @@ export const Arrows = (() => {
     g.userData.spin = spin; g.userData.ring = ring; g.userData.kind = 'shuriken';
     return g;
   }
-  const makeOf = (kind, homing) => (kind === 'shuriken' ? makeStar() : makeArrow(homing));
-  const tipOf = a => (a.kind === 'shuriken' ? STAR_TIP : TIP);
+  const makeOf = (kind, homing) => (kind === 'shuriken' ? makeStar() : kind === 'kunai' ? makeKunai() : makeArrow(homing));
+  const tipOf = a => (a.kind === 'shuriken' ? STAR_TIP : a.kind === 'kunai' ? KUNAI_TIP : TIP);
+  // 刺さった苦無：刃先を少し埋めて、房を下へ垂らす
+  function plantKunai(a, point, dir) {
+    a.mesh.position.copy(point).addScaledVector(dir, 0.05 - KUNAI_TIP);
+    a.mesh.lookAt(a.mesh.position.clone().add(dir));
+    hangTassel(a.mesh, DOWN, 1);
+  }
   // 刺さった手裏剣：回るのをやめ、刃の1本を前（刺さる向き）へ向けて斜めに立てる
   function plant(a, point, dir) {
     const u = a.mesh.userData;
@@ -91,6 +100,7 @@ export const Arrows = (() => {
       SFX.play('ding');   // 当たった「ピン」
       // 駒に刺さったまま残る
       if (a.kind === 'shuriken') plant(a, point, dir);
+      else if (a.kind === 'kunai') plantKunai(a, point, dir);
       else a.mesh.position.copy(point).addScaledVector(dir, 0.25 - TIP);
       botActor.body.attach(a.mesh); keepStuck(a.mesh);
     } else {
@@ -104,6 +114,7 @@ export const Arrows = (() => {
     const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : dir.clone().negate();
     Particles.impact(wall.point, n);
     if (a.kind === 'shuriken') { plant(a, wall.point, dir); for (let k = 0; k < 6; k++) Particles.glow(wall.point, P.kin[2]); }   // 鋼が当たった火花
+    if (a.kind === 'kunai') { plantKunai(a, wall.point, dir); for (let k = 0; k < 4; k++) Particles.glow(wall.point, P.kin[2]); }
     SFX.play('arrowHit', wall.point);
     // タレット歩：銃と同じくダメージを与える（壊れたあと宙に浮かないよう、矢は刺さらずに消える）
     const tur = Gadgets.turretOfHit(wall.object);
@@ -131,7 +142,8 @@ export const Arrows = (() => {
         a.vel.y -= a.gravity * dt;
         a.vel.multiplyScalar(Math.max(0, 1 - a.drag * dt));
         // 飛んだ弧が見えるように白い尾を残す
-        if (Math.random() < 0.85 && (a.kind !== 'shuriken' || a.pos.distanceTo(a.from) > 2.5)) Particles.trail(a.pos, a.full ? P.kin[2] : P.shiro[2]);
+        if (a.kind === 'kunai') { if (a.pos.distanceTo(a.from) > 1.2) Particles.trail(a.pos, P.shu[2]); }   // 苦無は朱の尾（手元では出さない）
+        else if (Math.random() < 0.85 && (a.kind !== 'shuriken' || a.pos.distanceTo(a.from) > 2.5)) Particles.trail(a.pos, a.full ? P.kin[2] : P.shiro[2]);
       }
       if (a.kind === 'shuriken') a.mesh.userData.spin.rotation.y -= 42 * dt;   // 高速で回る
 
@@ -181,6 +193,6 @@ export const Arrows = (() => {
   function setLiveVisible(v) { live.forEach(a => { a.mesh.visible = v; }); }
 
   // 読み込み時の事前準備用（初めて撃ったときに固まらないように）
-  const samples = () => [makeArrow(false), makeArrow(true), makeStar()];
+  const samples = () => [makeArrow(false), makeArrow(true), makeStar(), makeKunai()];
   return { fire, update, clear, snapshot, showGhosts, setLiveVisible, samples, last: () => live[live.length - 1] };
 })();

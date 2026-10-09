@@ -238,6 +238,10 @@ export const SFX = (() => {
     // 突きの溜め（キーン）・抜刀（鞘走りと鍔鳴り）・納刀（チン）
     charge(pos) { const d = out(pos, 0.3); T(d, { f0: 2600, f1: 4200, dur: 0.3, g: 0.05, atk: 0.12 }); metal(d, 0.22, 3100, 0.5, 0.04); },
     draw() { const d = out(null, 0.35); scrape(d, 0, 0.3, 3200, 0.1); metal(d, 0.28, 2400, 0.9, 0.06); tick(d, 0.28, 2900, 0.35, 0.08); },
+    // 忍の苦無（仮の音）：1本出る（n 本目ほど高い「シャッ」）・8本そろった「チン」・飛ばす「ヒュッ」
+    kunaiTick(pos, n = 0) { const d = out(pos, 0.1); scrape(d, 0, 0.07, 2200 + n * 260, 0.06); tick(d, 0.03, 2600 + n * 320, 0.22, 0.05); },
+    kunaiFull(pos) { const d = out(pos, 0.5); tick(d, 0, 3600, 0.5, 0.08); metal(d, 0, 3000, 1.1, 0.06); },
+    kunaiFire(pos) { const d = out(pos, 0.05); N(d, { dur: 0.12, type: 'bandpass', f0: 1400, f1: 4200, q: 2, g: pos ? 0.35 : 0.18, atk: 0.02 }); },
     chin() { const d = out(null, 0.6); scrape(d, 0, 0.22, 2600, 0.08); tick(d, 0.24, 3400, 0.6, 0.1); metal(d, 0.24, 2700, 1.4, 0.07); },
     // ナイフを振る
     knife(pos) { N(out(pos, 0.05), { dur: 0.22, type: 'bandpass', f0: 500, f1: 3200, q: 2.2, g: 0.6, atk: 0.06 }); },

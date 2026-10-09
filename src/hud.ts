@@ -179,7 +179,8 @@ export function updateHUD(dt) {
   hud.dash = act(p, 'dash') ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
 
   if (p.w.kind === 'melee' || p.w.kind === 'sword' || p.w.kind === 'ninja') {
-    setHTML('ammoNum', '—');
+    const kn = p.w.kind === 'ninja' && p.nj ? p.nj.list.length + p.nj.firing.length : 0;   // 忍：並べている苦無の本数
+    setHTML('ammoNum', kn ? `${kn}<small>/8</small>` : '—');
     setStyle($('reloadTxt'), 'opacity', '0');
   } else if (p.w.kind === 'bow') {
     // 弓は弾数なし。引き具合を表示

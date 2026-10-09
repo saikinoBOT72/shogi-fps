@@ -384,8 +384,18 @@ export function updateBot(dt) {
         b.fireDelay = Math.max(rand(D.gap[0], D.gap[1]), b.w.dmg / D.dps - b.w.reload);
       }
     } else if (b.w.kind === 'ninja') {
+      // 苦無（忍）：ときどき長押しで並べ（0.8〜1.4 秒）、離して一気に飛ばす。見失ったら少し待ってから離す
+      if (b.njHoldT > 0) {
+        b.njHoldT -= dt;
+        if (!los) b.njLostT = (b.njLostT || 0) + dt; else b.njLostT = 0;
+        const go = b.njHoldT <= 0 && (los || b.njLostT > 2);
+        Ninja.aiHold(b, !go);
+        if (go) b.njHoldT = 0;
+      } else if (los && b.seen > D.react && !holdFire() && !b.coverPt && !busy && dist > 5 && dist < 35 && !Ninja.busy(b) && Math.random() < dt * 0.5) {   // 見えている間、平均 2 秒に 1 回くらい
+        b.njHoldT = rand(0.8, 1.4); b.njLostT = 0; Ninja.aiHold(b, true);
+      }
       // 手裏剣（忍）：相手の動きと落ちを見越して投げる
-      if (los && b.seen > D.react && b.cd <= 0 && !holdFire() && b.fireDelay <= 0 && !b.coverPt && !busy) {
+      if (!(b.njHoldT > 0) && !Ninja.busy(b) && los && b.seen > D.react && b.cd <= 0 && !holdFire() && b.fireDelay <= 0 && !b.coverPt && !busy) {
         const tgt = b.aimPt.clone(), speed = b.w.speed;
         let t = bEye.distanceTo(tgt) / speed;
         const lead = player.vel.clone().multiplyScalar(D.lead);

@@ -13,6 +13,7 @@ import { FULL_NAME, overlay, pieceInfoHTML, showTitle, startMatch } from './scre
 import { showHero } from './hero';
 import { bot, botActor, eyeOf, player, resetMatch, useSkill, view } from './game';
 import { Arrows } from './arrows';
+import { Ninja } from './ninja';
 import { Grenades } from './grenades';
 import { Particles, Tracers } from './effects';
 import { Gadgets } from './gadgets';
@@ -161,8 +162,9 @@ Net.onMsg = (m: any) => {
     case 'arrow':
       if (!inMatch()) break;
       Arrows.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, head: m.hd, gravity: m.g, drag: m.dr || 0, homing: !!m.hm, turn: m.tu || 0, full: !!m.fu,
-        kind: m.k === 'shuriken' ? 'shuriken' : 'arrow', roll: +m.ro || 0, tilt: +m.ti || 0 });   // k：忍の手裏剣
-      SFX.play(m.k === 'shuriken' ? 'swing' : 'bow', V(m.p)); heardFoe(V(m.p), 'shot');
+        kind: m.k === 'shuriken' || m.k === 'kunai' ? m.k : 'arrow', roll: +m.ro || 0, tilt: +m.ti || 0 });   // k：忍の手裏剣
+      SFX.play(m.k === 'shuriken' ? 'swing' : m.k === 'kunai' ? 'kunaiFire' : 'bow', V(m.p)); heardFoe(V(m.p), 'shot');
+      if (m.k === 'kunai') Ninja.remoteFired(bot);   // 並べていた苦無が1本飛んだ
       break;
     case 'gren':
       if (!inMatch()) break;
@@ -211,7 +213,7 @@ export const Online = {
     const p = player, M = Gadgets.ctrlOf(p);
     Net.send({
       t: 's', p: vec(p.pos), v: [r2(p.vel.x), r2(p.vy), r2(p.vel.z)], yw: Math.round(view.yaw * 1000) / 1000, pt: Math.round(view.pitch * 1000) / 1000,
-      hp: r2(p.hp), k: p.w.kind === 'melee' ? 1 : 0, st: p.slots.map(s => r2(s.t)), g: p.onGround ? 1 : 0, dr: r2(p.draw || 0), gd: p.swGuard ? 1 : 0,
+      hp: r2(p.hp), k: p.w.kind === 'melee' ? 1 : 0, st: p.slots.map(s => r2(s.t)), g: p.onGround ? 1 : 0, dr: r2(p.draw || 0), gd: p.swGuard ? 1 : 0, kn: Ninja.count(p),
       ms: M ? [...vec(M.pos), ...vec(M.dir)] : 0,
     });
   },
@@ -226,7 +228,7 @@ export const Online = {
     b.aimPt = eyeOf(b).addScaledVector(dir, 20);
     b.hp = s.hp;
     s.st.forEach((t, i) => { if (b.slots[i]) b.slots[i].t = t; });
-    b.draw = s.dr; b.swGuard = !!s.gd;   // 刀の守りの構え
+    b.draw = s.dr; b.swGuard = !!s.gd; b.njShow = s.kn || 0;   // 忍：並べている苦無の数   // 刀の守りの構え
     const knife = !!s.k;
     if (knife !== (b.w.kind === 'melee')) b.w = knife ? WEAPONS.knife : b.mainW;
     b.netMis = s.ms ? { p: new V3(s.ms[0], s.ms[1], s.ms[2]), d: new V3(s.ms[3], s.ms[4], s.ms[5]) } : null;
