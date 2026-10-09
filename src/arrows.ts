@@ -23,7 +23,7 @@ export const Arrows = (() => {
   const featherM = toon({ color: C(P.shu[1]), side: THREE.DoubleSide, roughness: 0.9 });
   const glowM = toon({ color: C(P.kiji[0]), emissive: C(P.mizu[1]), emissiveIntensity: 1.2 });
   const TIP = 0.56;   // 矢の中心から先端まで
-  const STAR = 1.8, STAR_TIP = 0.05 * STAR;   // 飛ぶ手裏剣は見やすいよう本物の 1.8 倍・中心から刃先まで
+  const STAR = 2.1, STAR_TIP = 0.062 * STAR;   // 飛ぶ手裏剣は見やすいよう本物の 2.1 倍・中心から刃先まで
   const KINDS = ['arrow', 'shuriken'];
   // 手裏剣の回る残光：刃先のまわりの細い光の輪
   const ringGeo = new THREE.RingGeometry(STAR_TIP * 0.86, STAR_TIP * 1.04, 28); ringGeo.rotateX(-Math.PI / 2);
