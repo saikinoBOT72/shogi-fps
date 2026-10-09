@@ -103,7 +103,7 @@ export function buildVector(opt: { skin?: string; hand?: THREE.Material } = {}) 
     const du = b[0] - a[0], dv = b[1] - a[1], l = Math.hypot(du, dv), nu = -dv / l * w / 2, nv = du / l * w / 2;
     return [[a[0] - nu, a[1] - nv], [b[0] - nu, b[1] - nv], [b[0] + nu, b[1] + nv], [a[0] + nu, a[1] + nv]];
   };
-  // R 装備品：左の短いレールのライト（c2 の帯・白く光るレンズ）・ストックの下の負い紐の輪と留め金・縦グリップのテープ
+  // SR 装備品：左の短いレールのライト（c2 の帯・白く光るレンズ）・ストックの下の負い紐の輪と留め金・縦グリップのテープ
   addons.push({ name: 'vc_light', slot: 'lightBody', geo: S.box(498, 538, 223, 237, 8, -29) });
   addons.push({ name: 'vc_light', slot: 'lightBody', geo: S.rod(470, 548, 230, 12, 10, -45) });
   addons.push({ name: 'vc_light', slot: 'lightBody', geo: S.rod(546, 566, 230, 15, 10, -45) });
@@ -112,7 +112,7 @@ export function buildVector(opt: { skin?: string; hand?: THREE.Material } = {}) 
   addons.push({ name: 'vc_sling', slot: 'strap', geo: S.extrude([[20, 101], [52, 101], [58, 70], [46, 44], [26, 44], [14, 70]], 14, { bevel: 1, holes: [[[24, 96], [48, 96], [52, 72], [43, 52], [29, 52], [20, 72]]] }) });
   addons.push({ name: 'vc_sling', slot: 'buckle', geo: S.box(47, 61, 64, 80, 18) });
   for (const v of [124, 148]) addons.push({ name: 'vc_wrap', slot: 'strap', geo: S.put(new THREE.CylinderGeometry(15.9, 15.9, 12, 10), 532, v) });
-  // SR 電脳：サプレッサーの光る輪・下の機関部のへこみを走る光る回路・上の段の光る線・ハンドガードの斜めの光る通気口
+  // R 電脳：サプレッサーの光る輪・下の機関部のへこみを走る光る回路・上の段の光る線・ハンドガードの斜めの光る通気口
   for (const u of [640, 690, 740, 790, 840]) addons.push({ name: 'vc_rings', slot: 'line', geo: S.rod(u, u + 4, BV, 20.3, 12) });
   for (const x of [-1, 1]) {
     const tr = (pts: [number, number][]) => { for (let i = 1; i < pts.length; i++) addons.push({ name: 'vc_trace', slot: 'line', geo: S.extrude(strip(pts[i - 1], pts[i], 2.5), 0.6, { bevel: 0, x: x * 15.9 }) }); };

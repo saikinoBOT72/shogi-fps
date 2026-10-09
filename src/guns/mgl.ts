@@ -80,7 +80,7 @@ export function buildMGL(opt: { skin?: string; hand?: THREE.Material } = {}) {
 
   // ---------- スキンの付け足し ----------
   const addons: Addon[] = [];
-  // R 弾帯：ストックの右に予備の2発（帯で留める）・前の輪から下がる荷札・銃身に巻いたテープ
+  // SR 弾帯：ストックの右に予備の2発（帯で留める）・前の輪から下がる荷札・銃身に巻いたテープ
   addons.push({ name: 'mg_belt', slot: 'strap', geo: S.box(22, 140, 150, 194, 3, 21) });
   for (const u0 of [26, 84]) {
     addons.push({ name: 'mg_belt', slot: 'case', geo: S.rod(u0, u0 + 36, 172, 18, 12, 41) });
@@ -91,7 +91,7 @@ export function buildMGL(opt: { skin?: string; hand?: THREE.Material } = {}) {
   addons.push({ name: 'mg_tag', slot: 'tag', geo: S.extrude([[666, 70], [696, 70], [696, 100], [688, 108], [674, 108], [666, 100]], 1.2, { bevel: 0 }), part: crane });
   addons.push({ name: 'mg_tag', slot: 'ink', geo: S.ring(682, 101, 3.2, 1.8, 1.8, 8), part: crane });
   for (const u of [700, 732]) addons.push({ name: 'mg_tape', slot: 'strap', geo: S.rod(u, u + 16, BV, 27, 12), part: crane });
-  // SR 六連星：シリンダーの膨らみの谷を走る光る線と、薬室の口の光る輪（一緒に回る）・後ろの枠の横の六つの星・シリンダーを巡る2本の光の輪
+  // R 六連星：シリンダーの膨らみの谷を走る光る線と、薬室の口の光る輪（一緒に回る）・後ろの枠の横の六つの星・シリンダーを巡る2本の光の輪
   for (let i = 0; i < 6; i++) {
     const a = i * STEP + Math.PI / 2 + STEP / 2, b = i * STEP + Math.PI / 2;
     addons.push({ name: 'mg_flutes', slot: 'line', geo: S.put(new THREE.BoxGeometry(2.6, 2.6, CU1 - CU0 - 14), (CU0 + CU1) / 2, CV + Math.sin(a) * 58.8, Math.cos(a) * 58.8, [0, 0, a]), part: cylinder });
