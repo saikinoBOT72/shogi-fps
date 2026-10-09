@@ -11,7 +11,7 @@ export type GunDef = {
   muzzle: THREE.Object3D; eject: THREE.Object3D;
   skin: string;
   info: { name: string; real: string; reload?: number };
-  vm: { scale: number; yaw?: number; hip: THREE.Vector3; ads: THREE.Vector3; size?: number };
+  vm: { scale: number; yaw?: number; hip: THREE.Vector3; ads: THREE.Vector3; size?: number; adsDrop?: number };   // adsDrop：覗き込みでさらに下げる量（m。ブルパップの床尾が目の前をふさがないように）
   events?: Record<string, (anim: GunAnimator) => void>;   // 動きの中の出来事（銃の中で処理するもの）
   // スキンの付け足し（name がスキンの addons にあるときだけ見える）。slot の塗装を使う。part に付けると一緒に動く
   addons?: Addon[];
@@ -37,7 +37,7 @@ export function makeGun(d: GunDef) {
   const model: any = {
     g: B.root, parts: B.parts, slots: B.slots, muzzle: d.muzzle, eject: d.eject, anim, info: d.info,
     slide: B.parts.carrier || B.parts.lever || new THREE.Object3D(), slideZ: 0, slideAmt: 0,
-    vmScale: d.vm.scale, vmYaw: d.vm.yaw || 0, hip: d.vm.hip, ads: d.vm.ads, vmSize: d.vm.size || 1,
+    vmScale: d.vm.scale, vmYaw: d.vm.yaw || 0, hip: d.vm.hip, ads: d.vm.ads, vmSize: d.vm.size || 1, adsDrop: d.vm.adsDrop || 0,
     scope: d.scope,
     get skin() { return skin; }, setSkin,
     onEvent: null,

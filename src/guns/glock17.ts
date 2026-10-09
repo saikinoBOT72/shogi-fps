@@ -109,7 +109,7 @@ export function buildGlock17(opt: { skin?: string; hand?: THREE.Material } = {})
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
     info: { name: 'Glock 17', real: '全長 202mm・高さ 139mm・銃身 114mm', reload: 1.5 },
-    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.75 },
+    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.62 },
     events: { release: anim => { if (anim.has('fireLast')) { anim.stop('fireLast'); anim.play('release'); } } },
   });
 }

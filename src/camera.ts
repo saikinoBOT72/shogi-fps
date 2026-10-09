@@ -166,7 +166,7 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
     VM.leftRoot.rotation.set(r.rotation.x + (VM.kickL - VM.kick) * 0.22, r.rotation.y, r.rotation.z);
   }
   VM.low = damp(VM.low || 0, act(p, 'medkit') || act(p, 'roll') ? 1 : 0, 10, rdt);
-  if (VM.low > 0.01) { r.position.y -= VM.low * 0.22; r.rotation.x -= VM.low * 0.6; }
+  if (VM.low > 0.01) { r.position.y -= VM.low * 0.12; r.rotation.x -= VM.low * 0.35; }
   VM.shield.visible = VM.guard > 0.02;
   VM.shield.position.set(-0.04 + VM.sway.x, lerp(-0.75, -0.3, VM.guard) + bobY * 0.5, -0.56);
   VM.shield.rotation.set(-0.12, 0.1, 0);
