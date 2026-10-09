@@ -102,6 +102,7 @@ export function loop(now) {
   if (gs.state === 'killcam') {
     Replay.update(rdt);
     render(true);   // 決めた側の銃も描く
+    Replay.renderPip();   // 左下：やられた側の視点
     return;
   }
 

@@ -71,12 +71,14 @@ export function paintActors() {
   if (!playerActor || !botActor) return;
   const pm = WEAPONS[PIECES[playerActor.type].weapon].model;
   paintGun(playerActor.gun, equippedRef(pm));
+  if (playerActor.gun2) paintGun(playerActor.gun2, equippedRef('pistol'));   // と：2丁目のデザートイーグル
   paintFoe(false);
 }
 export function paintFoe(full: boolean) {
   if (!botActor) return;
   const bm = WEAPONS[PIECES[botActor.type].weapon].model, r = foeRef(bm);
   paintGun(botActor.gun, r, !full);
+  if (botActor.gun2) paintGun(botActor.gun2, foeRef('pistol'), !full);
   if (r && !full) skinMaterials(skinKey(r));   // リプレイで使う材質も先に作っておく（リプレイの始まりで止まらないように）
 }
 // ランダムで出る駒：ふつうの駒と成駒（特殊駒は出ない）

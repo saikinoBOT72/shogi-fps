@@ -4,13 +4,14 @@ import { Gadgets } from './gadgets';
 import { gs } from './state';
 import { $, V3, damp } from './core';
 import { SFX } from './audio';
-import { cam, sky } from './render';
+import * as THREE from 'three';
+import { buildGun, cam, renderer, scene, sky } from './render';
 import { PHYS } from './physics';
-import { DmgNums, Particles, Tracers, VM, vmFlashLight } from './effects';
+import { DmgNums, HIP, Particles, Tracers, VM, fitViewModel, vmFlashLight } from './effects';
 import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
 import { bot, botActor, foeRef, paintFoe, player, playerActor, view } from './game';
-import { paintGun } from './loadout';
+import { equippedRef, paintGun } from './loadout';
 import { Net } from './net';
 import { Sword } from './sword';
 import { animateActor, drawScope, hipFov, poseViewModel } from './camera';
@@ -40,8 +41,24 @@ export const Replay = (() => {
     <div class="kc-xh"></div><div class="kc-hm" id="kcHm"><i></i><i></i><i></i><i></i></div>
     <div class="kc-top"><b id="kcTitle"></b><span id="kcWho"></span></div>
     <div class="kc-bars"><div class="kc-bar"><span id="kcName0"></span><i><b id="kcHp0"></b></i></div><div class="kc-bar foe"><span id="kcName1"></span><i><b id="kcHp1"></b></i></div></div>
-    <div class="kc-skip" id="kcSkip">クリックでスキップ</div>`;
+    <div class="kc-skip" id="kcSkip">クリックでスキップ</div><div class="kc-pip" id="kcPip"><span>やられた側</span></div>`;
   document.body.appendChild(ui);
+
+  // ================= 小さい画面：やられた側の視点（左下・画面の約 1/8） =================
+  // リプレイの間だけ、記録からもう1回描く（試合中は何も増えない）。銃は専用の小さな場面に1丁だけ作る
+  const pip = { cam: new THREE.PerspectiveCamera(60, 1, 0.1, 2000), vmCam: new THREE.PerspectiveCamera(58, 1, 0.004, 10), scene: new THREE.Scene(), root: new THREE.Group(), m: null as any, kick: 0, look: new V3(), bob: 0 };
+  pip.scene.add(new THREE.HemisphereLight(0xcfe0ff, 0xb08a5a, 0.8 * Math.PI));
+  { const s = new THREE.DirectionalLight(0xffffff, 1.6 * Math.PI); s.position.set(0.6, 1, 0.5); pip.scene.add(s); }
+  pip.scene.add(pip.root);
+  function pipSetup(win) {
+    if (pip.m) pip.root.remove(pip.m.g);
+    const vic = win ? bot : player, model = vic.w.model;
+    const m = buildGun(model);
+    if (model === 'bow') m.g.scale.setScalar(0.44); else fitViewModel(m);
+    paintGun(m, win ? foeRef(model) : equippedRef(model));
+    pip.root.add(m.g); pip.m = m; pip.kick = 0; pip.bob = 0;
+    pip.look.copy(win ? frames[play.i].b.aim : frames[play.i].p.pos);
+  }
 
   // foeSkipped：オンラインで勝った相手がもうスキップした（こちらのリプレイが始まる前に届いたとき用）
   let foeSkipped = false;
@@ -99,7 +116,8 @@ export const Replay = (() => {
     gs.state = 'killcam'; gs.mouseDown = false; gs.rightDown = false;
     // 決めた側の銃を持つ。相手の視点なら、一人称の銃も相手のスキン（飾りまで）にする
     paintFoe(true);
-    if (!win) paintGun(VM.models[shooter.w.model], foeRef(shooter.w.model));
+    pipSetup(win);
+    if (!win) { paintGun(VM.models[shooter.w.model], foeRef(shooter.w.model)); paintGun(VM.left, foeRef('pistol')); }   // 2丁持ちの左の銃も相手のスキン
     VM.setWeapon(shooter.w.model);
     Object.assign(VM, { kick: 0, slideT: 0, flashT: 0, dip: 0, equip: 0, dash: 0, guard: 0 }); VM.sway.set(0, 0, 0);
     playerActor.root.visible = !win; botActor.root.visible = win;
@@ -125,7 +143,7 @@ export const Replay = (() => {
       const a = e.a.slice();
       if (!P.win) {
         if (MINE.has(a[0])) return;
-        if (!a[1] || !a[1].isVector3) a[1] = f.p.pos.clone().setY(f.p.pos.y + 1.2);   // あなたの出した音は、あなたの位置から
+        if (typeof a[1] !== 'string' && (!a[1] || !a[1].isVector3)) a[1] = f.p.pos.clone().setY(f.p.pos.y + 1.2);   // あなたの出した音は、あなたの位置から
       }
       orig.snd(...a); return;
     }
@@ -141,7 +159,7 @@ export const Replay = (() => {
     const shooter = P.win ? player : bot;
     if (f[povK].fired) VM.fire(shooter.w, f[povK].ammo <= 0);
     if (prev && f[povK].reloading > 0 && !(prev[povK].reloading > 0)) VM.reload(shooter.w.reload);
-    if (f[vicK].fired) vicFake.flashT = 0.05;
+    if (f[vicK].fired) { vicFake.flashT = 0.05; pip.kick = 1; }
     if (!prev) return;
     if (f[vicK].hp < prev[vicK].hp - 0.01) {
       vicA.wood.emissive.setRGB(0.6, 0.05, 0.02); vicA.flinch = (vicA.flinch || 0) + 0.3;
@@ -196,6 +214,17 @@ export const Replay = (() => {
       cam.fov = hipFov() * P.fovK;
     }
     cam.updateProjectionMatrix();
+    // 小さい画面用：決めた側の駒も記録どおりに動かす（大きい画面では見えていない方）
+    if (P.win) {
+      const fwd = new V3(-Math.sin(f.p.yaw), 0, -Math.cos(f.p.yaw));
+      animateActor(playerActor, P.fp, dt, P.fp.pos.clone().add(fwd));
+      if (P.fp.w.kind === 'sword') Sword.poseClone(playerActor, P.fp);
+    } else {
+      animateActor(botActor, P.fb, dt, null);
+      botActor.root.rotation.y = f.b.rotY;
+      if (P.fb.w.kind === 'sword') Sword.poseClone(botActor, P.fb);
+    }
+    pipPose(f, dt);
     sky.position.copy(cam.position);
     SFX.listener(cam);
     // 一人称の銃
@@ -220,6 +249,51 @@ export const Replay = (() => {
     if (P.time >= P.endT) finish();
   }
 
+  // やられた側の目と銃（記録から）
+  function pipPose(f, dt) {
+    const P = play, c = pip.cam;
+    if (P.win) {   // 相手の目：位置と狙っている所
+      const b = P.fb, spd = Math.hypot(b.vel.x, b.vel.z), mk = b.onGround ? Math.min(1, spd / bot.def.speed) : 0;
+      pip.bob += dt * spd * 1.35;
+      c.position.set(b.pos.x, b.pos.y + bot.eyeH + Math.sin(pip.bob * 2) * 0.035 * mk, b.pos.z);
+      pip.look.lerp(f.b.aim, 1 - Math.exp(-14 * dt));
+      c.lookAt(pip.look);
+    } else {       // あなたの目：記録したカメラそのまま
+      const q = f.cam;
+      c.position.set(q[0], q[1], q[2]); c.quaternion.set(q[3], q[4], q[5], q[6]);
+    }
+    c.aspect = pip.vmCam.aspect = innerWidth / innerHeight;
+    c.fov = hipFov(); c.updateProjectionMatrix(); pip.vmCam.updateProjectionMatrix();
+    // 銃：腰だめ（あなたなら覗き込みも）・撃つと跳ねる。倒れたら下げる
+    const m = pip.m, ads = !P.win && !m.scope && m.ads ? f.p.adsT || 0 : 0, dead = (P.win ? f.b : f.p).dead;
+    pip.kick = Math.max(0, pip.kick - dt * 9);
+    const base = (m.hip || HIP).clone(); if (ads && m.ads) base.lerp(m.ads, ads);
+    pip.root.position.set(base.x, base.y - (dead ? 0.4 : 0), base.z + pip.kick * 0.07);
+    const ar = m.adsRot || [0, 0];
+    pip.root.rotation.set(pip.kick * 0.22 + ar[0] * ads, ar[1] * ads, 0);
+  }
+  // 大きい画面を描いたあとに呼ぶ（main.ts）：左下の四角にだけ描く
+  function renderPip() {
+    const P = play;
+    if (!P || !pip.m) return;
+    const box = $('kcPip'), W = innerWidth, H = innerHeight, w = Math.round(W * 0.35), h = Math.round(H * 0.35);
+    // 下の体力バーと重なるときは、その上へ
+    const bars = ui.querySelector('.kc-bars').getBoundingClientRect();
+    const x = 16, y = x + w > bars.left - 8 ? H - bars.top + 10 : 16;
+    Object.assign(box.style, { display: 'block', left: x + 'px', bottom: y + 'px', width: w + 'px', height: h + 'px' });
+    box.classList.toggle('dead', !!(P.win ? frames[P.i].b.dead : frames[P.i].p.dead));
+    const vicA = P.win ? botActor : playerActor, shA = P.win ? playerActor : botActor;
+    vicA.root.visible = false; shA.root.visible = true;
+    const sk = sky.position.clone(); sky.position.copy(pip.cam.position);
+    renderer.setScissorTest(true); renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
+    renderer.clear();
+    renderer.render(scene, pip.cam);
+    renderer.clearDepth(); renderer.render(pip.scene, pip.vmCam);
+    renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H);
+    sky.position.copy(sk);
+    vicA.root.visible = true; shA.root.visible = false;
+  }
+
   function finish() {
     if (!play) return;
     const done = play.onDone;
@@ -234,7 +308,7 @@ export const Replay = (() => {
     botActor.root.visible = true;
     botActor.dead = bot.dead ? { a: Math.PI / 2, v: 0 } : null;
     botActor.body.rotation.set(bot.dead ? -Math.PI / 2 : 0, 0, 0);
-    ui.style.display = 'none';
+    ui.style.display = 'none'; $('kcPip').style.display = 'none';
     play = null;
     gs.state = 'end'; gs.mouseDown = false; gs.rightDown = false;
     done();
@@ -253,5 +327,5 @@ export const Replay = (() => {
   addEventListener('pointerdown', skip);
   addEventListener('keydown', skip);
 
-  return { clear, record, start, update, finish, foeSkip, get playing() { return !!play; } };
+  return { clear, record, start, update, renderPip, finish, foeSkip, get playing() { return !!play; } };
 })();
