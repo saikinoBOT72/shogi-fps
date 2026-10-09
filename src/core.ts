@@ -59,7 +59,7 @@ export const WEAPONS = {
   // model: 見た目 / pellets: 1回に出る弾の数
   // 歩：Glock（軽く速く撃てる） / と：デザートイーグル（1発が重く連射は遅い）
   glock: {
-    name: 'Glock 17', model: 'glock', dmg: 15, head: 1.6, rate: 0.21, spread: 0.013, bloomShot: 0.01, bloomMax: 0.04, bloomRecover: 0.13,
+    name: 'Glock 17', model: 'glock', dmg: 16, head: 1.6, rate: 0.21, spread: 0.013, bloomShot: 0.01, bloomMax: 0.04, bloomRecover: 0.13,
     move: 0.03, air: 0.09, ads: 0.35, mag: 17, reload: 1.5, auto: false, recoil: 0.016, falloff: [16, 38, 0.65], pref: 12,
   },
   pistol: {

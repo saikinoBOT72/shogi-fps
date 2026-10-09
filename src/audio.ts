@@ -9,11 +9,20 @@ export const SFX = (() => {
   function init() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
     ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const comp = ctx.createDynamicsCompressor();
     master = ctx.createGain(); master.gain.value = settings.vol;
     // 刀で斬ったときのスロー中は、全体の高い音を削ってこもらせる（muffle）
     mlp = ctx.createBiquadFilter(); mlp.type = 'lowpass'; mlp.frequency.value = 22000; mlp.Q.value = 0.7;
-    master.connect(mlp).connect(comp).connect(ctx.destination);
+    // 音割れ防止：ゆるく全体をまとめる → 速く強く頭を抑える → それでも越えた分は丸めて（tanh）割れた音にしない
+    const glue = ctx.createDynamicsCompressor();
+    glue.threshold.value = -18; glue.knee.value = 12; glue.ratio.value = 4; glue.attack.value = 0.005; glue.release.value = 0.2;
+    const lim = ctx.createDynamicsCompressor();
+    lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.08;
+    //   波形整形は入力が ±1 までなので、半分にしてから tanh(2x)（小さい音はそのまま・±2 までなめらかに丸める）
+    const half = ctx.createGain(); half.gain.value = 0.5;
+    const clip = ctx.createWaveShaper(), cv = new Float32Array(2048);
+    for (let i = 0; i < cv.length; i++) cv[i] = Math.tanh((i / (cv.length - 1) * 2 - 1) * 2);
+    clip.curve = cv; clip.oversample = '4x';
+    master.connect(mlp).connect(glue).connect(lim).connect(half).connect(clip).connect(ctx.destination);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
