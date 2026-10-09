@@ -97,7 +97,7 @@ export function buildM4A1(opt: { skin?: string; hand?: THREE.Material } = {}) {
   addons.push({ name: 'm4_mag', slot: 'ink', geo: S.extrude([[372, -6], [396, -3], [394, -18], [376, -20]], 10, { bevel: 1, holes: [[[378, -9], [391, -7], [390, -14], [380, -15]]] }), part: mag });
   for (let i = 0; i < 4; i++) addons.push({ name: 'm4_charm', slot: 'ink', geo: S.put(new THREE.TorusGeometry(2.6, 0.8, 4, 6), 630, 162 - i * 5.2, 0, [0, i % 2 ? 0 : Math.PI / 2, 0]) });
   addons.push({ name: 'm4_charm', slot: 'cover', geo: S.extrude([[621, 128], [639, 128], [641, 145], [630, 152], [619, 145]], 5, { bevel: 1.2 }) });   // 駒の形
-  // R 焼き色：太い銃口制退器（横と上に穴）・ハンドガード・機関部・ストックの肉抜きを走る光る線
+  // SR（2つ目）焼き色：太い銃口制退器（横と上に穴）・ハンドガード・機関部・ストックの肉抜きを走る光る線
   addons.push({ name: 'm4_brake', slot: 'brake', geo: S.rod(788, 850, BV, 14.5, 8) });
   for (const u of [800, 814, 828]) {
     for (const x of [-1, 1]) addons.push({ name: 'm4_brake', slot: 'bore', geo: S.box(u, u + 7, 191, 201, 0.8, x * 13.6) });

@@ -68,7 +68,7 @@ export function buildGlock17(opt: { skin?: string; hand?: THREE.Material } = {})
   for (const x of [-1, 1]) addons.push({ name: 'gl_ports', slot: 'port', geo: S.box(146, 176, 121, 127, 0.6, x * (SW / 2 + 0.2)), part: slide });
   addons.push({ name: 'gl_well', slot: 'well', geo: S.extrude([[-19, 9], [48, 9], [gf(26) + 1.5, 26], [gb(26) - 1.5, 26]], FW + 5, { bevel: 1.5, taper: [1.12, 1] }) });
   addons.push({ name: 'gl_well', slot: 'well', geo: S.box(44, 70, 110, 114.5, 2.4, -(FW / 2 + 0.6)) });
-  // R 焼け色：スライドの前の横に並ぶ放熱のひれ・銃口の先の補正器（上に2つの穴、横に光る線）
+  // SR（2つ目）焼け色：スライドの前の横に並ぶ放熱のひれ・銃口の先の補正器（上に2つの穴、横に光る線）
   for (let u = 108; u <= 164; u += 8) for (const x of [-1, 1]) addons.push({ name: 'gl_fins', slot: 'fin', geo: S.box(u, u + 3, 118, 127, 1.8, x * (SW / 2 + 0.8)), part: slide });
   addons.push({ name: 'gl_comp', slot: 'comp', geo: S.extrude([[186, 117], [186, 138], [189, 139], [212, 139], [214, 136], [214, 117]], SW - 1, { bevel: 1.2 }), part: slide });
   for (const u of [192, 202]) addons.push({ name: 'gl_comp', slot: 'bore', geo: S.box(u, u + 6, 138.6, 139.4, 10), part: slide });

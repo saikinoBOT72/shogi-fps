@@ -81,7 +81,7 @@ export function buildFAMAS(opt: { skin?: string; hand?: THREE.Material } = {}) {
     const du = b[0] - a[0], dv = b[1] - a[1], l = Math.hypot(du, dv), nu = -dv / l * w / 2, nv = du / l * w / 2;
     return [[a[0] - nu, a[1] - nv], [b[0] - nu, b[1] - nv], [b[0] + nu, b[1] + nv], [a[0] + nu, a[1] + nv]];
   };
-  // R 三色流し：肩当ての横のへこみの丸い三重の印（c3・c2・c1）・取っ手の前に結んだリボン（帯・蝶結び・垂れ）
+  // SR（2つ目）三色流し：肩当ての横のへこみの丸い三重の印（c3・c2・c1）・取っ手の前に結んだリボン（帯・蝶結び・垂れ）
   for (const s of [1, -1]) {
     for (const [r, slot, x] of [[30, 'r3', 19.3], [20, 'r2', 19.7], [10, 'r1', 20.1]] as [number, string, number][])
       addons.push({ name: 'fa_roundel', slot, geo: S.put(new THREE.CylinderGeometry(r, r, 0.6, 24).rotateZ(Math.PI / 2), 53, 112, x * s) });

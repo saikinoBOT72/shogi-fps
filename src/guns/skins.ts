@@ -831,10 +831,19 @@ export const DESIGNS: Record<string, Design> = {
       barrel: { c: BLACK, metal: true }, detail: { c: INK }, mag: { c: BLACK, metal: true },
     },
   },
-  // R 焼け色（色の流れ）：焼いた金属のように、スライドとフレームが後ろの c1 から c2、銃口の c3 へ流れる。スライドの前の横に放熱のひれ・銃口の先に補正器（横に光る線）
-  //   c1・c2・c3 の流れ（メイン）、ひれは c2、補正器・銃身・照準と引き金は c3。握りは黒で固定
+  // R 真珠：全体を艶のある c1 に塗り、照り返しを c2 に（見る角度で真珠のように色が変わる）。握りは c2 のざらざら、照準と引き金も c2
+  //   銃身は銀で固定
   gl_r: {
-    name: '焼け色', gun: 'glock17', rarity: 'R', colors: [0x3a3a3a, 0x8a8a8a, 0xe0e0e0], addons: ['gl_fins', 'gl_comp'],
+    name: '真珠', gun: 'glock17', rarity: 'R', colors: [0xd8d8d8, 0x7a7a7a],
+    parts: {
+      slide: { v: 1, gloss: true, sheen: 'c2' }, frame: { v: 1, gloss: true, sheen: 'c2' }, grip: { v: 2, tex: 'stipple' },
+      detail: { v: 2 }, barrel: { c: STEEL, metal: true, sheen: 0xffffff }, mag: { c: BLACK, metal: true },
+    },
+  },
+  // SR（2つ目）焼け色（色の流れ）：焼いた金属のように、スライドとフレームが後ろの c1 から c2、銃口の c3 へ流れる。スライドの前の横に放熱のひれ・銃口の先に補正器（横に光る線）
+  //   c1・c2・c3 の流れ（メイン）、ひれは c2、補正器・銃身・照準と引き金は c3。握りは黒で固定
+  gl_sr2: {
+    name: '焼け色', gun: 'glock17', rarity: 'SR', colors: [0x3a3a3a, 0x8a8a8a, 0xe0e0e0], addons: ['gl_fins', 'gl_comp'],
     parts: {
       slide: { v: 1, metal: true, sheen: 'c3', fade: ['c1', 'c1', 'c2', 'c3'], fadeLen: 200, fadeFrom: -5 },
       frame: { v: 1, gloss: true, sheen: 'c2', fade: ['c1', 'c1', 'c2', 'c3'], fadeLen: 200, fadeFrom: -15 },
@@ -892,10 +901,18 @@ export const DESIGNS: Record<string, Design> = {
       slide: { c: BLACK, metal: true }, detail: { c: INK },
     },
   },
-  // R 焼き色（色の流れ）：床尾の c1 から真ん中の c2、銃口の c3 へ流れる焼いた金属。太い銃口制退器・ハンドガードと機関部とストックを走る光る線
-  //   c1・c2・c3 の流れ（メイン）、制退器と光る線は c3、弾倉は c1。握りは黒い艶
+  // R キャンディ：本体全部を c1 のキャンディ塗装の金属に（照り返しは c2）。握りは c2 の艶、弾倉は c1 の金属、銃身は銀
   m4_r: {
-    name: '焼き色', gun: 'm4a1', rarity: 'R', colors: [0x2a2a2a, 0x8a8a8a, 0xe0e0e0], addons: ['m4_brake', 'm4_lines'],
+    name: 'キャンディ', gun: 'm4a1', rarity: 'R', colors: [0x6a6a6a, 0xe0e0e0],
+    parts: {
+      frame: { v: 1, metal: true, sheen: 'c2' }, mag: { v: 1, metal: true, sheen: 'c2' }, grip: { v: 2, gloss: true, sheen: 'self' },
+      slide: { c: STEEL, metal: true }, detail: { c: INK },
+    },
+  },
+  // SR（2つ目）焼き色（色の流れ）：床尾の c1 から真ん中の c2、銃口の c3 へ流れる焼いた金属。太い銃口制退器・ハンドガードと機関部とストックを走る光る線
+  //   c1・c2・c3 の流れ（メイン）、制退器と光る線は c3、弾倉は c1。握りは黒い艶
+  m4_sr2: {
+    name: '焼き色', gun: 'm4a1', rarity: 'SR', colors: [0x2a2a2a, 0x8a8a8a, 0xe0e0e0], addons: ['m4_brake', 'm4_lines'],
     parts: {
       frame: { v: 1, metal: true, sheen: 'c3', fade: ['c1', 'c1', 'c2', 'c3'], fadeLen: 860 },
       slide: { v: 1, metal: true, sheen: 'c3', fade: ['c1', 'c1', 'c2', 'c3'], fadeLen: 860 },
@@ -922,10 +939,18 @@ export const DESIGNS: Record<string, Design> = {
       detail: { c: INK }, mag: { c: BLACK, metal: true },
     },
   },
-  // R 三色流し（色の流れ）：艶のある本体が、肩当ての c1 から真ん中の c2、取っ手の前と銃口の c3 へ流れる。肩当ての横の丸い三重の印・取っ手の前に結んだリボン
-  //   リボンは c2。金属・握り・弾倉は黒で固定
+  // R 漆塗り：本体は c1 の漆（メイン）、頬当て・二脚・銃身は c2 の金属、握りは c2 の漆、弾倉は c1 の漆
   fa_r: {
-    name: '三色流し', gun: 'famas', rarity: 'R', colors: [0x3a3a3a, 0xd0d0d0, 0x8a8a8a], addons: ['fa_roundel', 'fa_ribbon'],
+    name: '漆塗り', gun: 'famas', rarity: 'R', colors: [0x4a4a4a, 0xc8c8c8],
+    parts: {
+      frame: { v: 1, gloss: true, sheen: 'self' }, slide: { v: 2, metal: true, sheen: 'self' }, grip: { v: 2, gloss: true, sheen: 'self' },
+      mag: { v: 1, gloss: true }, detail: { c: INK },
+    },
+  },
+  // SR（2つ目）三色流し（色の流れ）：艶のある本体が、肩当ての c1 から真ん中の c2、取っ手の前と銃口の c3 へ流れる。肩当ての横の丸い三重の印・取っ手の前に結んだリボン
+  //   リボンは c2。金属・握り・弾倉は黒で固定
+  fa_sr2: {
+    name: '三色流し', gun: 'famas', rarity: 'SR', colors: [0x3a3a3a, 0xd0d0d0, 0x8a8a8a], addons: ['fa_roundel', 'fa_ribbon'],
     parts: {
       frame: { v: 1, gloss: true, sheen: 'c2', fade: ['c1', 'c1', 'c2', 'c3', 'c3'], fadeLen: 770, fadeFrom: -8 },
       r1: { v: 1, gloss: true }, r2: { v: 2, gloss: true }, r3: { v: 3, gloss: true }, rib: { v: 2, gloss: true, sheen: 'self' },
@@ -951,10 +976,20 @@ export const DESIGNS: Record<string, Design> = {
       detail: { c: INK }, mag: { c: BLACK, metal: true },
     },
   },
-  // R 六連星：シリンダーの膨らみの谷を走る光る線と薬室の口の光る輪・後ろの枠の横の六つの星・シリンダーを巡る2本の光の輪と星
-  //   c1 シリンダーと銃身の金属（メイン。照り返しは c2）、c2 光る所と弾の底。枠は黒い金属、握りは黒い艶
+  // R 夕映え（色の流れ）：ストックの c1 から、シリンダーの c2、銃口の c3 へ流れる金属。枠も銃身も同じ流れ
+  //   弾の底は c2 の金属、握りは黒で固定
   mg_r: {
-    name: '六連星', gun: 'mgl', rarity: 'R', colors: [0x3a3a3a, 0xe8e8e8], addons: ['mg_flutes', 'mg_stars', 'mg_orbit'],
+    name: '夕映え', gun: 'mgl', rarity: 'R', colors: [0x2a2a2a, 0x8a8a8a, 0xe8e8e8],
+    parts: {
+      frame: { v: 1, metal: true, sheen: 'c3', fade: ['c1', 'c2', 'c3'], fadeLen: 780 },
+      slide: { v: 1, metal: true, sheen: 'c3', fade: ['c1', 'c2', 'c3'], fadeLen: 780 },
+      mag: { v: 2, metal: true, sheen: 'self' }, grip: { c: INK, tex: 'stipple' }, detail: { c: INK },
+    },
+  },
+  // SR（2つ目）六連星：シリンダーの膨らみの谷を走る光る線と薬室の口の光る輪・後ろの枠の横の六つの星・シリンダーを巡る2本の光の輪と星
+  //   c1 シリンダーと銃身の金属（メイン。照り返しは c2）、c2 光る所と弾の底。枠は黒い金属、握りは黒い艶
+  mg_sr2: {
+    name: '六連星', gun: 'mgl', rarity: 'SR', colors: [0x3a3a3a, 0xe8e8e8], addons: ['mg_flutes', 'mg_stars', 'mg_orbit'],
     parts: {
       slide: { v: 1, metal: true, sheen: 'c2' }, line: { v: 2, glow: true }, star: { v: 2, glow: true }, detail: { v: 2, glow: true }, mag: { v: 2, metal: true, sheen: 'self' },
       frame: { c: BLACK, metal: true, sheen: 'c2' }, grip: { c: INK, gloss: true, sheen: 'c2' },
@@ -981,10 +1016,18 @@ export const DESIGNS: Record<string, Design> = {
       grip: { c: INK, tex: 'stipple' }, detail: { c: INK },
     },
   },
-  // R 羽飾り：弓に巻いた紐（3か所）・弓の先から下がる2枚の羽と軸
-  //   c1 本体（メイン）、c2 巻いた紐と羽。弓は黒い艶、金属は黒で固定
+  // R 艶弓：本体は c1 の艶（照り返しは c2）、弓は c2 の磨いた金属、矢と矢羽も c2。握りは黒のざらざら
   xb_r: {
-    name: '羽飾り', gun: 'crossbow', rarity: 'R', colors: [0x6a6a6a, 0xd0d0d0], addons: ['xb_wraps', 'xb_feathers'],
+    name: '艶弓', gun: 'crossbow', rarity: 'R', colors: [0x3a3a3a, 0xd0d0d0],
+    parts: {
+      frame: { v: 1, gloss: true, sheen: 'c2' }, barrel: { v: 2, metal: true, sheen: 'self' }, slide: { v: 2, metal: true }, mag: { v: 2 },
+      grip: { c: INK, tex: 'stipple' }, detail: { c: INK },
+    },
+  },
+  // SR（2つ目）羽飾り：弓に巻いた紐（3か所）・弓の先から下がる2枚の羽と軸
+  //   c1 本体（メイン）、c2 巻いた紐と羽。弓は黒い艶、金属は黒で固定
+  xb_sr2: {
+    name: '羽飾り', gun: 'crossbow', rarity: 'SR', colors: [0x6a6a6a, 0xd0d0d0], addons: ['xb_wraps', 'xb_feathers'],
     parts: {
       frame: { v: 1 }, wrap: { v: 2 }, feather: { v: 2, gloss: true, sheen: 'self' }, mag: { v: 2 }, ink: { c: INK },
       barrel: { c: INK, gloss: true }, slide: { c: BLACK }, grip: { c: INK, tex: 'stipple' }, detail: { c: INK },

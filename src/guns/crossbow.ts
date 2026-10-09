@@ -88,7 +88,7 @@ export function buildCrossbow(opt: { skin?: string; hand?: THREE.Material } = {}
   const LIMB: [number, number][] = [[890, 30], [870, 150], [832, 290], [806, 350]];
   const limbAt = (i: number, t: number): [number, number] => [LIMB[i][0] + (LIMB[i + 1][0] - LIMB[i][0]) * t, LIMB[i][1] + (LIMB[i + 1][1] - LIMB[i][1]) * t];
   for (const s of [1, -1]) {
-    // R 羽飾り：弓に巻いた紐（3か所）・弓の先から下がる2枚の羽と軸
+    // SR（2つ目）羽飾り：弓に巻いた紐（3か所）・弓の先から下がる2枚の羽と軸
     for (const [i, t0, t1, w, h] of [[0, 0.5, 0.62, 15.5, 29], [1, 0.42, 0.56, 13.5, 25], [2, 0.3, 0.45, 12.5, 21]]) {
       const [a0, b0] = limbAt(i, t0), [a1, b1] = limbAt(i, t1);
       addons.push({ name: 'xb_wraps', slot: 'wrap', geo: bar(a0, b0 * s, a1, b1 * s, 118, w, h) });
