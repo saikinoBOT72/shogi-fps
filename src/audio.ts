@@ -246,6 +246,9 @@ export const SFX = (() => {
     shippu(pos) { const d = out(pos, 0.15); N(d, { dur: 0.35, type: 'bandpass', f0: 400, f1: 3200, q: 1.2, g: 0.45, atk: 0.03 }); T(d, { f0: 130, f1: 55, dur: 0.22, g: 0.35 }); },
     shippuWind(pos) { const d = out(pos, 0.05); N(d, { dur: 0.42, type: 'bandpass', f0: 800 + Math.random() * 300, f1: 1300, q: 1.1, g: pos ? 0.18 : 0.09, atk: 0.16 }); },
     shippuEnd(pos) { const d = out(pos, 0.1); N(d, { dur: 0.28, f0: 2400, f1: 350, g: 0.35, atk: 0.01 }); },
+    // 忍の変わり身（仮の音）：入れ替わる「ドロン」・丸太に当たった「コン」
+    doron(pos) { const d = out(pos, 0.25); N(d, { dur: 0.5, f0: 1800, f1: 260, g: 0.5, atk: 0.01 }); T(d, { f0: 240, f1: 80, dur: 0.22, g: 0.25 }); N(d, { at: 0.04, dur: 0.3, type: 'bandpass', f0: 3000, f1: 1200, q: 1.5, g: 0.08 }); },
+    kon(pos) { const d = out(pos, 0.2); wood(d, 0, 520, 0.6, 0.12); wood(d, 0.012, 820, 0.3, 0.08); },
     chin() { const d = out(null, 0.6); scrape(d, 0, 0.22, 2600, 0.08); tick(d, 0.24, 3400, 0.6, 0.1); metal(d, 0.24, 2700, 1.4, 0.07); },
     // ナイフを振る
     knife(pos) { N(out(pos, 0.05), { dur: 0.22, type: 'bandpass', f0: 500, f1: 3200, q: 2.2, g: 0.6, atk: 0.06 }); },

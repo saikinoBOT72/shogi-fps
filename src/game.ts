@@ -163,7 +163,6 @@ export function useSkill(e, i, dir, force = false) {
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
   // 鉤縄（2回）：引き寄せられている途中なら、縄を掛け替えて勢いのまま向きを変える
   const chain = sk.type === 'grapple' && sk.chain && s.t > 0 && s.charges > 0;
-  if (sk.type === 'kawarimi') { if (!e.isBot) SFX.play('empty'); return false; }   // 変わり身はまだ作っていない（段階4でここを外す）
   if (sk.type === 'shippu' && s.t > 0) { s.t = 0; return true; }   // 残像疾風：使っている間にもう一度押すと終わる
   if (!force && e.empT > 0) { if (!e.isBot) SFX.play('empty'); return false; }   // EMP を受けている間はスキルが使えない
   if (!force && (s.charges <= 0 || (s.t > 0 && !chain))) return false;
@@ -221,6 +220,8 @@ export function useSkill(e, i, dir, force = false) {
     onAttack(e); callAirstrike(e, aim, sk);
   } else if (t === 'tornado') {
     onAttack(e); startTornado(e, sk);
+  } else if (t === 'kawarimi') {
+    Ninja.kawarimiArm(e);
   } else if (t === 'shippu') {
     Ninja.shippuStart(e);
   } else if (t === 'hagakure') {

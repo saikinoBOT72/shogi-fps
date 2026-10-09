@@ -92,6 +92,14 @@ export const Arrows = (() => {
     const head = point.y > t.pos.y + t.height * 0.76;
     const mul = skillDamageMul(t, a.owner.pos);
     const dmg = a.dmg * (head ? a.head : 1) * mul;
+    // 変わり身（忍）：丸太と入れ替わった。矢は丸太に刺さる（ダメージなし）
+    if (t.kwLog) {
+      const lp = t.kwLog.position, flat = dir.clone().setY(0).normalize();
+      const at = new V3(lp.x, point.y, lp.z).addScaledVector(flat, -0.16);
+      if (a.kind === 'shuriken') plant(a, at, dir); else if (a.kind === 'kunai') plantKunai(a, at, dir); else a.mesh.position.copy(at).addScaledVector(dir, 0.25 - TIP);
+      t.kwLog.updateMatrixWorld(true); t.kwLog.attach(a.mesh); keepStuck(a.mesh);
+      return;
+    }
     if (mul < 1 && act(t, 'guard')) SFX.play('guard', point);
     SFX.play('arrowHit', point);
     if (a.poison && !t.dead) applyPoison(t, a.poison, a.owner);   // 毒矢

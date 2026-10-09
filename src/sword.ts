@@ -486,7 +486,7 @@ export const Sword = {
   blinkStart(e, k: number) { if (e === player) blinkK = 1; ghostT = 0; },
   // 毎フレーム（本当の時間）：納刀・真っ二つ・画面の上の演出
   frame(rdt: number) {
-    blinkK = (gs.state === 'killcam' ? Sword.kcBlink : player && (act(player, 'blink') || act(player, 'shippu'))) ? 1 : Math.max(0, blinkK - rdt * 4);   // リプレイ中は視点の駒が瞬を使っているか
+    blinkK = (gs.state === 'killcam' ? Sword.kcBlink : player && (act(player, 'blink') || act(player, 'shippu') || player.njDodgeT > 0)) ? 1 : Math.max(0, blinkK - rdt * 4);   // リプレイ中は視点の駒が瞬を使っているか
     speedLines(blinkK);
     afterimageTick(rdt);
     finishFrame(rdt);
@@ -497,6 +497,8 @@ export const Sword = {
   remoteSwing(stage: number) { if (bot && isSword(bot)) start(bot, stage); },
   remoteWave(p: number[], d: number[]) { if (!bot) return; const pos = new V3(p[0], p[1], p[2]); fireWave(bot, player, pos, new V3(d[0], d[1], d[2]).normalize(), 0); SFX.play('wave', pos); },
   remoteSlow(stage: number) { slow(stage); },
+  // 短い白黒スロー（忍の変わり身でよけた瞬間）。斬った線や音は出さない
+  quickSlow(sec = 0.15) { slowT = Math.max(slowT, sec + SLOW.ease); },
   // 影分身の刀：持ち主と同じ振り
   poseClone(A, owner) { poseActorPose(A, owner); },
   // 一人称の刀の位置と向き（camera.ts の poseViewModel から）

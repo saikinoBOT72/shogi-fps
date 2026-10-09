@@ -72,7 +72,13 @@ export function facingOf(e) {
 // 忍の残像疾風・変わり身の直後：何も当たらない（弾・矢はすり抜けて後ろへ抜ける）
 export const phased = t => !!t && (!!act(t, 'shippu') || (t.nInv || 0) > 0);
 // スキルによる被ダメージ倍率（守りの構えは前からの弾だけ減らす）
+// 変わり身（忍）：当たったときに呼ぶ（ninja.ts が入れる。import がぐるぐる回らないように、ここでは入れ物だけ）
+export const hooks: any = { kawarimi: null };
 export function skillDamageMul(target, from) {
+  if ((target.nInv || 0) > 0) return 0;   // 変わり身でよけた直後は何も当たらない
+  // 変わり身を構えている：この攻撃は丸太が受ける（ダメージなし）
+  const kw = target.slots && target.slots.find(s => s.t > 0 && s.sk.type === 'kawarimi');
+  if (kw) { if (hooks.kawarimi) hooks.kawarimi(target, from, kw); return 0; }
   let m = 1;
   if (target.swGuard) m *= 0.5;   // 刀で守りの構え（右クリック）：どこからでも半分
   for (const s of target.slots || []) {

@@ -7,10 +7,10 @@
 //     ・自分の画面では、扇は画面の上のふちに沿って並ぶ（背中の後ろは見えないため）
 //   オンライン：手裏剣・苦無は矢と同じ 'arrow'（k: 'shuriken' / 'kunai'）。並べている本数は様子（'s' の kn）で送る
 import * as THREE from 'three';
-import { V3, clamp, lerp } from './core';
+import { C, V3, clamp, lerp, rand } from './core';
 import { P } from './palette';
 import { SFX } from './audio';
-import { cam, scene } from './render';
+import { cam, scene, toon } from './render';
 import { blockers } from './physics';
 import { Arrows } from './arrows';
 import { Particles, VM } from './effects';
@@ -21,6 +21,9 @@ import { gs } from './state';
 import { makeKunai, hangTassel } from './guns/kunai';
 import { act, bot, botActor, player, playerActor, stats, view, onAttack, eyeOf, ray, currentSpread, facingOf } from './game';
 import { afterimage } from './swordfx';
+import { hooks } from './game/weapons';
+import { Sword } from './sword';
+import { down } from './input';
 
 const ROLL = -0.35, TILT = 0.75;   // 右手で横に投げるので少し右下がり。面も前へ倒す（投げた人からも相手からも、回る星の形が見えるように）
 const BUFFER = 0.12;  // 投げられるようになる少し前に押しても、間に合ったら投げる
@@ -259,6 +262,131 @@ function shippuTick(e, dt: number) {
   if ((e.shippuWindT = (e.shippuWindT || 0) - dt) <= 0) { e.shippuWindT = 0.3; SFX.play('shippuWind', e === player ? null : e.pos); }
 }
 
+// ---------- 変わり身（Q） ----------
+//   構える：15 秒の間、足元に薄い煙がまとわりつく（相手にも分かる）
+//   当たった：その攻撃は丸太が受ける（ダメージなし。矢・手裏剣・苦無は丸太に刺さり、弾なら木くず）。「ドロン」と白い煙が弾け、
+//     自分は左右前を押していればその向き、押していなければ後ろへ飛ぶ。inv 秒は何も当たらない（game/weapons.ts の phased）
+//     その瞬間ほんの少し白黒スロー。自分の画面はよけた向きへ流れる。攻撃した側には丸太に当たった「コン」
+//   丸太：ゴロンと倒れ、3 秒で煙になって消える
+//   オンライン：当てた側が見つけて 'kw' を送り、当てられた側がよける（矢は両方の画面で当たるので、先に気づいた方でよける）
+const puffTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.5, 'rgba(255,255,255,0.55)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+})();
+const puffs: { s: THREE.Sprite; v: THREE.Vector3; t: number; life: number; s0: number; s1: number; op: number }[] = [];
+function puff(pos: THREE.Vector3, o: { v?: THREE.Vector3; life?: number; s0?: number; s1?: number; op?: number; color?: number } = {}) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: o.color ?? 0xf4f2ee, transparent: true, depthWrite: false, fog: true }));
+  s.position.copy(pos); scene.add(s);
+  puffs.push({ s, v: o.v || new V3(), t: 0, life: o.life ?? 0.8, s0: o.s0 ?? 0.3, s1: o.s1 ?? 1, op: o.op ?? 0.8 });
+  if (puffs.length > 140) { const q = puffs.shift(); scene.remove(q.s); q.s.material.dispose(); }
+}
+function puffTick(dt: number) {
+  for (let i = puffs.length - 1; i >= 0; i--) {
+    const q = puffs[i]; q.t += dt;
+    const k = q.t / q.life;
+    q.s.position.addScaledVector(q.v, dt); q.v.multiplyScalar(Math.max(0, 1 - 3 * dt)); q.v.y += 0.4 * dt;
+    q.s.scale.setScalar(lerp(q.s0, q.s1, 1 - (1 - k) * (1 - k)));
+    q.s.material.opacity = q.op * Math.min(1, (1 - k) * 2) * Math.min(1, q.t * 12);
+    if (k >= 1) { scene.remove(q.s); q.s.material.dispose(); puffs.splice(i, 1); }
+  }
+}
+// 「ドロン」：白い煙が丸く弾ける
+function doron(pos: THREE.Vector3, h: number) {
+  for (let i = 0; i < 18; i++) {
+    const a = Math.random() * Math.PI * 2, up = Math.random();
+    const v = new V3(Math.cos(a), up * 0.8, Math.sin(a)).multiplyScalar(rand(2, 4.5));
+    puff(pos.clone().add(new V3(0, h * (0.2 + 0.7 * Math.random()), 0)), { v, life: rand(0.6, 1.0), s0: 0.4, s1: rand(1.1, 1.7), op: 0.9 });
+  }
+}
+// 丸太：樹皮の筒・明るい切り口と年輪・小枝を切った跡。根元が原点（倒すときの回転の中心）
+const logMats = { bark: toon({ color: C(P.kiji[0]), flatShading: true, roughness: 0.95 }), cut: toon({ color: C(P.kiji[2]), flatShading: true, roughness: 0.9 }), ring: toon({ color: C(P.kiji[1]), flatShading: true }) };
+function makeLog(len: number) {
+  const g = new THREE.Group(), r = 0.15;
+  const geo = new THREE.CylinderGeometry(r * 0.94, r, len, 9, 3);
+  const pa = geo.attributes.position;   // 樹皮のでこぼこ（縦の筋）
+  for (let i = 0; i < pa.count; i++) { const x = pa.getX(i), z = pa.getZ(i), k = 1 + Math.sin(Math.atan2(z, x) * 5 + pa.getY(i) * 3) * 0.06; pa.setX(i, x * k); pa.setZ(i, z * k); }
+  geo.computeVertexNormals();
+  const body = new THREE.Mesh(geo, logMats.bark); body.position.y = len / 2; g.add(body);
+  for (const y of [0.005, len - 0.005]) {   // 切り口と年輪
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.86, r * 0.86, 0.02, 9), logMats.cut); c.position.y = y; g.add(c);
+    const rr = new THREE.Mesh(new THREE.TorusGeometry(r * 0.45, 0.012, 3, 10), logMats.ring); rr.rotation.x = Math.PI / 2; rr.position.y = y + (y > 0.1 ? 0.012 : -0.012); g.add(rr);
+  }
+  for (const [y, a] of [[len * 0.35, 0.6], [len * 0.7, 2.8]]) {   // 小枝を切った跡
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.12, 6), logMats.bark);
+    b.position.set(Math.cos(a) * r, y, Math.sin(a) * r); b.rotation.set(0, -a, Math.PI / 2 - 0.4); g.add(b);
+  }
+  g.traverse((o: any) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+const logs: { g: THREE.Group; t: number; axis: THREE.Vector3; fell: boolean }[] = [];
+function spawnLog(e, from: THREE.Vector3) {
+  const g = makeLog(e.height * 0.95);
+  g.position.copy(e.pos); scene.add(g);
+  // 倒れる向き：当てた相手から見て奥（押された向き）へ、少しばらつかせる
+  const away = e.pos.clone().sub(from).setY(0); if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
+  away.normalize().applyAxisAngle(UP, rand(-0.7, 0.7));
+  const axis = new V3(0, 1, 0).cross(away).normalize();
+  logs.push({ g, t: 0, axis, fell: false });
+  return g;
+}
+function logsTick(dt: number) {
+  for (let i = logs.length - 1; i >= 0; i--) {
+    const L = logs[i]; L.t += dt;
+    // 0.15 秒たってから倒れ始め、0.45 秒で横になる（重力っぽく加速）。倒れきったら少し跳ねる
+    const k = clamp((L.t - 0.15) / 0.45, 0, 1), fall = k * k;
+    const bounce = L.t > 0.6 ? Math.abs(Math.sin((L.t - 0.6) * 14)) * Math.exp(-(L.t - 0.6) * 9) * 0.12 : 0;
+    L.g.quaternion.setFromAxisAngle(L.axis, (Math.PI / 2 - 0.06) * fall - bounce);
+    if (k >= 1 && !L.fell) { L.fell = true; Particles.dust(L.g.position, 8, 1.1); SFX.play('kon', L.g.position); }
+    if (L.t > 3) {
+      // 煙になって消える
+      const c = L.g.position.clone().add(new V3(0, 0.2, 0));
+      for (let j = 0; j < 8; j++) puff(c.clone().add(new V3(rand(-0.6, 0.6), 0, rand(-0.6, 0.6))), { v: new V3(rand(-0.5, 0.5), rand(0.5, 1.2), rand(-0.5, 0.5)), life: 0.8, s0: 0.3, s1: 1.1 });
+      scene.remove(L.g); logs.splice(i, 1);
+    }
+  }
+}
+// よける向き：自分は押しているキー（左右前。後ろだけ・何も押していなければ後ろ）。CPU は当てた相手から離れる向きか横
+function dodgeDir(e, from: THREE.Vector3) {
+  if (e === player) {
+    const fwd = new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw)), right = new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw));
+    const w = new V3();
+    if (down('forward')) w.add(fwd);
+    if (down('right')) w.add(right);
+    if (down('left')) w.sub(right);
+    return w.lengthSq() > 0.01 ? w.normalize() : fwd.negate();
+  }
+  const away = e.pos.clone().sub(from).setY(0).normalize(), side = new V3(-away.z, 0, away.x).multiplyScalar(Math.random() < 0.5 ? 1 : -1);
+  return Math.random() < 0.4 ? away : side.addScaledVector(away, 0.3).normalize();
+}
+function dodge(e, sk) {
+  const dir = dodgeDir(e, e.kwFrom || e.pos);
+  e.lungeDir = dir; e.lungeT = 0.18; e.lungeV = sk.dist / 0.18;
+  e.vy = Math.max(e.vy, 3.5); e.onGround = false; e.airT = 1; e.jumped = true;
+  if (e === player) {
+    const right = new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw)), side = dir.dot(right);
+    view.swRoll = (view.swRoll || 0) - side * 0.16; view.swFov = (view.swFov || 0) + 12; view.shake = Math.max(view.shake, 0.2);
+    e.njDodgeT = 0.3;   // 集中線（sword.ts）
+  }
+}
+// 当たった（skillDamageMul から）：丸太と入れ替わる
+function kawarimiHit(e, from: THREE.Vector3, kw) {
+  kw.t = 0;
+  e.nInv = kw.sk.inv;
+  if (e.kwLockT > 0) return;   // 同じ入れ替わりを二重に数えない（オンラインで両方の画面から届いたとき）
+  e.kwLockT = 1; e.kwFrom = from.clone();
+  const log = spawnLog(e, from);
+  e.kwLog = log;   // この直後に当たる矢は丸太に刺さる（arrows.ts）。次のフレームで外す
+  doron(e.pos, e.height);
+  SFX.play('doron', e === player ? null : e.pos);
+  SFX.play('kon', log.position.clone().setY(e.pos.y + e.height * 0.6));   // 攻撃した側にも丸太に当たった音
+  Particles.wood(e.pos.clone().setY(e.pos.y + e.height * 0.6), e.pos.clone().sub(from).setY(0).normalize(), 10);
+  Sword.quickSlow(0.15);
+  const local = e === player || (e === bot && !Net.on);
+  if (local) dodge(e, kw.sk);
+  else if (Net.on && e === bot) Net.send({ t: 'kw', f: vec(from) });   // 相手の画面でよけてもらう
+}
+
 export const Ninja = {
   // 自分：押した瞬間に手裏剣を1枚（押しっぱなしでは続けて投げない）。押し続けると苦無を並べ、離すと飛ばす
   input(p, down: boolean, dt: number) {
@@ -298,9 +426,21 @@ export const Ninja = {
   },
   // 毎フレーム：苦無を出す・飛ばす・置き直す。駒が持つ手裏剣（ほかの人から見える）
   update(dt: number) {
+    hooks.kawarimi = kawarimiHit;   // 変わり身（読み込みの順番に左右されないよう、ここで入れる）
     inkTick(dt);
     clock += dt;
-    for (const e of [player, bot]) if (e) shippuTick(e, dt);
+    for (const e of [player, bot]) if (e) {
+      shippuTick(e, dt);
+      e.nInv = Math.max(0, (e.nInv || 0) - dt); e.kwLockT = Math.max(0, (e.kwLockT || 0) - dt); e.njDodgeT = Math.max(0, (e.njDodgeT || 0) - dt);
+      e.kwLog = null;
+      // 変わり身を構えている間：足元に薄い煙
+      if (act(e, 'kawarimi') && !e.dead && (e.kwSmokeT = (e.kwSmokeT || 0) - dt) <= 0) {
+        e.kwSmokeT = 0.09;
+        const a = Math.random() * Math.PI * 2, r = e.radius * rand(0.6, 1.3);
+        puff(e.pos.clone().add(new V3(Math.cos(a) * r, 0.08, Math.sin(a) * r)), { v: new V3(Math.cos(a) * 0.3, rand(0.2, 0.5), Math.sin(a) * 0.3), life: rand(0.7, 1.1), s0: 0.2, s1: 0.6, op: 0.45 });
+      }
+    }
+    puffTick(dt); logsTick(dt);
     edgeTick(!!player && !!player.shippuOn, dt);
     for (const e of [player, bot]) {
       if (!e) continue;
@@ -337,6 +477,18 @@ export const Ninja = {
       A.gun.parts.rhand.rotation.y = t < 0.06 ? t / 0.06 * 0.6 : t < 0.16 ? 0.6 - (t - 0.06) / 0.1 * 1.4 : t < 0.34 ? -0.8 * (1 - (t - 0.16) / 0.18) : 0;
     }
   },
+  // 変わり身を構えた：足元から煙が立つ
+  kawarimiArm(e) {
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; puff(e.pos.clone().add(new V3(Math.cos(a) * 0.4, 0.1, Math.sin(a) * 0.4)), { v: new V3(Math.cos(a), 0.6, Math.sin(a)), life: 0.7, s0: 0.25, s1: 0.8, op: 0.6 }); }
+    SFX.play('skCloak', e === player ? null : e.pos);
+  },
+  // オンライン：相手がこちらの変わり身に当てた
+  remoteKawarimi(from: THREE.Vector3) {
+    const kw = player && player.slots.find(s => s.sk.type === 'kawarimi');
+    if (!kw || player.dead || player.kwLockT > 0) return;
+    kw.t = Math.max(kw.t, 0.01);   // こちらで気づく前に届いた
+    kawarimiHit(player, from, kw);
+  },
   // 残像疾風が始まった：足元に土煙と音
   shippuStart(e) {
     Particles.dust(e.pos, 22, 2.4);
@@ -347,6 +499,8 @@ export const Ninja = {
     for (const e of [player, bot]) if (e) e.shippuOn = false;
     for (const set of Object.values(trailSets)) for (const T of set) { T.pts.length = 0; drawTrail(T); }
     edgeK = 0; if (edgeEl) edgeEl.style.display = 'none';
+    for (const q of puffs) { scene.remove(q.s); q.s.material.dispose(); } puffs.length = 0;
+    for (const L of logs) scene.remove(L.g); logs.length = 0;
     clearOf(player, false); clearOf(bot, false);
     for (const k of inks) { scene.remove(k.m); (k.m.material as THREE.Material).dispose(); }
     inks.length = 0;

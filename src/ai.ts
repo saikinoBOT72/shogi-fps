@@ -465,6 +465,10 @@ export function updateBot(dt) {
 const ready = s => s.charges > 0 && s.t <= 0;
 const chestOf = e => new V3(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z);
 export const SKILL_AI = {
+  // 変わり身（忍）：撃ち合いになったら構えておく（構えは 15 秒もつ）。撃たれたらすぐ
+  kawarimi(b, c, i, s) {
+    if (ready(s) && c.los && b.seen > 0.3 && (b.hurtT > 0 || Math.random() < c.dt * 0.6 * b.persona.eager)) useSkill(b, i, c.toP);
+  },
   // 残像疾風（忍）：撃たれて体力が減ったら逃げる・遠い相手へ一気に詰める・狙われたらときどき（その間は無敵、投げると終わる）
   shippu(b, c, i, s) {
     if (ready(s) && c.los && ((b.hurtT > 0.6 && b.hp < b.def.hp * 0.55) || b.retreating || c.dist > c.pref + 8 || (c.aimedAt && Math.random() < c.dt * 0.8 * b.persona.eager))) useSkill(b, i, c.toP);

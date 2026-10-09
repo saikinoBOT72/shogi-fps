@@ -184,6 +184,7 @@ Net.onMsg = (m: any) => {
       if (m.kv) { player.vel.x = m.kv[0]; player.vel.z = m.kv[2]; player.vy = m.kv[1]; player.onGround = false; player.airT = 1; player.knockT = 0.6; }
       break;
     case 'dead': if (inMatch() && !bot.dead) { bot.hp = 0; killBot(); } break;
+    case 'kw': if (inMatch()) Ninja.remoteKawarimi(V(m.f)); break;   // 相手が自分の変わり身に当てた：こちらでよける
     case 'cpop': if (inMatch()) Clones.pop(player, m.i | 0); break;   // 相手が自分の影分身を消した
     case 'kcskip': Replay.foeSkip(); break;   // 勝った相手がリプレイをスキップした
     case 'thit': if (inMatch()) Gadgets.damageTurret(Gadgets.myTurret(), m.dmg, bot, true); break;   // 自分のタレット歩が撃たれた
