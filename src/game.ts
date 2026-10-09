@@ -106,7 +106,7 @@ export function resetMatch(foeType?, myPick?: string) {   // myPick：対局の�
   const ps = spawnOf(side), bs = spawnOf(-side);
   player.pos.set(ps.x + rand(-1, 1), LV.V, ps.z + rand(-1, 1));
   bot.pos.set(bs.x + rand(-1, 1), LV.V, bs.z + rand(-1, 1));
-  Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, retreatPt: null, retreatT: 0, retreating: false, anchor: null, anchorT: 0, peekIn: false, peekT: 0, flankSide: 0, skillAim: null, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
+  Object.assign(bot, { seen: 0, lostT: 0, strafe: 1, strafeT: 0, stuck: 0, lastPos: bot.pos.clone(), aimPt: player.pos.clone(), lastKnown: player.pos.clone(), coverPt: null, coverT: 0, retreatPt: null, retreatT: 0, retreating: false, anchor: null, anchorT: 0, peekIn: false, peekT: 0, flankSide: 0, opening: null, openDone: false, skillAim: null, fireDelay: 0, jumpT: 2, wp: null, wpT: 0, hurtT: 0,
     persona: Object.values(PERSONAS)[Math.floor(Math.random() * 3)] });
   stats = { shots: 0, hits: 0, heads: 0, dealt: 0, taken: 0, time: 0 };
   view.yaw = Math.atan2(-(bot.pos.x - player.pos.x), -(bot.pos.z - player.pos.z));
@@ -354,6 +354,7 @@ export function updatePlayer(dt) {
   moveEntity(p, wish, dt);
   skillTick(p, dt);
   regenTick(p, dt);
+  p.flareT = Math.max(0, (p.flareT || 0) - dt);   // 左手のフレアガンをしまう（自分の駒は対局中に animateActor を通らないので、ここで減らす。リプレイがこれを使う）
 
   // 足音
   if (p.onGround && p.moving) {

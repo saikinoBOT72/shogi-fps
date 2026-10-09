@@ -154,6 +154,63 @@ function updatePeek(b, want, pEye, dt, fast = false) {
   if (b.peekT <= 0) { b.peekIn = !b.peekIn; b.peekT = fast ? (b.peekIn ? rand(0.3, 0.6) : rand(0.7, 1.3)) : (b.peekIn ? rand(0.5, 1.1) : rand(1.3, 2.6)); }   // fast：鬼畜は短く顔を出してすぐ引っ込む
 }
 
+// ================= 最初の動き（どのマップでも使える） =================
+// 自分の出る所 → 相手の出る所の向きを基準に、行き先を「どれだけ進むか f（0〜1）」「横にどれだけずれるか s（距離の何倍・+ が右）」で決める
+// 相手を見つける・撃たれる・音を聞く・30 秒たつ・最後まで行く、のどれかで終わって、いつもの動きに戻る
+//   wait：その場（cover なら近くの物陰）で待つ秒数
+const OPENINGS: { name: string; steps: any[] }[] = [
+  { name: 'まっすぐ', steps: [[1, 0]] },
+  { name: '右から', steps: [[0.45, 0.3], [1, 0]] },
+  { name: '左から', steps: [[0.45, -0.3], [1, 0]] },
+  { name: '大きく右から', steps: [[0.2, 0.42], [0.7, 0.45], [1, 0]] },
+  { name: '大きく左から', steps: [[0.2, -0.42], [0.7, -0.45], [1, 0]] },
+  { name: '待つ', steps: [{ wait: [8, 14], cover: true }, [1, 0]] },
+  { name: '途中で待ち伏せ', steps: [[0.35, 0], { wait: [8, 13], cover: true }, [1, 0]] },
+  { name: '少し待って右から', steps: [{ wait: [3, 6], cover: true }, [0.5, 0.35], [1, 0]] },
+  { name: '少し待って左から', steps: [{ wait: [3, 6], cover: true }, [0.5, -0.35], [1, 0]] },
+  { name: 'ジグザグ', steps: [[0.25, 0.15], [0.5, -0.15], [0.75, 0.15], [1, 0]] },
+];
+let lastOpening = -1;
+// 行ける点を探す：壁の中・高さが違いすぎる所（屋上の隙間など）・島の外なら、横のずれを少しずつ小さくする
+function openPt(b, s0, ax, rt, L, f, s) {
+  for (const k of [1, 0.75, 0.5, 0.25, 0]) {
+    const side = clamp(L * s * k, -30, 30), x = s0.x + ax.x * L * f + rt.x * side, z = s0.z + ax.z * L * f + rt.z * side, y = groundAt(x, z);
+    if (Math.abs(y - s0.y) > 8 || insideCollider(x, z, b.radius + 0.3, y)) continue;
+    return new V3(x, y, z);
+  }
+  return null;
+}
+function startOpening(b) {
+  b.openDone = true;
+  let n = Math.floor(Math.random() * OPENINGS.length);
+  if (n === lastOpening) n = (n + 1 + Math.floor(Math.random() * (OPENINGS.length - 1))) % OPENINGS.length;   // 前と同じにはしない
+  lastOpening = n;
+  const s0 = b.pos.clone(), goal = player.pos.clone(), ax = goal.clone().sub(s0).setY(0), L = ax.length();
+  if (L < 4) return;
+  ax.normalize();
+  const rt = new V3(-ax.z, 0, ax.x);
+  const steps = OPENINGS[n].steps.map(st => Array.isArray(st) ? (st[0] >= 1 && st[1] === 0 ? goal.clone() : openPt(b, s0, ax, rt, L, st[0], st[1])) : { wait: rand(st.wait[0], st.wait[1]), cover: st.cover }).filter(Boolean);
+  b.opening = { name: OPENINGS[n].name, steps, i: 0, t: 0, stuck: 0 };
+}
+function endOpening(b) { b.opening = null; }
+// 最初の動きを1こま進める（wish に向きを入れる）。終わったら false
+function openStep(b, dt, wish, pEye) {
+  const O = b.opening;
+  O.t += dt;
+  const st = O.steps[O.i];
+  if (!st || O.t > 30 || b.hurtT > 0) { endOpening(b); return false; }
+  if (st.wait !== undefined) {
+    if (st.cover && st.at === undefined) st.at = findCover(b, pEye, 6);   // 相手のいる方から見えない近くの物陰
+    if (st.at) { wish.copy(st.at).sub(b.pos).setY(0); if (wish.length() < 0.5) wish.set(0, 0, 0); }
+    if ((st.wait -= dt) <= 0) O.i++;
+    return true;
+  }
+  if (Math.hypot(st.x - b.pos.x, st.z - b.pos.z) < 2.5 || (O.stuck += b.stuck > 0.6 ? dt : 0) > 2.5) { O.i++; O.stuck = 0; return true; }   // 着いた（引っかかって進めないときも次へ）
+  const next = navNext(b, st, dt, pEye);
+  wish.copy(next || st).sub(b.pos).setY(0);
+  return true;
+}
+
 export function updateBot(dt) {
   const b = bot, D = DIFFS[settings.diff];
   const wish = new V3();
@@ -174,6 +231,8 @@ export function updateBot(dt) {
     // 目がくらんでいる間は見えない（閃光弾）
     if (b.blindT > 0) b.blindT -= dt;
     const los = !player.dead && hasLOS(bEye, pEye) && !(act(player, 'cloak') && dist > 3) && !Sword.hidden(player) && !(b.blindT > 0) && dist < (gs.stormVis ?? Infinity);   // 砂嵐の中は近くしか見えない
+    if (!b.openDone) startOpening(b);
+    if (los && b.opening) endOpening(b);   // 見つけたら最初の動きは終わり
     if (los) { b.seen += dt; b.lostT = 0; b.lastKnown.copy(T.pos); b.flankSide = 0; }
     else { b.seen = Math.max(0, b.seen - dt * 2); b.lostT += dt; }
     // 透視中は、見えていなくても居場所が分かる
@@ -245,6 +304,8 @@ export function updateBot(dt) {
         if (b.healPt) wish.copy(b.healPt).sub(b.pos).setY(0);
         else wish.copy(toP).negate().add(side);
       } else { wish.set(0, 0, 0); b.healPt = null; }
+    } else if (b.opening && openStep(b, dt, wish, pEye)) {
+      // 最初の動き（右から・左から・待つ など）
     } else {
       // 見失ったら最後に見た場所へ。まっすぐ行けなければ中継地点を経由
       let tgt = b.lostT < 3 ? b.lastKnown : player.pos;
@@ -536,7 +597,7 @@ export const PERSONAS = {
 export function aiHear(pos, radius) {
   if (!bot || bot.dead || gs.state !== 'fight') return;
   if (bot.pos.distanceTo(pos) > radius * (DIFFS[settings.diff].oni ? 1.5 : 1) || bot.lostT === 0) return;   // 鬼畜は耳がいい
-  bot.lastKnown.copy(pos); bot.lostT = 0.01; bot.wp = null;
+  bot.lastKnown.copy(pos); bot.lostT = 0.01; bot.wp = null; endOpening(bot);   // 音で気づいたら最初の動きは終わり
 }
 
 // quiet：毒のじわじわ（揺れ・音を小さく）
