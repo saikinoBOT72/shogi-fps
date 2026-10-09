@@ -21,6 +21,7 @@ import { VS_TIME, showVsCut } from './vscut';
 import { showHero } from './hero';
 import { bindTouchSettings, touchSettingsHTML } from './touch';
 import { openBalance } from './balance';
+import { Replay } from './replay';
 
 // ================= 共通 =================
 const H_EN: Record<string, string> = {
@@ -371,9 +372,12 @@ export function showResult(win) {
     </div>
     <div class="menu">
       <button class="btn sub" id="toTitle">${Net.on ? '部屋から抜ける' : 'タイトルへ'}</button>
+      ${Replay.canAgain ? '<button class="btn sub" id="replay">もう一回リプレイ</button>' : ''}
       <button class="btn white" id="again">${Net.on ? 'もう一戦（駒を選ぶ）' : 'もう一局'}</button>
     </div>
   </div>`, true);
+  // リプレイを見直す（オンラインでも自分の画面だけ。見終わるかスキップでこの画面に戻る）
+  if (Replay.canAgain) on('replay', () => { hideOverlay(); if (!Replay.again(() => showResult(win))) showResult(win); });
   if (Net.on) { on('again', () => { resetMatch(); showLobby(); }); on('toTitle', leave); return; }
   on('again', startMatch);
   on('toTitle', () => { resetMatch(); showTitle(); });

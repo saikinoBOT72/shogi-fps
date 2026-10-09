@@ -473,6 +473,7 @@ export const Sword = {
     if (lastCut && performance.now() - lastCut.t < 1000 && bot && bot.dead) { finishStart(lastCut.cut); return true; }
     return false;
   },
+  kcBlink: false,   // リプレイ：視点の駒が瞬を使っている（集中線を出す）
   // 葉隠れで姿が見えなくなっているか
   hidden(e) { const s = act(e, 'hagakure'); return !!s && !e.dead && (e.stillT || 0) >= s.sk.still; },
   // 葉が舞う（葉隠れを使った・消えた瞬間）
@@ -485,7 +486,7 @@ export const Sword = {
   blinkStart(e, k: number) { if (e === player) blinkK = 1; ghostT = 0; },
   // 毎フレーム（本当の時間）：納刀・真っ二つ・画面の上の演出
   frame(rdt: number) {
-    blinkK = player && act(player, 'blink') ? 1 : Math.max(0, blinkK - rdt * 4);
+    blinkK = (gs.state === 'killcam' ? Sword.kcBlink : player && act(player, 'blink')) ? 1 : Math.max(0, blinkK - rdt * 4);   // リプレイ中は視点の駒が瞬を使っているか
     speedLines(blinkK);
     afterimageTick(rdt);
     finishFrame(rdt);

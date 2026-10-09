@@ -18,7 +18,7 @@ import { Net } from './net';
 
 const reg: THREE.Object3D[] = [];
 export const track = <T extends THREE.Object3D>(o: T): T => { reg.push(o); scene.add(o); return o; };
-const opOf = (o: any) => (o.material && o.material.opacity !== undefined ? o.material.opacity : 1);
+const opOf = (o: any) => (o.material && o.material.uniforms && o.material.uniforms.uOp ? o.material.uniforms.uOp.value : o.material && o.material.opacity !== undefined ? o.material.opacity : 1);   // ドーム（シェーダー）は uOp が濃さ
 const chest = e => new V3(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z);
 const foeOf = e => (e === player ? bot : player);
 // 相手の体（箱）に線分 a→b が当たるか。当たった点を返す
@@ -384,7 +384,17 @@ export const Gadgets = {
     for (const [i, x, y, z, rx, ry, rz, sc, op] of s) {
       const o: any = reg[i]; if (!o) continue;
       o.visible = true; o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.scale.setScalar(sc);
-      if (o.material && o.material.opacity !== undefined) o.material.opacity = op;
+      if (o.material && o.material.uniforms && o.material.uniforms.uOp) o.material.uniforms.uOp.value = op;
+      else if (o.material && o.material.opacity !== undefined) o.material.opacity = op;
+    }
+  },
+  // リプレイ用：記録した的へ縄を張る（list: [本物の駒, 記録から動かす駒, 的の位置 or null]）。対局に戻れば update が張り直す
+  replayRopes(list) {
+    for (const [k, fk, tgt] of list) {
+      const L = ropes.get(k); if (!L) continue;
+      L.visible = !!tgt; if (!tgt) continue;
+      const p = L.geometry.attributes.position;
+      p.setXYZ(0, fk.pos.x, fk.pos.y + k.eyeH - 0.45, fk.pos.z); p.setXYZ(1, tgt.x, tgt.y, tgt.z); p.needsUpdate = true;
     }
   },
   samples: () => [makeC4(), makeMissile()],
