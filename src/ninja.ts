@@ -20,7 +20,7 @@ import { heardFoe } from './hud';
 import { gs } from './state';
 import { makeKunai, hangTassel } from './guns/kunai';
 import { act, bot, botActor, player, playerActor, stats, view, onAttack, eyeOf, ray, currentSpread, facingOf } from './game';
-import { afterimage } from './swordfx';
+import { afterimage, zan } from './swordfx';
 import { hooks } from './game/weapons';
 import { Sword } from './sword';
 import { down } from './input';
@@ -331,7 +331,7 @@ function makeLog(len: number) {
   g.traverse((o: any) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;
 }
-const logs: { g: THREE.Group; t: number; axis: THREE.Vector3; fell: boolean }[] = [];
+const logs: { g: THREE.Group; t: number; axis: THREE.Vector3; fell: boolean; id: number; len: number }[] = [];
 function spawnLog(e, from: THREE.Vector3) {
   const g = makeLog(e.height * 0.95);
   g.position.copy(e.pos); scene.add(g);
@@ -339,7 +339,7 @@ function spawnLog(e, from: THREE.Vector3) {
   const away = e.pos.clone().sub(from).setY(0); if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
   away.normalize().applyAxisAngle(UP, rand(-0.7, 0.7));
   const axis = new V3(0, 1, 0).cross(away).normalize();
-  logs.push({ g, t: 0, axis, fell: false });
+  logs.push({ g, t: 0, axis, fell: false, id: ++logId, len: e.height * 0.95 });
   return g;
 }
 function logsTick(dt: number) {
@@ -399,6 +399,117 @@ function kawarimiHit(e, from: THREE.Vector3, kw) {
   else if (Net.on && e === bot) Net.send({ t: 'kw', f: vec(from) });   // 相手の画面でよけてもらう
 }
 
+// ---------- 試合の始まり：九字を切って、煙の中から現れる（E4） ----------
+//   手はいつもの丸い手のまま。九字（臨兵闘者皆陣列在前）の筆文字が輪になって一字ずつ浮かび、「ドロン」で煙の中から現れる
+//   自分：画面のまん中のまわりに文字の輪（HTML）→ 白く弾けて目の前に煙
+//   相手（忍）：駒のまわりに文字の輪（板）→ 煙が弾けて駒が現れる（それまで駒は見えない）
+const KUJI = ['臨', '兵', '闘', '者', '皆', '陣', '列', '在', '前'];
+const INTRO = { EACH: 0.1, POP: 1.0, END: 1.5 };
+const kujiTexCache: Record<string, THREE.Texture> = {};
+function kujiTex(ch: string) {
+  if (kujiTexCache[ch]) return kujiTexCache[ch];
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const fam = getComputedStyle(document.documentElement).getPropertyValue('--font-koma') || 'serif';
+  g.font = `900 96px ${fam}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 10; g.strokeStyle = 'rgba(20,16,14,0.9)'; g.strokeText(ch, 64, 68);
+  g.fillStyle = '#f6f3ee'; g.fillText(ch, 64, 68);
+  return kujiTexCache[ch] = new THREE.CanvasTexture(c);
+}
+type Intro = { e: any; t: number; sprites: THREE.Sprite[]; el: HTMLDivElement | null; popped: boolean };
+const intros: Intro[] = [];
+function introStart(e) {
+  const I: Intro = { e, t: 0, sprites: [], el: null, popped: false };
+  if (e === player) {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:4';
+    KUJI.forEach((ch, i) => {
+      const a = -Math.PI / 2 + i / KUJI.length * Math.PI * 2, s = document.createElement('span');
+      s.textContent = ch;
+      s.style.cssText = `position:absolute;left:${(Math.cos(a) * 24).toFixed(2)}vmin;top:${(Math.sin(a) * 24).toFixed(2)}vmin;transform:translate(-50%,-50%);font:900 8vmin var(--font-koma);color:#f6f3ee;opacity:0;text-shadow:0 0 1.2vmin rgba(20,16,14,.9),0 0 3vmin rgba(150,175,255,.6)`;
+      s.animate([{ opacity: 0, transform: 'translate(-50%,-50%) scale(1.8)', filter: 'blur(6px)' }, { opacity: 1, transform: 'translate(-50%,-50%) scale(1)', filter: 'blur(0)' }],
+        { duration: 160, delay: i * INTRO.EACH * 1000, fill: 'forwards', easing: 'ease-out' });
+      el.appendChild(s);
+    });
+    document.body.appendChild(el); I.el = el;
+  } else {
+    const A = e === bot ? botActor : playerActor;
+    if (A) A.body.visible = false;
+    for (const ch of KUJI) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: kujiTex(ch), transparent: true, depthWrite: false, opacity: 0 })); sp.scale.setScalar(0.55); scene.add(sp); I.sprites.push(sp); }
+  }
+  intros.push(I);
+}
+function introPop(I: Intro) {
+  const e = I.e; I.popped = true;
+  if (e === player) {
+    I.el.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.5)', filter: 'blur(4px)' }], { duration: 400, fill: 'forwards', easing: 'ease-out' });
+    cam.updateMatrixWorld();
+    const front = cam.localToWorld(new V3(0, -0.2, -1.4));
+    for (let i = 0; i < 12; i++) puff(front.clone().add(new V3(rand(-0.6, 0.6), rand(-0.3, 0.4), rand(-0.6, 0.6))), { v: new V3(rand(-2, 2), rand(0, 1.5), rand(-2, 2)), life: rand(0.5, 0.8), s0: 0.5, s1: 1.5, op: 0.8 });
+    VM.ready();
+    SFX.play('doron', null);
+  } else {
+    doron(e.pos, e.height);
+    SFX.play('doron', e.pos);
+    const A = e === bot ? botActor : playerActor;
+    if (A) A.body.visible = true;
+  }
+}
+function introEnd(I: Intro) {
+  if (I.el) I.el.remove();
+  for (const s of I.sprites) { scene.remove(s); s.material.dispose(); }
+  if (I.e === bot && botActor) botActor.body.visible = true;
+}
+function introTick(dt: number) {
+  // カウントダウン（VS カットのあと、stateT が 0 から）が始まったら、忍の駒ごとに1回
+  if (gs.state === 'countdown' && gs.stateT >= 0) for (const e of [player, bot]) if (e && e.w.kind === 'ninja' && !e.njIntro) { e.njIntro = true; introStart(e); }
+  for (let i = intros.length - 1; i >= 0; i--) {
+    const I = intros[i]; I.t += dt;
+    if (I.sprites.length) {   // 相手：駒のまわりの輪（相手の向きに立てる）
+      const e = I.e, f = facingOf(e), right = new V3(-f.z, 0, f.x), c = e.pos.clone().setY(e.pos.y + e.height * 0.55);
+      I.sprites.forEach((s, k) => {
+        const a = -Math.PI / 2 + k / KUJI.length * Math.PI * 2, R = 0.95 + (I.popped ? (I.t - INTRO.POP) * 2 : 0);
+        s.position.copy(c).addScaledVector(right, Math.cos(a) * R).addScaledVector(UP, -Math.sin(a) * R).addScaledVector(f, 0.2);
+        const on = clamp((I.t - k * INTRO.EACH) / 0.15, 0, 1), off = I.popped ? clamp(1 - (I.t - INTRO.POP) / 0.4, 0, 1) : 1;
+        s.material.opacity = on * off;
+      });
+    }
+    if (!I.popped && I.t >= INTRO.POP) introPop(I);
+    if (I.t >= INTRO.END) { introEnd(I); intros.splice(i, 1); }
+  }
+}
+
+// ---------- とどめ：筆の「忍」と煙（E5） ----------
+let foeWasDead = false;
+function finishTick() {
+  if (!bot || !player) return;
+  if (bot.dead && !foeWasDead && player.mainW.kind === 'ninja' && bot.sinceHit < 1.5) {
+    zan('忍');
+    doron(bot.pos, bot.height);
+  }
+  foeWasDead = !!bot.dead;
+}
+
+// ---------- リプレイ（E7）：記録した様子から、線・残像・苦無の扇・丸太・煙・画面の色をもう一度出す ----------
+let logId = 0;
+type Rep = { trails: Record<string, Trail[]>; fans: Record<string, THREE.Group[]>; logs: Map<number, THREE.Group>; ghostT: number; smokeT: Record<string, number> };
+let rep: Rep = null;
+const repTrails = (k: string) => rep.trails[k] || (rep.trails[k] = LINE.H.map(() => makeTrail()));
+function repFan(k: string, list: THREE.Group[], n: number, vm: boolean, base: THREE.Vector3, f: THREE.Vector3, size: number, h: number, dt: number) {
+  while (list.length < n) { const m = makeKunai(); (vm ? vmScene : scene).add(m); m.userData.age = 0; list.push(m); }
+  while (list.length > n) list.pop().removeFromParent();
+  const right = new V3(-f.z, 0, f.x), tgt = base.clone().setY(base.y + h * 0.8).addScaledVector(f, 20), tgtVm = new V3(0, 0, -20);
+  list.forEach((m, slot) => {
+    m.userData.age += dt;
+    const a = FAN[slot], R = vm ? 0.82 : 1.2 * size;
+    if (vm) _p.set(Math.sin(a) * R * 1.3, -0.3 + Math.cos(a) * R, -1.0);
+    else _p.copy(base).addScaledVector(UP, h + Math.cos(a) * R).addScaledVector(right, Math.sin(a) * R).addScaledVector(f, -0.3 - 0.15 * Math.cos(a));
+    const T = vm ? tgtVm : tgt;
+    _m.lookAt(T, _p, UP); m.quaternion.setFromRotationMatrix(_m); m.position.copy(_p);
+    m.scale.setScalar(vm ? 1.15 : 1.3);
+    hangTassel(m, vm ? new V3(0, -1, 0.15) : DOWN, 0.3);
+  });
+}
+
 export const Ninja = {
   // 自分：押した瞬間に手裏剣を1枚（押しっぱなしでは続けて投げない）。押し続けると苦無を並べ、離すと飛ばす
   input(p, down: boolean, dt: number) {
@@ -452,7 +563,7 @@ export const Ninja = {
         puff(e.pos.clone().add(new V3(Math.cos(a) * r, 0.08, Math.sin(a) * r)), { v: new V3(Math.cos(a) * 0.3, rand(0.2, 0.5), Math.sin(a) * 0.3), life: rand(0.7, 1.1), s0: 0.2, s1: 0.6, op: 0.45 });
       }
     }
-    puffTick(dt); logsTick(dt);
+    puffTick(dt); logsTick(dt); introTick(dt); finishTick();
     edgeTick(!!player && !!player.shippuOn, dt);
     for (const e of [player, bot]) {
       if (!e) continue;
@@ -507,7 +618,74 @@ export const Ninja = {
     SFX.play('shippu', e === player ? null : e.pos);
     if (e === player) view.shake = Math.max(view.shake, 0.18);
   },
+  // リプレイ用の記録（1 コマごと）：並べている苦無の本数・丸太
+  snap() { return { kp: Ninja.count(player), kb: Ninja.count(bot), lg: logs.map(L => [L.id, L.len, L.g.position.x, L.g.position.y, L.g.position.z, L.g.quaternion.x, L.g.quaternion.y, L.g.quaternion.z, L.g.quaternion.w]) }; },
+  // リプレイが始まった：今の煙・丸太・線を隠して、リプレイ用のものを出す
+  replayStart() {
+    rep = { trails: {}, fans: {}, logs: new Map(), ghostT: 0, smokeT: {} };
+    for (const L of logs) L.g.visible = false;
+    for (const q of puffs) q.s.visible = false;
+    for (const k of inks) k.m.visible = false;
+    for (const set of Object.values(trailSets)) for (const T of set) T.mesh.visible = false;
+    edgeK = 0; if (edgeEl) edgeEl.style.display = 'none';
+  },
+  // リプレイの 1 コマ（fp・fb：記録から動かしている駒 / win：自分の視点か）
+  replayFrame(f, fp, fb, win: boolean, dt: number) {
+    if (!rep || !f.nj) return;
+    clock += dt;
+    let edgeOn = false;
+    for (const [k, fk, A, r] of [['p', fp, playerActor, f.p], ['b', fb, botActor, f.b]] as any[]) {
+      const pov = (k === 'p') === win, h = 1.85 * fk.def.size;
+      const on = !!act(fk, 'shippu') && !fk.dead;
+      if (pov) edgeOn = on;
+      // 白い線
+      repTrails(k).forEach((T: Trail, i: number) => {
+        if (on) { const p = fk.pos.clone().setY(fk.pos.y + h * LINE.H[i]), last = T.pts[T.pts.length - 1]; if (!last || last.p.distanceToSquared(p) > 0.0025) { T.pts.push({ p, t: clock }); if (T.pts.length > LINE.N) T.pts.shift(); } }
+        while (T.pts.length && clock - T.pts[0].t > LINE.LIFE) T.pts.shift();
+        drawTrail(T);
+      });
+      // 残像（視点でない側）
+      if (on && !pov && (rep.ghostT -= dt) <= 0) { rep.ghostT = 0.06; afterimage(A.hitMesh); }
+      // 変わり身の構え：足元の煙
+      if (act(fk, 'kawarimi') && !fk.dead && (rep.smokeT[k] = (rep.smokeT[k] || 0) - dt) <= 0) {
+        rep.smokeT[k] = 0.09;
+        const a = Math.random() * Math.PI * 2, rr = 0.45 * fk.def.size;
+        puff(fk.pos.clone().add(new V3(Math.cos(a) * rr, 0.08, Math.sin(a) * rr)), { v: new V3(Math.cos(a) * 0.3, rand(0.2, 0.5), Math.sin(a) * 0.3), life: rand(0.7, 1.1), s0: 0.2, s1: 0.6, op: 0.45 });
+      }
+      // 苦無の扇（視点の駒は画面に固定）
+      const facing = k === 'p' ? new V3(-Math.sin(r.yaw), 0, -Math.cos(r.yaw)) : new V3(Math.sin(r.rotY), 0, Math.cos(r.rotY));
+      repFan(k, rep.fans[k] || (rep.fans[k] = []), fk.dead ? 0 : (k === 'p' ? f.nj.kp : f.nj.kb), pov, fk.pos, facing, fk.def.size, h, dt);
+    }
+    edgeTick(edgeOn, dt);
+    // 丸太：出てきたら煙、消えたら煙
+    const seen = new Set<number>();
+    for (const [id, len, x, y, z, qx, qy, qz, qw] of f.nj.lg) {
+      seen.add(id);
+      let g = rep.logs.get(id);
+      if (!g) { g = makeLog(len); scene.add(g); rep.logs.set(id, g); g.position.set(x, y, z); doron(g.position, len); }
+      g.position.set(x, y, z); g.quaternion.set(qx, qy, qz, qw);
+    }
+    for (const [id, g] of rep.logs) if (!seen.has(id)) {
+      for (let j = 0; j < 8; j++) puff(g.position.clone().add(new V3(rand(-0.6, 0.6), 0.2, rand(-0.6, 0.6))), { v: new V3(rand(-0.5, 0.5), rand(0.5, 1.2), rand(-0.5, 0.5)), life: 0.8, s0: 0.3, s1: 1.1 });
+      scene.remove(g); rep.logs.delete(id);
+    }
+    puffTick(dt); inkTick(dt);
+  },
+  replayEnd() {
+    if (!rep) return;
+    for (const set of Object.values(rep.trails)) for (const T of set) { scene.remove(T.mesh); T.geo.dispose(); }
+    for (const list of Object.values(rep.fans)) for (const m of list) m.removeFromParent();
+    for (const g of rep.logs.values()) scene.remove(g);
+    rep = null;
+    for (const L of logs) L.g.visible = true;
+    for (const q of puffs) q.s.visible = true;
+    for (const k of inks) k.m.visible = true;
+    for (const set of Object.values(trailSets)) for (const T of set) T.mesh.visible = true;
+    edgeK = 0; if (edgeEl) edgeEl.style.display = 'none';
+  },
   clear() {
+    for (const I of intros) introEnd(I);
+    intros.length = 0; foeWasDead = false;
     for (const e of [player, bot]) if (e) e.shippuOn = false;
     for (const set of Object.values(trailSets)) for (const T of set) { T.pts.length = 0; drawTrail(T); }
     edgeK = 0; if (edgeEl) edgeEl.style.display = 'none';

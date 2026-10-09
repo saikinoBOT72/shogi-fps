@@ -375,7 +375,7 @@ export function updatePlayer(dt) {
     const prev = Math.sin(view.bobPhase * 2);
     view.bobPhase += dt * Math.hypot(p.vel.x, p.vel.z) * 1.35;
     if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0 && act(p, 'shippu')) aiHear(p.pos, 8);   // 残像疾風：足音の代わりに風の音（ninja.ts）
-    else if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { const sf = surfOf(p); if (p.running) SFX.play('step', null, 0.7, sf); if (sf === 'squeak') aiHear(p.pos, 30); else if ((p.adsT || 0) < 0.5) aiHear(p.pos, p.running ? 10 : 4); }   // 鳴る床は忍び足でも遠くまで聞こえる。歩きは聞こえる範囲が狭い
+    else if (prev > 0 && Math.sin(view.bobPhase * 2) <= 0) { const sf = surfOf(p), q = p.type === 'NI' ? 0.5 : 1; if (p.running) SFX.play('step', null, 0.7 * q, sf); if (sf === 'squeak') aiHear(p.pos, 30); else if ((p.adsT || 0) < 0.5) aiHear(p.pos, (p.running ? 10 : 4) * q); }   // 忍（q）は足音が小さい（鳴る床はそれでも鳴る）   // 鳴る床は忍び足でも遠くまで聞こえる。歩きは聞こえる範囲が狭い
   }
 
   weaponTick(p, dt);

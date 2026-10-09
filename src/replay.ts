@@ -15,6 +15,7 @@ import { afterimage } from './swordfx';
 import { equippedRef, paintGun } from './loadout';
 import { Net } from './net';
 import { Sword } from './sword';
+import { Ninja } from './ninja';
 import { animateActor, drawScope, hipFov, poseViewModel } from './camera';
 
 export const Replay = (() => {
@@ -98,7 +99,7 @@ export const Replay = (() => {
         sk: b.slots.map(s => s.t), cd: b.cd, draw: b.draw, reloading: b.reloading, ammo: b.ammo, fired: b.cd > lastBcd + 1e-4, sw: swOf(b), gk: b.swGuardK || 0,
         st: b.stillT || 0, ft: b.flareT || 0, bl: b.blindT || 0, gt: gtOf(b),
       },
-      ph: PHYS.snapshot(), ar: Arrows.snapshot(), gr: Grenades.snapshot(), gd: Gadgets.snapshot(),
+      ph: PHYS.snapshot(), ar: Arrows.snapshot(), gr: Grenades.snapshot(), gd: Gadgets.snapshot(), nj: Ninja.snap(),   // nj：忍（苦無の扇・丸太）
       ev: events,
     });
     lastPcd = p.cd; lastBcd = b.cd;
@@ -150,6 +151,7 @@ export const Replay = (() => {
     $('kcName1').textContent = win ? `相手 ${bot.def.name}` : `あなた ${player.def.name}`;
     ui.dataset.shooter = shooter.def.name; ui.dataset.target = target.def.name;
     ui.style.display = 'block';
+    Ninja.replayStart();
     return true;
   }
 
@@ -205,6 +207,7 @@ export const Replay = (() => {
     PHYS.restore(f.ph);
     Arrows.showGhosts(f.ar); Grenades.showGhosts(f.gr); Gadgets.restore(f.gd);
     apply(P.fp, f.p); apply(P.fb, f.b);
+    Ninja.replayFrame(f, P.fp, P.fb, P.win, dt);   // 忍：残像疾風の線・苦無の扇・丸太・煙
     P.fovK = damp(P.fovK, slow ? 0.82 : 1, 4, rdt);
 
     let bobX = 0, bobY = 0;
@@ -343,6 +346,7 @@ export const Replay = (() => {
     ui.style.display = 'none'; $('kcPip').style.display = 'none'; $('kcFlash').style.opacity = '0'; $('kcCloak').style.opacity = '0'; $('kcBuff').style.opacity = '0';
     playerActor.xray.visible = false;
     Sword.kcBlink = false;
+    Ninja.replayEnd();
     play = null;
     gs.state = 'end'; gs.mouseDown = false; gs.rightDown = false;
     done();

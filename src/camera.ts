@@ -252,7 +252,7 @@ export function animateActor(A, e, dt, lookAt) {
   const prev = Math.sin(e.stepPhase * 2);
   e.stepPhase += dt * (6 + spd * 1.3);
   const hop = Math.max(0, Math.sin(e.stepPhase * 2));
-  if (e.isBot && mk > 0.3 && prev > 0 && Math.sin(e.stepPhase * 2) <= 0) { SFX.play('step', e.pos, 1, surfOf(e)); heardFoe(e.pos, 'step'); }
+  if (e.isBot && mk > 0.3 && prev > 0 && Math.sin(e.stepPhase * 2) <= 0) { const nin = e.type === 'NI'; SFX.play('step', e.pos, nin ? 0.45 : 1, surfOf(e)); if (!nin || e.pos.distanceTo(player.pos) < 12) heardFoe(e.pos, 'step'); }   // 忍は足音が小さい
   const inv = A.root.rotation.y;
   const lf = e.vel.x * Math.sin(inv) + e.vel.z * Math.cos(inv);  // 前後
   const ls = e.vel.x * Math.cos(inv) - e.vel.z * Math.sin(inv);  // 左右

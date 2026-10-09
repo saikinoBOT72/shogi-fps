@@ -184,8 +184,9 @@ export function focusLines(k: number) {
   vig.style.opacity = k.toFixed(2);
 }
 // とどめ：「斬」の筆文字が大きくドンと出る
-export function zan() {
+export function zan(ch = '斬') {   // 忍のとどめは「忍」
   ensureLayer();
+  zanEl.textContent = ch;
   zanEl.animate([
     { opacity: 0, transform: 'translate(-50%,-50%) scale(1.9) rotate(-8deg)', filter: 'blur(8px)' },
     { opacity: 1, transform: 'translate(-50%,-50%) scale(0.94) rotate(-3deg)', filter: 'blur(0)', offset: 0.07 },
