@@ -1,7 +1,6 @@
 // 手裏剣（忍）：十字手裏剣。差し渡し 約 124mm・厚さ 約 5mm（見て分かりやすいよう少し大きめ）
-//   形：幅の広い4枚の刃が、真ん中近くの谷でつながった星形。刃の脇はわずかにくぼんで刃先へとがる
-//   刃：真ん中に稜線（いちばん厚い所）が刃先まで通り、両側へ削った面（slide 黒い地鉄）→ 縁に沿って研いだ面（barrel 明るい鋼）の二段
-//   芯：真ん中に丸い穴。穴のまわりに少し盛り上がった縁（frame）と朱の輪（accent）
+//   形はすっきりさせた記号のような星形：まっすぐな線の4枚の刃と、真ん中の丸い穴だけ
+//   面（slide）は黒っぽい鋼、まわりの面取り（barrel）は明るい鋼。赤は入れない
 //
 // 一人称・駒が持つ形：丸い手（いつもの木の塊）の上、親指と人差し指の間に平たく挟む
 //   投げる（fire）：手首を返して横に投げ、手裏剣は消える → 指の間から次の1枚がスッと出てくる
@@ -13,80 +12,36 @@ import { handMesh, makeGun } from './model';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const S = makeSpace(0, 0);
-const TIP = 62, VALLEY = 23, HOLE = 5.5, IN = 8.2;   // 刃先・谷・穴・稜線の始まりの半径（mm）
-const RIDGE = [2.6, 0.7], EDGE = 0.35, BEVEL = 6, BOW = 1.2;   // 稜線の厚み（半分）根元→先・刃先の厚み（半分）・研いだ面の幅・脇のくぼみ
+const TIP = 62, VALLEY = 21, HOLE = 7;   // 刃先・谷・穴の半径（mm）
 
-// 刃の半分（星の面は xy、厚みは z、単位 mm）：刃の向き a、谷のある側 side（+1 / -1）
-//   s（0 谷 〜 1 刃先）ごとに、稜線の点 R・研ぎの境目 G・縁 E を結んだ帯を並べる
-function halfBlade(a: number, side: number, n = 12) {
-  const core: number[] = [], edge: number[] = [];
-  const tri = (out: number[], p: THREE.Vector3, q: THREE.Vector3, r: THREE.Vector3, want: THREE.Vector3) => {
-    const nrm = q.clone().sub(p).cross(r.clone().sub(p));
-    if (nrm.dot(want) < 0) [q, r] = [r, q];
-    for (const v of [p, q, r]) out.push(v.x, v.y, v.z);
+// 形を押し出して、表と裏（caps）・まわりの面取りと側面（sides）に分ける（ExtrudeGeometry の groups：0 が表裏、1 がまわり）
+export function extrudeSplit(shape: THREE.Shape, depth: number, bevel: number, bevelT = bevel * 0.5) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bevelT, bevelSize: bevel, bevelSegments: 1, curveSegments: 6 });
+  g.translate(0, 0, -depth / 2);
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  const part = (mi: number) => {
+    const p: number[] = [], u: number[] = [];
+    for (const gr of g.groups) if (gr.materialIndex === mi) for (let i = gr.start; i < gr.start + gr.count; i++) { p.push(pos.getX(i), pos.getY(i), pos.getZ(i)); u.push(uv.getX(i), uv.getY(i)); }
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); out.setAttribute('uv', new THREE.Float32BufferAttribute(u, 2));
+    return flat(out);
   };
-  const quad = (out: number[], p, q, r, s, want) => { tri(out, p, q, r, want); tri(out, p, r, s, want); };
-  const ax = new THREE.Vector2(Math.cos(a), Math.sin(a));
-  const va = a + side * Math.PI / 4, V = new THREE.Vector2(Math.cos(va) * VALLEY, Math.sin(va) * VALLEY), T = ax.clone().multiplyScalar(TIP);
-  const chord = T.clone().sub(V), inward = new THREE.Vector2(-chord.y, chord.x).normalize();
-  if (inward.dot(ax.clone().multiplyScalar(TIP * 0.5).sub(V)) < 0) inward.negate();   // 刃の真ん中の方へ
-  const row = (s: number) => {
-    const E = V.clone().lerp(T, s).addScaledVector(inward, BOW * Math.sin(Math.PI * s));
-    const R = ax.clone().multiplyScalar(IN + (TIP - IN) * s);
-    const d = R.distanceTo(E), g = d > 0.01 ? Math.min(0.62, BEVEL / d) : 0;
-    const G = E.clone().lerp(R, g);
-    const h = RIDGE[0] + (RIDGE[1] - RIDGE[0]) * s;
-    return { E, R, G, h, gh: EDGE + (h - EDGE) * g * 0.9 };
-  };
-  const v3 = (p: THREE.Vector2, z: number) => new THREE.Vector3(p.x, p.y, z);
-  for (let i = 0; i < n; i++) {
-    const A = row(i / n), B = row((i + 1) / n);
-    for (const zs of [1, -1]) {
-      const want = new THREE.Vector3(0, 0, zs);
-      quad(core, v3(A.R, zs * A.h), v3(B.R, zs * B.h), v3(B.G, zs * B.gh), v3(A.G, zs * A.gh), want);   // 稜線 → 研ぎの境目（地鉄）
-      quad(edge, v3(A.G, zs * A.gh), v3(B.G, zs * B.gh), v3(B.E, zs * EDGE), v3(A.E, zs * EDGE), want);   // 研いだ面
-    }
-    const out = new THREE.Vector3(-inward.x, -inward.y, 0);
-    quad(edge, v3(A.E, EDGE), v3(B.E, EDGE), v3(B.E, -EDGE), v3(A.E, -EDGE), out);   // 縁の細い面
-  }
-  // 谷の内側：稜線の始まり（R0）・研ぎの境目・谷を結ぶ三角（隣の刃の半分と谷で合わさる）
-  const A = row(0);
-  const M = new THREE.Vector2(Math.cos(va), Math.sin(va)).multiplyScalar(IN);
-  for (const zs of [1, -1]) {
-    tri(core, v3(A.R, zs * A.h), v3(A.G, zs * A.gh), v3(M, zs * A.h * 0.9), new THREE.Vector3(0, 0, zs));
-    tri(core, v3(A.G, zs * A.gh), v3(A.E, zs * EDGE), v3(M, zs * A.h * 0.9), new THREE.Vector3(0, 0, zs));
-  }
-  return { core, edge };
-}
-const geoOf = (pos: number[]) => {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  const p = g.attributes.position, uv = new Float32Array(p.count * 2);
-  for (let i = 0; i < p.count; i++) { uv[i * 2] = p.getX(i) / 130 + 0.5; uv[i * 2 + 1] = p.getY(i) / 130 + 0.5; }
-  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  return flat(g);
-};
-// 丸い輪の板（穴あき、面取りあり）
-function ringGeo(r0: number, r1: number, t: number, seg: number, bevel = 0.6) {
-  const sh = new THREE.Shape();
-  for (let i = 0; i < seg; i++) { const a = i / seg * Math.PI * 2; (i ? sh.lineTo.bind(sh) : sh.moveTo.bind(sh))(Math.cos(a) * r0, Math.sin(a) * r0); }
-  const hole = new THREE.Path();
-  for (let i = 0; i < seg; i++) { const a = -i / seg * Math.PI * 2; (i ? hole.lineTo.bind(hole) : hole.moveTo.bind(hole))(Math.cos(a) * r1, Math.sin(a) * r1); }
-  sh.holes.push(hole);
-  const g = new THREE.ExtrudeGeometry(sh, { depth: t - bevel * 2, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1, curveSegments: 3 });
-  g.translate(0, 0, -(t - bevel * 2) / 2);
-  return flat(g);
+  return { caps: part(0), sides: part(1) };
 }
 // 手裏剣の形（mm、星の面は xy。刃先は 45°・135°… の向き）：塗りごと
 export function starGeo() {
-  const core: number[] = [], edge: number[] = [];
-  for (let k = 0; k < 4; k++) for (const side of [1, -1]) { const b = halfBlade(Math.PI / 4 + k * Math.PI / 2, side); core.push(...b.core); edge.push(...b.edge); }
-  return {
-    slide: geoOf(core), barrel: geoOf(edge),
-    frame: ringGeo(IN + 1.2, HOLE, 6, 20),            // 穴のまわりの盛り上がった縁（稜線の始まりを覆う）
-    accent: ringGeo(IN - 0.6, HOLE + 0.8, 6.8, 20, 0.4),   // 朱の輪（縁の上に細く）
-  };
+  const sh = new THREE.Shape();
+  for (let i = 0; i < 8; i++) {
+    const a = Math.PI / 4 + i * Math.PI / 4, r = i % 2 ? VALLEY : TIP;
+    (i ? sh.lineTo.bind(sh) : sh.moveTo.bind(sh))(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  const hole = new THREE.Path();
+  for (let i = 0; i < 18; i++) { const a = -i / 18 * Math.PI * 2; (i ? hole.lineTo.bind(hole) : hole.moveTo.bind(hole))(Math.cos(a) * HOLE, Math.sin(a) * HOLE); }
+  sh.holes.push(hole);
+  const s = extrudeSplit(sh, 2.6, 2.4, 1.1);
+  return { slide: s.caps, barrel: s.sides };
 }
+
 // 飛んでいく手裏剣（m、星の面は xz＝寝かせた向き）：塗りを1つのメッシュに
 export function starMeshGeo(scale = 1) {
   const s = starGeo(), out: Record<string, THREE.BufferGeometry> = {};

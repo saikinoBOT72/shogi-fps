@@ -145,7 +145,8 @@ export const Arrows = (() => {
         const ang = cur.angleTo(want), max = a.turn * dt;
         if (ang > 1e-4) cur.lerp(want, Math.min(1, max / ang)).normalize();
         a.vel.copy(cur).multiplyScalar(spd);
-        if (Math.random() < 0.8) Particles.glow(a.pos, P.mizu[1]);
+        if (a.kind === 'kunai') { if (a.pos.distanceTo(a.from) > 1.2) Particles.trail(a.pos, P.shu[2]); }   // 苦無（弱い追尾）は朱の尾のまま
+        else if (Math.random() < 0.8) Particles.glow(a.pos, P.mizu[1]);
       } else {
         a.vel.y -= a.gravity * dt;
         a.vel.multiplyScalar(Math.max(0, 1 - a.drag * dt));

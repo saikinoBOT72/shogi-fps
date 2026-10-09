@@ -1,43 +1,15 @@
 // 苦無（忍が長押しで背中の後ろ上に並べて飛ばすもの）：全長 約 250mm
-//   刃：木の葉の形（根元の 35% あたりがいちばん広い）。真ん中に稜線、両側へ削った面（slide 黒い地鉄）→ 研いだ刃先（barrel 明るい鋼）
-//   柄：細い鉄の芯（frame）に紐を斜めに巻いたもの（grip）。刃との境に鍔の代わりの輪（frame）
-//   柄頭：丸い輪（frame）。輪の下から朱の房（detail）が下がる（房だけ別の入れ物 tassel：揺らせる）
+//   形はすっきりさせた記号のような苦無：ひし形の木の葉の刃・まっすぐな柄・丸い輪・房だけ
+//   刃：面（slide）は黒っぽい鋼、まわりの面取り（barrel）は明るい鋼 / 柄（grip）と輪（frame）は黒 / 房（detail）は朱
 //
 // 単位は mm。刃先が +z（飛ぶ向き・lookAt の向き）、原点は刃と柄の境目。kunaiParts(scale) が m にして返す
 import * as THREE from 'three';
 import { flat } from './kit';
+import { extrudeSplit } from './shuriken';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-export const KUNAI_LEN = { tip: 112, ring: -107, tasselFrom: -120 };   // 刃先・柄頭の輪の中心・房の付け根（z, mm）
+export const KUNAI_LEN = { tip: 112, ring: -100, tasselFrom: -112 };   // 刃先・柄頭の輪の中心・房の付け根（z, mm）
 
-// 刃：s（0 根元〜1 刃先）ごとの半分の幅・稜線の厚み
-const half = (s: number) => (s < 0.35 ? 8 + 9.5 * (1 - Math.pow(1 - s / 0.35, 2)) : 17.5 * (1 - Math.pow((s - 0.35) / 0.65, 1.5)));
-const ridge = (s: number) => 3.3 - 2.7 * s;
-const EDGE = 0.35, GRIND = 0.55;
-
-function bladeGeo(n = 16) {
-  const core: number[] = [], edge: number[] = [];
-  const tri = (out: number[], a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, want: THREE.Vector3) => {
-    const nrm = b.clone().sub(a).cross(c.clone().sub(a));
-    if (nrm.dot(want) < 0) [b, c] = [c, b];
-    for (const p of [a, b, c]) out.push(p.x, p.y, p.z);
-  };
-  const quad = (out: number[], a, b, c, d, want) => { tri(out, a, b, c, want); tri(out, a, c, d, want); };
-  // 刃の面は y（上下）が幅、x が厚み
-  const P = (z: number, y: number, x: number) => new THREE.Vector3(x, y, z);
-  const row = (s: number) => { const w = half(s), h = ridge(s); return { z: KUNAI_LEN.tip * s, w, h, gw: w * GRIND, gh: EDGE + (h - EDGE) * 0.4 }; };
-  for (let i = 0; i < n; i++) {
-    const A = row(i / n), B = row((i + 1) / n);
-    for (const xs of [1, -1]) for (const ys of [1, -1]) {
-      const want = new THREE.Vector3(xs, 0, 0);
-      quad(core, P(A.z, 0, xs * A.h), P(B.z, 0, xs * B.h), P(B.z, ys * B.gw, xs * B.gh), P(A.z, ys * A.gw, xs * A.gh), want);
-      quad(edge, P(A.z, ys * A.gw, xs * A.gh), P(B.z, ys * B.gw, xs * B.gh), P(B.z, ys * B.w, xs * EDGE), P(A.z, ys * A.w, xs * EDGE), want);
-    }
-    for (const ys of [1, -1]) quad(edge, P(A.z, ys * A.w, EDGE), P(B.z, ys * B.w, EDGE), P(B.z, ys * B.w, -EDGE), P(A.z, ys * A.w, -EDGE), new THREE.Vector3(0, ys, 0));
-  }
-  const geo = (pos: number[]) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return withUV(flat(g)); };
-  return { core: geo(core), edge: geo(edge) };
-}
 const withUV = (g: THREE.BufferGeometry) => {
   const p = g.attributes.position, uv = new Float32Array(p.count * 2);
   for (let i = 0; i < p.count; i++) { uv[i * 2] = p.getZ(i) / 250 + 0.5; uv[i * 2 + 1] = p.getY(i) / 250 + 0.5; }
@@ -50,33 +22,19 @@ const rodZ = (z0: number, z1: number, r0: number, r1 = r0, seg = 8) => { const g
 // 塗りごとの形（m）と、房（tassel：付け根が原点、-z へ垂れる）
 export function kunaiParts(scale = 1) {
   const k = scale / 1000;
-  const bl = bladeGeo();
-  const frame: THREE.BufferGeometry[] = [], grip: THREE.BufferGeometry[] = [];
-  // 刃の根元の輪（鍔の代わり）と柄の芯
-  frame.push(rodZ(-4, 3, 9.2, 8.4, 10));
-  frame.push(rodZ(-90, -4, 6.4, 7, 8));
-  // 柄巻き：斜めに傾けた紐の輪を交互に（巻いた紐の山）
-  for (let i = 0; i < 12; i++) {
-    const t = new THREE.TorusGeometry(7.2, 1.7, 4, 10);
-    t.rotateY((i % 2 ? 1 : -1) * 0.32);
-    t.translate(0, 0, -10 - i * 6.6);
-    grip.push(t);
-  }
-  // 柄頭：首と丸い輪（輪の面は刃の面と同じ向き＝ y-z の面）
-  frame.push(rodZ(-96, -88, 5, 6.2, 8));
-  { const r = new THREE.TorusGeometry(12.5, 3.2, 6, 16); r.rotateY(Math.PI / 2); r.translate(0, 0, KUNAI_LEN.ring); frame.push(r); }
+  // 刃：ひし形の木の葉（形の x が刃の長さ → z、形の y が幅、押し出しが厚み → x）
+  const sh = new THREE.Shape([[0, -7], [36, -17], [KUNAI_LEN.tip, 0], [36, 17], [0, 7]].map(([x, y]) => new THREE.Vector2(x, y)));
+  const bl = extrudeSplit(sh, 1.6, 2.6, 1.3);
+  for (const g of [bl.caps, bl.sides]) { g.rotateY(-Math.PI / 2); withUV(g); }
   const fin = (gs: THREE.BufferGeometry[]) => { const g = withUV(flat(mergeGeometries(gs.map(x => (x.index ? x.toNonIndexed() : x))))); g.scale(k, k, k); return g; };
-  const body = { slide: bl.core, barrel: bl.edge, frame: fin(frame), grip: fin(grip) };
+  // 柄：まっすぐな棒。刃との境と柄尻に細い輪
+  const grip = [rodZ(-86, 0, 6.2, 6.6, 8)];
+  const frame: THREE.BufferGeometry[] = [rodZ(-3, 4, 8.6, 8, 8), rodZ(-90, -84, 7.4, 7.4, 8)];
+  { const r = new THREE.TorusGeometry(11, 2.8, 5, 14); r.rotateY(Math.PI / 2); r.translate(0, 0, KUNAI_LEN.ring); frame.push(r); }   // 柄頭の輪（刃と同じ面）
+  const body = { slide: bl.caps, barrel: bl.sides, grip: fin(grip), frame: fin(frame) };
   body.slide.scale(k, k, k); body.barrel.scale(k, k, k);
-  // 房：結び目（玉）と、そこから垂れる 7 本の糸
-  const tas: THREE.BufferGeometry[] = [new THREE.IcosahedronGeometry(4.6, 0)];
-  tas.push(rodZ(-9, -2, 3.2, 4.2, 6));   // 結び目の下の巻き
-  for (let i = 0; i < 7; i++) {
-    const a = i / 7 * Math.PI * 2, r = i ? 2.4 : 0;
-    const s = rodZ(-52 + (i % 3) * 5, -6, 0.9, 1.4, 4); s.translate(Math.cos(a) * r, Math.sin(a) * r, 0);
-    tas.push(s);
-  }
-  const tassel = fin(tas);
+  // 房：結び目の玉と、先が広がる円すい
+  const tassel = fin([new THREE.IcosahedronGeometry(4.2, 0), rodZ(-44, -4, 6, 1.6, 6)]);
   return { body, tassel };
 }
 

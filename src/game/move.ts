@@ -202,7 +202,7 @@ export function moveEntity(e, wish, dt) {
   e.moving = Math.hypot(e.vel.x, e.vel.z) > 1;
 }
 export function tryJump(e) {
-  if (e.airT < 0.1 && !e.jumped) { const bf = act(e, 'buff'); e.vy = e.def.jump * (bf ? bf.sk.jumpMul : 1); e.jumped = true; e.onGround = false; e.airT = 1; if (!e.isBot) SFX.play('jump'); return true; }
+  if (e.airT < 0.1 && !e.jumped) { const bf = act(e, 'buff'), sp = act(e, 'shippu'); e.vy = e.def.jump * (bf ? bf.sk.jumpMul : 1) * (sp ? sp.sk.jumpMul : 1); e.jumped = true; e.onGround = false; e.airT = 1; if (!e.isBot) SFX.play('jump'); return true; }
   return false;
 }
 // 桂跳びの着地：周りの相手と小物を吹き飛ばす

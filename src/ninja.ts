@@ -13,7 +13,7 @@ import { SFX } from './audio';
 import { cam, scene, toon } from './render';
 import { blockers } from './physics';
 import { Arrows } from './arrows';
-import { Particles, VM } from './effects';
+import { Particles, VM, vmCam, vmScene } from './effects';
 import { Net, r2, vec } from './net';
 import { aiHear } from './ai';
 import { heardFoe } from './hud';
@@ -28,7 +28,8 @@ import { down } from './input';
 const ROLL = -0.35, TILT = 0.75;   // 右手で横に投げるので少し右下がり。面も前へ倒す（投げた人からも相手からも、回る星の形が見えるように）
 const BUFFER = 0.12;  // 投げられるようになる少し前に押しても、間に合ったら投げる
 // 苦無：START 押し続けてから出始める / EVERY 1本ずつ出る間隔 / MAX 最大の本数 / GAP 飛ばす間隔 / SPEED 速さ / DMG・HEAD 威力 / AFTER 撃ち終わってから次に投げられるまで
-const K = { START: 0.25, EVERY: 0.12, MAX: 8, GAP: 0.06, SPEED: 70, DMG: 13, HEAD: 1.5, AFTER: 0.35 };
+// TURN：弱い追尾（1 秒あたりに曲がれる角度）
+const K = { START: 0.25, EVERY: 0.12, MAX: 8, GAP: 0.06, SPEED: 70, DMG: 13, HEAD: 1.5, AFTER: 0.35, TURN: 1.6 };
 // 扇の並び（真上からの角度、右が +）。この順に出る（内側から外側へ左右交互）
 const FAN = [-12, 12, -34, 34, -56, 56, -78, 78].map(d => d * Math.PI / 180);
 const UP = new V3(0, 1, 0), DOWN = new V3(0, -1, 0);
@@ -72,35 +73,34 @@ const inkTex = (() => {
   return new THREE.CanvasTexture(c);
 })();
 const inkGeo = new THREE.PlaneGeometry(1, 1);
-const inks: { m: THREE.Mesh; t: number; size: number }[] = [];
-function ink(pos: THREE.Vector3, size = 0.42) {
+const inks: { m: THREE.Mesh; t: number; size: number; vm: boolean }[] = [];
+// vm：自分の画面に固定した層（vmScene。位置はカメラから見た位置）に出す
+function ink(pos: THREE.Vector3, size = 0.42, vm = false) {
   const m = new THREE.Mesh(inkGeo, new THREE.MeshBasicMaterial({ map: inkTex, color: 0x0d0a09, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
-  m.position.copy(pos); m.rotation.z = Math.random() * 6; scene.add(m); inks.push({ m, t: 0, size });
+  m.position.copy(pos); m.rotation.z = Math.random() * 6; (vm ? vmScene : scene).add(m); inks.push({ m, t: 0, size, vm });
 }
 function inkTick(dt: number) {
   for (let i = inks.length - 1; i >= 0; i--) {
     const k = inks[i]; k.t += dt;
     const grow = Math.min(1, k.t / 0.12), fade = clamp(1 - (k.t - 0.18) / 0.3, 0, 1);
-    k.m.quaternion.copy(cam.quaternion); k.m.rotateZ(k.t * 0.6);
+    if (k.vm) k.m.quaternion.identity(); else k.m.quaternion.copy(cam.quaternion);
+    k.m.rotateZ(k.t * 0.6);
     k.m.scale.setScalar(k.size * (0.3 + 0.7 * grow) * (1 + (1 - fade) * 0.3));
     (k.m.material as THREE.MeshBasicMaterial).opacity = 0.85 * fade;
-    if (k.t > 0.5) { scene.remove(k.m); (k.m.material as THREE.Material).dispose(); inks.splice(i, 1); }
+    if (k.t > 0.5) { k.m.removeFromParent(); (k.m.material as THREE.Material).dispose(); inks.splice(i, 1); }
   }
 }
 
 // ---------- 苦無を並べる・飛ばす ----------
-type Kunai = { m: THREE.Group; slot: number; age: number; bob: number };
+type Kunai = { m: THREE.Group; slot: number; age: number; bob: number; vm: boolean };
 type NJ = { list: Kunai[]; holdT: number; nextT: number; firing: Kunai[]; fireT: number; flashT: number };
 const nj = (e): NJ => e.nj || (e.nj = { list: [], holdT: 0, nextT: 0, firing: [], fireT: 0, flashT: 0 });
 const mine = e => e === player && gs.state !== 'killcam';   // 自分の画面で見ている自分の苦無（画面の上のふちに並べる）
 
-// slot 番目の苦無の置き場所（world）
-function slotPos(e, slot: number, out: THREE.Vector3) {
+// slot 番目の苦無の置き場所（world。自分の画面のもの vm はカメラから見た位置で、画面に固定。外側は画面からはみ出してよい）
+function slotPos(e, slot: number, out: THREE.Vector3, vm = false) {
   const a = FAN[slot];
-  if (mine(e)) {
-    const R = 0.78;
-    return cam.localToWorld(out.set(Math.sin(a) * R * 1.15, -0.22 + Math.cos(a) * R, -1.05));
-  }
+  if (vm) { const R = 0.82; return out.set(Math.sin(a) * R * 1.3, -0.3 + Math.cos(a) * R, -1.0); }
   const f = facingOf(e), right = new V3(-f.z, 0, f.x), R = 1.2 * e.def.size;
   return out.copy(e.pos).addScaledVector(UP, e.height * 1.0 + Math.cos(a) * R).addScaledVector(right, Math.sin(a) * R).addScaledVector(f, -0.3 - 0.15 * Math.cos(a));
 }
@@ -112,19 +112,20 @@ function targetOf(e) {
 function addKunai(e) {
   const S = nj(e), slot = S.list.length + S.firing.length;
   if (slot >= K.MAX) return;
-  const m = makeKunai(); scene.add(m);
-  const k: Kunai = { m, slot, age: 0, bob: Math.random() * 6 };
+  const vm = mine(e);
+  const m = makeKunai(); (vm ? vmScene : scene).add(m);
+  const k: Kunai = { m, slot, age: 0, bob: Math.random() * 6, vm };
   S.list.push(k);
-  const p = slotPos(e, slot, new V3());
+  const p = slotPos(e, slot, new V3(), vm);
   m.position.copy(p);
-  ink(p, mine(e) ? 0.3 : 0.45);
-  for (let i = 0; i < 3; i++) Particles.glow(p, P.sumi[2]);
+  ink(p, vm ? 0.5 : 0.45, vm);
+  if (!vm) for (let i = 0; i < 3; i++) Particles.glow(p, P.sumi[2]);
   SFX.play('kunaiTick', mine(e) ? null : p, slot);
   if (slot === K.MAX - 1) { S.flashT = 0.2; SFX.play('kunaiFull', mine(e) ? null : p); }   // そろった：全部の刃が光って「チン」
 }
 function removeKunai(k: Kunai, puff = true) {
-  if (puff) ink(k.m.position, 0.3);
-  scene.remove(k.m);
+  if (puff) ink(k.m.position, 0.3, k.vm);
+  k.m.removeFromParent();
 }
 // 離した：外側から内側へ、左右交互（|角度| の大きい順、同じなら右から）
 function release(e) {
@@ -135,11 +136,11 @@ function release(e) {
   e.cd = Math.max(e.cd, S.firing.length * K.GAP + K.AFTER);
 }
 function fireOne(e, k: Kunai) {
-  const from = k.m.position.clone(), to = targetOf(e);
+  const from = k.vm ? vmToWorld(k.m.position) : k.m.position.clone(), to = targetOf(e);
   const dir = to.sub(from).normalize();
   removeKunai(k, false);
-  Arrows.fire({ owner: e, target: e === player ? bot : player, pos: from, vel: dir.multiplyScalar(K.SPEED), dmg: K.DMG, head: K.HEAD, gravity: 0, drag: 0, homing: false, turn: 0, full: false, kind: 'kunai' });
-  if (Net.on && e === player) { const a = Arrows.last(); Net.send({ t: 'arrow', p: vec(a.pos), v: vec(a.vel), dmg: r2(a.dmg), hd: a.head, g: 0, dr: 0, k: 'kunai' }); }
+  Arrows.fire({ owner: e, target: e === player ? bot : player, pos: from, vel: dir.multiplyScalar(K.SPEED), dmg: K.DMG, head: K.HEAD, gravity: 0, drag: 0, homing: true, turn: K.TURN, full: false, kind: 'kunai' });
+  if (Net.on && e === player) { const a = Arrows.last(); Net.send({ t: 'arrow', p: vec(a.pos), v: vec(a.vel), dmg: r2(a.dmg), hd: a.head, g: 0, dr: 0, hm: 1, tu: K.TURN, k: 'kunai' }); }
   onAttack(e);
   SFX.play('kunaiFire', mine(e) ? null : from);
   if (e === player) { stats.shots++; aiHear(e.pos, 14); } else heardFoe(from, 'shot');
@@ -151,23 +152,32 @@ function clearOf(e, puff = true) {
 }
 // 並んでいる苦無を毎フレーム置き直す（出てくる動き・照準の先を向く・房の揺れ）
 const _p = new V3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+// 画面に固定した苦無の位置（vmScene）→ 同じ画面の位置に見える world の位置（視野の広さが違うので、画面の上の点から合わせる）
+function vmToWorld(local: THREE.Vector3) {
+  vmCam.updateMatrixWorld(); cam.updateMatrixWorld();
+  const n = local.clone().project(vmCam), dir = new V3(n.x, n.y, 0.5).unproject(cam).sub(cam.position).normalize();
+  return cam.position.clone().addScaledVector(dir, local.length());
+}
 function place(e, S: NJ, dt: number) {
   const list = [...S.list, ...S.firing];
   if (!list.length) return;
   const tgt = targetOf(e);
+  const tgtVm = new V3(0, 0, -clamp(tgt.distanceTo(eyeOf(e)), 3, 60));   // 自分の画面では、照準のまん中の奥を向く
   S.flashT = Math.max(0, S.flashT - dt);
   for (const k of list) {
     k.age += dt;
     const out = Math.min(1, k.age / 0.22), ease = 1 - (1 - out) * (1 - out);
-    slotPos(e, k.slot, _p);
-    _p.y += Math.sin(k.bob + k.age * 3) * 0.02;
+    slotPos(e, k.slot, _p, k.vm);
+    _p.y += Math.sin(k.bob + k.age * 3) * (k.vm ? 0.012 : 0.02);   // その場でふわっと浮き沈み（演出の揺れ）
+    const T = k.vm ? tgtVm : tgt;
     // 照準の先を向く（出てくる間は、にじみの奥から刃先の向きへ抜け出す）。lookAt(目標, 自分) の順で +z（刃先）が目標を向く
-    _m.lookAt(tgt, _p, UP); _q.setFromRotationMatrix(_m);
-    const fwd = tgt.clone().sub(_p).normalize();
+    _m.lookAt(T, _p, UP); _q.setFromRotationMatrix(_m);
+    const fwd = T.clone().sub(_p).normalize();
     k.m.position.copy(_p).addScaledVector(fwd, -(1 - ease) * 0.35);
     k.m.quaternion.copy(_q);
-    k.m.scale.setScalar((mine(e) ? 0.72 : 1.3) * lerp(0.3, 1, ease));   // ほかの人から見る扇は大きめ（遠くからでも分かるように）
-    hangTassel(k.m, DOWN.clone().add(new V3(Math.sin(k.age * 4 + k.bob) * 0.25, 0, Math.cos(k.age * 3 + k.bob) * 0.25)), 0.25);
+    if (k.vm) k.m.rotateZ(Math.sin(k.age * 2.2 + k.bob) * 0.12);   // 自分の画面：刃がゆっくり首を振る
+    k.m.scale.setScalar((k.vm ? 1.15 : 1.3) * lerp(0.3, 1, ease));   // 自分の画面は大きく・ほかの人から見る扇も大きめ（遠くからでも分かるように）
+    hangTassel(k.m, (k.vm ? new V3(0, -1, 0.15) : DOWN.clone()).add(new V3(Math.sin(k.age * 4 + k.bob) * 0.25, 0, Math.cos(k.age * 3 + k.bob) * 0.25)), 0.25);
     k.m.userData.glow.visible = S.flashT > 0;
   }
 }
@@ -227,14 +237,16 @@ function trailsTick(e, active: boolean, dt: number) {
     drawTrail(T);
   });
 }
-// 自分の画面のふちが白く揺らぐ
+// 自分の画面：全体が青白く色を変え（無敵の印。Apex のレイスの虚空のような感じ）、ふちが白く揺らぐ
 let edgeEl: HTMLDivElement = null, edgeK = 0;
 function edgeTick(on: boolean, dt: number) {
   edgeK = on ? Math.min(1, edgeK + dt * 6) : Math.max(0, edgeK - dt * 3);
   if (!edgeEl) {
     if (!edgeK) return;
     edgeEl = document.createElement('div');
-    edgeEl.style.cssText = 'position:fixed;inset:-4%;pointer-events:none;z-index:3;mix-blend-mode:screen;background:radial-gradient(ellipse at center, transparent 52%, rgba(240,244,255,.10) 66%, rgba(240,244,255,.55) 100%)';
+    // 画面全体：色を抜いて青白く染める（下の画面を backdrop-filter で変える）＋ふちは白く光って揺らぐ
+    edgeEl.style.cssText = 'position:fixed;inset:-4%;pointer-events:none;z-index:3;backdrop-filter:saturate(.25) hue-rotate(-12deg) brightness(1.06) contrast(1.08);-webkit-backdrop-filter:saturate(.25) hue-rotate(-12deg) brightness(1.06) contrast(1.08);'
+      + 'background:radial-gradient(ellipse at center, rgba(120,150,255,.16) 35%, rgba(150,175,255,.30) 68%, rgba(235,242,255,.62) 100%)';
     document.body.appendChild(edgeEl);
   }
   edgeEl.style.opacity = (edgeK * (0.75 + 0.25 * Math.sin(clock * 13))).toFixed(3);

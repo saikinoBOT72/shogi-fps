@@ -116,7 +116,7 @@ export const WEAPONS = {
   // 手裏剣（忍）：押した瞬間に1枚投げる（弾数・リロードなし）。少し落ちながら回って飛ぶ（arrows.ts の kind 'shuriken'）
   //   speed：飛ぶ速さ / gravity：落ち方
   shuriken: {
-    name: '手裏剣', model: 'shuriken', kind: 'ninja', dmg: 22, head: 1.5, speed: 55, gravity: 5, drag: 0, rate: 0.3, spread: 0.006, bloomShot: 0, bloomMax: 0, bloomRecover: 1,
+    name: '手裏剣', model: 'shuriken', kind: 'ninja', dmg: 22, head: 1.5, speed: 55, gravity: 5, drag: 0, rate: 0.6, spread: 0.006, bloomShot: 0, bloomMax: 0, bloomRecover: 1,
     move: 0.01, air: 0.02, ads: 1, mag: 1, reload: 0.1, auto: false, recoil: 0, falloff: [999, 1000, 1], pref: 12,
   },
   // 連射で押し切る。近〜中距離
@@ -256,9 +256,9 @@ export const SKILLS = {
   airstrike: { name: '空爆要請', type: 'airstrike', cooldown: 50, duration: 0, speed: 32, delay: 2, time: 6, count: 30, area: 8, dmg: 32, radius: 3.8, knock: 6, lift: 5, self: 0.25, damageTaken: 1,
     help: 'キーを押している間は投げる線が出て、離すと発煙筒を投げる。2秒後、落ちた所のまわり8mに6秒間砲弾が降り続ける（自分が巻き込まれても少ししか減らない）' },
   // ---------- 忍のスキル ----------
-  // 残像疾風：duration 秒、speedMul 倍の速さで走れて無敵（damageTaken 0）。攻撃する・もう一度押すと終わる
-  shippu: { name: '残像疾風', type: 'shippu', cooldown: 22, duration: 3, speedMul: 2.6, damageTaken: 0,
-    help: '3秒間、残像を残して超高速で動ける・その間は無敵（攻撃すると終わる）' },
+  // 残像疾風：duration 秒、speedMul 倍の速さで走れ、jumpMul 倍高く跳べて無敵（damageTaken 0）。攻撃する・もう一度押すと終わる
+  shippu: { name: '残像疾風', type: 'shippu', cooldown: 22, duration: 6, speedMul: 2.6, jumpMul: 1.5, damageTaken: 0,
+    help: '6秒間、残像を残して超高速で動け、高く跳べる・その間は無敵（攻撃すると終わる）' },
   // 変わり身：構えてから duration 秒の間に受けた次の攻撃を丸太と入れ替わってよける。dist m 飛び、inv 秒は何も当たらない
   kawarimi: { name: '変わり身', type: 'kawarimi', cooldown: 25, duration: 15, dist: 5, inv: 0.35, damageTaken: 1,
     help: '構えてから15秒の間に受けた次の攻撃を丸太と入れ替わってよける（左右前を押していればその向き、押していなければ後ろへ）' },
