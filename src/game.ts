@@ -23,7 +23,7 @@ import { eyeOf, surfOf, hasLOS, act, moveEntity, tryJump } from './game/move';
 import { currentSpread, canFire, startReload, weaponTick, facingOf, skillDamageMul, fire } from './game/weapons';
 import { Sword } from './sword';
 import { Clones } from './clones';
-import { Promo, callAirstrike, spawnDome, startTornado, tossFlare } from './promo';
+import { Promo, callAirstrike, showThrowArc, spawnDome, startTornado, tossFlare } from './promo';
 export * from './game/move';
 export * from './game/weapons';
 
@@ -201,7 +201,7 @@ export function useSkill(e, i, dir, force = false) {
   } else if (t === 'dome') {
     spawnDome(e, sk);
   } else if (t === 'flare') {
-    onAttack(e); tossFlare(e, aim, sk);
+    onAttack(e); tossFlare(e, aim, sk); e.flareT = 0.75;
     if (!e.isBot) { VM.flareT = 0.75; VM.flareKick = 1; view.shake = Math.max(view.shake, 0.12); }   // 左手のフレアガンを構えて撃つ
   } else if (t === 'airstrike') {
     onAttack(e); callAirstrike(e, aim, sk);
@@ -275,7 +275,13 @@ export function endGuard(e) { const g = act(e, 'guard'); if (g) g.t = 0; }
 // 攻撃したら透明化が解ける
 export function onAttack(e) { const c = act(e, 'cloak'); if (c) c.t = 0; cancelMedkit(e); }
 // 救急キットを中断（回復しない）。keep：使ったばかりのその枠は除く
-export function cancelMedkit(e, keep?) { for (const s of e.slots || []) if (s !== keep && s.t > 0 && s.sk.type === 'medkit') { s.t = 0; s.medCut = true; } }
+export function cancelMedkit(e, keep?) {
+  for (const s of e.slots || []) if (s !== keep && s.t > 0 && s.sk.type === 'medkit') {
+    s.t = 0; s.medCut = true;
+    const max = s.sk.charges || 1;
+    s.charges = Math.min(max, s.charges + 1); if (s.charges >= max) s.cd = 0;
+  }
+}
 
 export function updatePlayer(dt) {
   const p = player;
@@ -309,6 +315,16 @@ export function updatePlayer(dt) {
         p.skillHeld[i] = k;
         return;
       }
+      if (s.sk.type === 'airstrike') {
+        const ready = s.charges > 0 && !(p.empT > 0);
+        if (k && ready) p.strikeAim = i;
+        else if (p.strikeAim === i) {
+          p.strikeAim = null;
+          if (!k && ready && useSkill(p, i, fwd) && Net.on) Net.send({ t: 'skill', i, d: vec(fwd), a: vec(new V3(0, 0, -1).applyQuaternion(cam.quaternion)) });
+        }
+        p.skillHeld[i] = k;
+        return;
+      }
       if (k && !p.skillHeld[i]) {
         // すり足は A/D の方向（押していなければ右）、他は前
         let sdir = fwd;
@@ -318,6 +334,8 @@ export function updatePlayer(dt) {
       }
       p.skillHeld[i] = k;
     });
+    // 空爆要請のキーを押している間：投げる線
+    showThrowArc(p, new V3(0, 0, -1).applyQuaternion(cam.quaternion), p.strikeAim != null ? p.slots[p.strikeAim].sk : null);
     // V：銃を眺める
     if (down('inspect') && !p.inspectHeld) { VM.inspect(); SFX.play('inspect'); }
     p.inspectHeld = down('inspect');

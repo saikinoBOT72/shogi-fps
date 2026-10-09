@@ -511,9 +511,9 @@ export const SKILL_AI = {
   },
   // 空爆要請：見えている相手の足元へ
   airstrike(b, c, i, s) {
-    if (!ready(s) || !c.los || c.dist < 10 || c.dist > 26 || Math.random() > c.dt * 0.5 * b.persona.eager) return;
+    if (!ready(s) || !c.los || c.dist < 10 || c.dist > 38 || Math.random() > c.dt * 0.5 * b.persona.eager) return;
     const e = new V3(b.pos.x, b.pos.y + b.eyeH, b.pos.z);
-    const to = player.pos.clone().sub(e); to.y += to.length() * 0.35;   // 山なりに投げる
+    const to = player.pos.clone().sub(e); to.y += to.length() * 0.18;   // 山なりに投げる
     b.skillAim = to.normalize();
     useSkill(b, i, c.toP); b.skillAim = null;
   },

@@ -6,6 +6,7 @@ import { GUN_BUILDERS, buildGun, cam, flatten, handMat, makeEyes, makePiece, mak
 import { floorBelow, groundAt } from './world';
 import { SKINS } from './guns/skins';
 import { equippedRef, paintGun } from './loadout';
+import { buildFlareGun, buildMedkit } from './guns/items';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ================= エフェクト =================
@@ -165,7 +166,7 @@ vmScene.add(new THREE.HemisphereLight(C(P.ao[2]), C(P.kiji[0]), 0.8 * LIGHT));
 export const vmSun = new THREE.DirectionalLight(C(P.shiro[2]), 1.6 * LIGHT); vmSun.position.set(0.6, 1, 0.5); vmScene.add(vmSun);
 export const vmFlashLight = new THREE.PointLight(C(P.kin[2]), 0, 2, 1); vmScene.add(vmFlashLight);
 // 一人称の銃の構えの目安（fitViewModel で使う）
-export const VM_FIT = { grip: [0.55, -0.78], muzzle: [0.15, -0.14], gripDepth: 0.2, reach: 0.45, adsBelow: 0.17 };   // adsBelow：覗き込みで銃口を照準のどれだけ下に置くか（画面の縦の半分に対する割合）
+export const VM_FIT = { grip: [0.55, -0.78], muzzle: [0.15, -0.14], gripDepth: 0.2, reach: 0.45, adsBelow: 0.17, adsPull: 0.35 };   // adsBelow：覗き込みで銃口を照準のどれだけ下に置くか（画面の縦の半分に対する割合）・adsPull：スコープの無い銃を覗き込みでどれだけ真ん中へ寄せるか（0〜1）
 export const VM: any = (() => {
   const root = new THREE.Group();
   const models: any = {};
@@ -205,30 +206,13 @@ export const VM: any = (() => {
   const f3 = f2.clone(); f3.rotation.set(Math.PI / 2, 0, Math.PI / 2);
   flash.add(f1, f2, f3); flash.visible = false;
   const shield = makeShield(0.56, 0.44); shield.visible = false; vmScene.add(shield);
-  // 左手の道具（スキル）：救急キット（成銀）・フレアガン（龍）。camera.ts の poseItems が動かす
+  // 左手の道具（スキル）：救急キット（成銀）・フレアガン（龍）。camera.ts の poseItems が動かす（形は guns/items.ts）
   const items: any = {};
   {
-    const red = toon({ color: C(P.shu[1]) }), white = toon({ color: C(P.shiro[2]) }), dark = toon({ color: C(P.sumi[1]) });
-    const box = (w, h, d, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); return o; };
-    // 救急キット：赤い箱に白い十字、上に取っ手。ふたは後ろの辺で開き、中の包帯と注射器が見える
-    const kit = new THREE.Group(); kit.scale.setScalar(0.8);
-    kit.add(box(0.15, 0.1, 0.05, red), box(0.06, 0.018, 0.004, white, 0, 0, 0.026), box(0.018, 0.06, 0.004, white, 0, 0, 0.026));
-    kit.add(box(0.15, 0.006, 0.052, dark, 0, 0.047, 0));   // ふたとの合わせ目
-    const lid = new THREE.Group(); lid.name = 'lid'; lid.position.set(0, 0.05, -0.026);
-    lid.add(box(0.152, 0.014, 0.054, red, 0, 0.007, 0.027), box(0.06, 0.01, 0.01, dark, 0, 0.02, 0.027));   // ふた・取っ手
-    kit.add(lid);
-    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.055, 10).rotateZ(Math.PI / 2), white); roll.position.set(-0.035, 0.05, 0); kit.add(roll);
-    const syr = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.075, 6).rotateZ(Math.PI / 2), toon({ color: C(P.midori[2]) })); syr.position.set(0.03, 0.05, 0.006); kit.add(syr);
-    items.medkit = kit;
-    // フレアガン：太い銃身の橙色の信号拳銃
-    const or = toon({ color: C(P.daidai[1]) }), fg = new THREE.Group();
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.15, 12).rotateX(Math.PI / 2), or); barrel.position.set(0, 0.032, -0.075); fg.add(barrel);
-    const bore = new THREE.Mesh(new THREE.CircleGeometry(0.015, 12), dark); bore.position.set(0, 0.032, -0.151); bore.rotation.y = Math.PI; fg.add(bore);
-    fg.add(box(0.032, 0.04, 0.07, or, 0, 0.02, 0.005), box(0.012, 0.022, 0.014, dark, 0, 0.05, 0.036));   // 機関部・撃鉄
-    const grip = box(0.03, 0.095, 0.038, or, 0, -0.03, 0.026); grip.rotation.x = -0.3; fg.add(grip);
-    const guard = new THREE.Mesh(new THREE.TorusGeometry(0.019, 0.004, 4, 10, Math.PI), dark); guard.rotation.set(0, Math.PI / 2, Math.PI); guard.position.set(0, 0.002, -0.012); fg.add(guard);
-    const ff = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), fm); ff.name = 'flash'; ff.position.set(0, 0.032, -0.17); fg.add(ff);
-    items.flare = fg;
+    const wrap = (g, s) => { const w = new THREE.Group(); g.scale.setScalar(s); w.add(g); return w; };
+    items.medkit = wrap(buildMedkit().g, 0.75);
+    const fg = buildFlareGun(); items.flare = wrap(fg.g, 0.75);
+    const ff = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.24), fm); ff.name = 'flash'; ff.position.copy(fg.muzzle).add(new V3(0, 0, -0.02)); fg.g.add(ff);
     for (const g of Object.values(items) as any[]) { g.visible = false; vmScene.add(g); }
   }
   // 薬莢：排莢口から右へ飛ぶ（一人称の画面の中だけ）
@@ -352,6 +336,8 @@ export function fitViewModel(m) {
   m.adsRot = [-Math.atan2(dW.y, Math.hypot(dW.x, dW.z)), -Math.atan2(-dW.x, -dW.z)];
   const gd = 0.2, L = dW.length();
   m.ads = new V3(0.015, -F.adsBelow * th * (gd + L) - 0.012 - (m.adsDrop || 0), -gd);
+  // スコープの無い銃は、真ん中まで持ってこず、少しだけ寄せる（覗いている気持ち程度。照準で狙う）
+  if (!m.scope) { const k = F.adsPull; m.ads = G.clone().lerp(m.ads, k); m.adsRot = [m.adsRot[0] * k, m.adsRot[1] * k]; }
   // スコープのある銃：筒をまっすぐ前へ向け、接眼レンズの真ん中を画面の中心に置く（目からの距離は camera.ts がスコープの大きさから決める）
   if (m.scope) {
     const R = new THREE.Matrix4().makeRotationFromEuler(m.g.rotation), s = m.g.scale.x;
@@ -391,12 +377,17 @@ export function buildActor(ch, size, model = 'pistol', red = false): any {
   body.add(gun.g);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   flash.scale.setScalar(0.7); flash.visible = false; gun.muzzle.add(flash);
+  // スキルの道具（ほかの人から見える）：救急キットは胸の前に、フレアガンは左手に。見やすいよう大きめ
+  const items: any = { medkit: buildMedkit().g, flare: buildFlareGun().g };
+  items.medkit.scale.setScalar(3.4 * size); items.medkit.position.set(0, h * 0.42, t + 0.3);
+  items.flare.scale.setScalar(2.6 * size); items.flare.position.set(w * 0.55, h * 0.5, t + 0.2); items.flare.rotation.y = Math.PI;
+  for (const g of Object.values(items) as any[]) { g.visible = false; body.add(g); }
   const shield = makeShield(w * 1.05, h * 0.7);
   shield.position.set(0, h * 0.45, t + 0.45); shield.visible = false;
   body.add(shield);
   flatten(root);
   scene.add(root);
-  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, xray, ghost, w, h, t };
+  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, xray, ghost, items, w, h, t };
 }
 
 // ================= 遠くの駒の銃：簡単な形 =================

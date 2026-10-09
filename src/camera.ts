@@ -1,4 +1,5 @@
 // カメラと一人称の銃の動き
+import * as THREE from 'three';
 import { Gadgets } from './gadgets';
 import { gs } from './state';
 import { LIGHT, SKILLS, V3, clamp, damp, lerp, rand, settings } from './core';
@@ -192,7 +193,7 @@ function poseItems(p, rdt, bobY) {
   if (VM.itemKind === 'medkit') {
     const u = med ? 1 - med.t / med.sk.duration : 1;   // 使い始め 0 → 終わり 1
     const open = clamp((u - 0.1) / 0.2, 0, 1), ap = clamp((u - 0.35) / 0.65, 0, 1), w = Math.sin(ap * Math.PI * 4);
-    g.position.set(-0.07 + ap * 0.03, lerp(-0.45, -0.19, k) + bobY * 0.4 + w * 0.008, -0.42 + ap * 0.03);
+    g.position.set(-0.09 + ap * 0.03, lerp(-0.45, -0.13, k) + bobY * 0.4 + w * 0.008, -0.4 + ap * 0.03);
     g.rotation.set(0.6 - open * 0.25 + w * 0.06, 0.3 - ap * 0.15, 0.05);
     g.getObjectByName('lid').rotation.x = -open * 1.9;
   } else {
@@ -264,6 +265,26 @@ export function animateActor(A, e, dt, lookAt) {
   A.shield.scale.set(1, Math.max(0.01, A.shieldT), 1);
   A.body.rotation.z = damp(A.body.rotation.z, Math.sign(Math.sin(e.stepPhase)) * hop * 0.05 * mk - ls * 0.02, 20, dt);   // 跳ぶたびに左右へ少し傾く
   A.body.position.y = hop * 0.11 * mk;
+  const rl = act(e, 'roll');
+  if (rl) {
+    const k = 1 - rl.t / rl.sk.duration, dl = rl.dir.clone().applyAxisAngle(new V3(0, 1, 0), -inv);
+    const q = new THREE.Quaternion().setFromAxisAngle(new V3(dl.z, 0, -dl.x).normalize(), k * Math.PI * 2);
+    const c = new V3(0, A.h * 0.5, 0);
+    A.body.quaternion.copy(q);
+    A.body.position.set(0, -Math.sin(k * Math.PI) * A.h * 0.3, -A.t / 2).add(c).sub(c.clone().applyQuaternion(q));
+    A.rolling = true;
+  } else if (A.rolling) { A.rolling = false; A.body.rotation.set(0, 0, 0); A.body.position.set(0, 0, -A.t / 2); }
+  // スキルの道具：救急キット（使っている間・ふたを開けて手当て）・フレアガン（撃つときに左手で構える）
+  const med = act(e, 'medkit'), shown = !Sword.hidden(e) && !act(e, 'cloak');
+  A.items.medkit.visible = !!med && shown;
+  if (med) {
+    const u = 1 - med.t / med.sk.duration;
+    A.items.medkit.getObjectByName('lid').rotation.x = -clamp((u - 0.1) / 0.2, 0, 1) * 1.9;
+    A.items.medkit.position.y = A.h * 0.42 + Math.sin(u * Math.PI * 4) * 0.03;
+  }
+  e.flareT = Math.max(0, (e.flareT || 0) - dt);
+  A.items.flare.visible = e.flareT > 0 && shown;
+  if (e.flareT > 0) A.items.flare.rotation.x = -0.25 - clamp((e.flareT - 0.45) / 0.3, 0, 1) * 0.5;   // 撃った瞬間に跳ね上がる
   A.wood.emissive.multiplyScalar(Math.max(0, 1 - dt * 10));
   // 透明化：体と銃を隠して、うっすらした影だけ
   const cloaked = !!act(e, 'cloak'), hid = Sword.hidden(e);   // 葉隠れで止まっている間は影も含めて全く見えない

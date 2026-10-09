@@ -239,10 +239,10 @@ export const SKILLS = {
   smoke2: { name: '煙幕', type: 'smoke', cooldown: 30, duration: 0, radius: 5, life: 8, damageTaken: 1, help: 'その場に球の煙幕を張る' },
   grapple2: { name: '鉤縄', type: 'grapple', charges: 2, chain: true, cooldown: 20, duration: 1.4, range: 35, speed: 26, damageTaken: 1,
     help: '2回まで。引き寄せられている途中でもう一度使うと、縄を掛け替えて勢いのまま向きを変える' },
-  flare: { name: 'フレア弾', type: 'flare', cooldown: 30, duration: 0, speed: 11, radius: 26, burn: 3, blind: 1.2, damageTaken: 1, help: 'フレアガンで光の弾を撃つ。光りながらまっすぐ3秒進んで消える。光を見た相手は目がくらむ' },
+  flare: { name: 'フレア弾', type: 'flare', cooldown: 30, duration: 0, speed: 11, radius: 26, burn: 3, bright: 0.5, blind: 1.2, damageTaken: 1, help: 'フレアガンで光の弾を撃つ。光りながらまっすぐ3秒進んで消える。撃って0.5秒後からまぶしくなり、光を見ると目がくらむ（自分も）' },
   // 発煙筒を投げ、落ちた所のまわり（area m）に time 秒、count 発の砲弾がばらばらに降る。自分が巻き込まれたときは self 倍
-  airstrike: { name: '空爆要請', type: 'airstrike', cooldown: 50, duration: 0, speed: 20, delay: 2, time: 6, count: 30, area: 8, dmg: 32, radius: 3.8, knock: 6, lift: 5, self: 0.25, damageTaken: 1,
-    help: '発煙筒を投げる。2秒後、落ちた所のまわり8mに6秒間砲弾が降り続ける（自分が巻き込まれても少ししか減らない）' },
+  airstrike: { name: '空爆要請', type: 'airstrike', cooldown: 50, duration: 0, speed: 32, delay: 2, time: 6, count: 30, area: 8, dmg: 32, radius: 3.8, knock: 6, lift: 5, self: 0.25, damageTaken: 1,
+    help: 'キーを押している間は投げる線が出て、離すと発煙筒を投げる。2秒後、落ちた所のまわり8mに6秒間砲弾が降り続ける（自分が巻き込まれても少ししか減らない）' },
   tornado: { name: '竜巻', type: 'tornado', cooldown: 30, duration: 1.1, radius: 8, pull: 16, lift: 3, damageTaken: 1, help: 'まわり8mの相手を1秒ほど自分の方へ引き寄せる' },
 };
 export const skillType = e => SKILLS[e.def.skill].type;

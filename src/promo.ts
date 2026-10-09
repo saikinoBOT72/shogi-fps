@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { P } from './palette';
 import { C, V3, clamp, rand } from './core';
 import { SFX } from './audio';
-import { cam, flatGeo, toon } from './render';
+import { cam, flatGeo, scene, toon } from './render';
 import { blockers } from './physics';
 import { DmgNums, Particles } from './effects';
 import { bot, eyeOf, facingOf, hasLOS, player } from './game';
@@ -150,7 +150,7 @@ function updateDomes(dt) {
   }
 }
 
-// ---------- フレア弾（龍）：フレアガンで撃つ。光りながらまっすぐ進み、3 秒で消える（壁に当たったらそこで燃える）。光を見た相手は目がくらむ ----------
+// ---------- フレア弾（龍）：フレアガンで撃つ。光りながらまっすぐ進み、3 秒で消える（壁に当たったらそこで燃える）。0.5 秒後からまぶしくなり、光を見ると（自分も）目がくらむ ----------
 const flareGeo = flatGeo(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 6)), flareM = toon({ color: C(P.shu[1]), emissive: C(P.daidai[2]), emissiveIntensity: 0.6 });
 const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,240,200,0.8)'); r.addColorStop(1, 'rgba(255,200,120,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const flares: any[] = [];
@@ -181,11 +181,11 @@ function updateFlares(dt) {
       if (Math.random() < dt * 40) Particles.trail(F.pos.clone(), Math.random() < 0.5 ? P.daidai[2] : P.shu[2]);
     }
     const left = F.sk.burn - F.t, fl = (0.85 + Math.sin(F.t * 37) * 0.1 + rand(-0.05, 0.05)) * clamp(left / 0.3, 0, 1);
-    F.glow.position.copy(F.pos); F.glow.scale.setScalar(2.4 * fl * Math.min(1, 0.2 + F.t * 3));   // 撃った直後は小さく（目の前でまぶしすぎないように）
+    F.glow.position.copy(F.pos); F.glow.scale.setScalar(2.4 * fl * (F.t < F.sk.bright ? 0.25 : Math.min(1, 0.25 + (F.t - F.sk.bright) * 6)));   // 撃ってから bright 秒は小さく光るだけ、そこから一気にまぶしく
     if (Math.random() < dt * 25) Particles.glow(F.pos.clone().add(new V3(rand(-0.15, 0.15), rand(0, 0.4), rand(-0.15, 0.15))), Math.random() < 0.5 ? P.daidai[2] : P.shiro[2]);
-    // 見ている間は目がくらむ（見るのをやめると少しで戻る）。撃った本人は平気
-    for (const e of [player, bot]) {
-      if (!e || e === F.owner || e.dead || eyeOf(e).distanceTo(F.pos) > F.sk.radius || !sees(e, F.pos)) continue;
+    // まぶしくなってから、見ている間は目がくらむ（見るのをやめると少しで戻る）。撃った本人も同じ
+    for (const e of F.t < F.sk.bright ? [] : [player, bot]) {
+      if (!e || e.dead || eyeOf(e).distanceTo(F.pos) > F.sk.radius || !sees(e, F.pos)) continue;
       if (e.isBot) e.blindT = Math.max(e.blindT || 0, F.sk.blind);
       else gs.flash = Math.max(gs.flash || 0, F.sk.blind);
     }
@@ -251,6 +251,27 @@ function updateStrikes(dt) {
   }
 }
 
+// 投げる線（空爆要請のキーを押している間だけ自分の画面に出す）：実際に投げたときと同じ計算で落ちる所まで
+const ARC_N = 100;
+const arcLine = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(ARC_N * 3), 3)),
+  new THREE.PointsMaterial({ map: glowTex, color: P.shiro[2], size: 0.22, transparent: true, opacity: 0.75, depthWrite: false, fog: false }));   // 点を並べた線
+const arcEnd = new THREE.Mesh(markGeo, new THREE.MeshBasicMaterial({ color: P.shu[2], transparent: true, opacity: 0.55, depthWrite: false }));
+arcLine.frustumCulled = false; arcLine.visible = arcEnd.visible = false;
+let arcIn = false;
+export function showThrowArc(e, aim, sk) {
+  if (!arcIn) { scene.add(arcLine, arcEnd); arcIn = true; }
+  arcLine.visible = arcEnd.visible = !!sk;
+  if (!sk) return;
+  const o = { pos: eyeOf(e).addScaledVector(aim, 0.6), vel: aim.clone().multiplyScalar(sk.speed).add(new V3(0, 3, 0)) };
+  const pa = arcLine.geometry.attributes.position as THREE.BufferAttribute;
+  let n = 0, hit = null;
+  while (n < ARC_N - 1 && !hit) { pa.setXYZ(n++, o.pos.x, o.pos.y, o.pos.z); for (let k = 0; k < 3 && !hit; k++) hit = flyStep(o, 1 / 60, 20); }
+  pa.setXYZ(n++, o.pos.x, o.pos.y, o.pos.z);
+  pa.needsUpdate = true; arcLine.geometry.setDrawRange(1, n - 1);   // 目の前の1点は出さない
+  arcEnd.visible = !!hit;
+  if (hit) { arcEnd.position.copy(hit.point).add(new V3(0, 0.08, 0)); arcEnd.scale.setScalar(sk.area); }
+}
+
 // ---------- 竜巻（侍）：まわりの相手を自分の方へ引き寄せる ----------
 const tornadoGeo = new THREE.TorusGeometry(1, 0.06, 4, 24).rotateX(Math.PI / 2);
 const twisters: any[] = [];
@@ -287,12 +308,14 @@ export const Promo = {
     if (dt <= 0) return;
     for (const e of [player, bot]) if (e) poisonTick(e, dt);
     updateMines(dt); updateDomes(dt); updateFlares(dt); updateStrikes(dt); updateTwisters(dt);
+    if (player && (player.strikeAim == null || player.dead || gs.state !== 'fight')) arcLine.visible = arcEnd.visible = false;
   },
   clear() {
     mines.length = 0; flares.length = 0; strikes.length = 0; twisters.length = 0;
     for (const D of domes) { const b = blockers.indexOf(D.shell); if (b >= 0) blockers.splice(b, 1); }
     domes.length = 0;
-    for (const e of [player, bot]) if (e) e.poisonT = 0;
+    for (const e of [player, bot]) if (e) { e.poisonT = 0; e.strikeAim = null; e.flareT = 0; }
+    arcLine.visible = arcEnd.visible = false;
   },
   minesOf: e => mines.filter(m => m.owner === e).length,
 };
