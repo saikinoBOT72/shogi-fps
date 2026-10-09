@@ -53,8 +53,10 @@ export function buildM4A1(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('frame', S.extrude([[204, 182], [204, 214], [410, 214], [410, 182]], RW + 2, { bevel: 2 }));
   B.add('frame', S.box(208, 410, 214, 220, 22));
   ribs(212, 406, 220, 223.5, 22);
-  B.add('detail', S.extrude([[256, 222], [284, 222], [282, 248], [276, 262], [262, 262], [258, 248]], 18, { bevel: 1 }));   // 跳ね上げ照門
-  B.add('bore', S.rod(266, 272, 254, 2.4, 6));
+  B.add('detail', S.box(256, 286, 222, 228, 18));                         // 跳ね上げ照門：台
+  for (const x of [-1, 1]) B.add('detail', S.extrude([[258, 227], [284, 227], [282, 240], [276, 247], [266, 247], [260, 240]], 3, { bevel: 0.6, x: x * 7.5 }));   // 両側の耳
+  B.add('detail', S.extrude([[268, 227], [274, 227], [273, 244], [269, 244]], 11, { bevel: 0.5 }));   // のぞき穴の板
+  B.add('bore', S.rod(267.5, 274.5, 239, 1.6, 8));
   B.add('bore', S.box(296, 350, 188, 206, 0.8, RW / 2 + 1.2));            // 排莢口（右）
   B.add('frame', S.box(296, 350, 184, 188, 3, RW / 2 + 1.8));             // 蓋のちょうつがい
   B.add('frame', S.extrude([[288, 200], [296, 200], [296, 214], [284, 214]], 6, { bevel: 1, x: RW / 2 + 2.5 }));   // 薬莢よけ
@@ -123,6 +125,6 @@ export function buildM4A1(opt: { skin?: string; hand?: THREE.Material } = {}) {
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
     info: { name: 'M4A1', real: '全長 840mm・銃身 368mm', reload: 2.0 },
-    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
+    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.85 },
   });
 }

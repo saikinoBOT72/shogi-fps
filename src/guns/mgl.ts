@@ -113,6 +113,6 @@ export function buildMGL(opt: { skin?: string; hand?: THREE.Material } = {}) {
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
     info: { name: 'MGL', real: '全長 778mm・銃身 300mm（40mm・6連のシリンダー）', reload: 3.2 },
-    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.85 },
+    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.75 },
   });
 }

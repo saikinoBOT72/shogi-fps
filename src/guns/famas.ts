@@ -109,6 +109,6 @@ export function buildFAMAS(opt: { skin?: string; hand?: THREE.Material } = {}) {
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
     info: { name: 'FAMAS F1', real: '全長 757mm・銃身 488mm（ブルパップ）', reload: 2.1 },
-    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), adsDrop: 0.06 },
+    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.72, adsDrop: 0.11 },
   });
 }

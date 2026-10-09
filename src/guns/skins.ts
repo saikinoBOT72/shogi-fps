@@ -40,10 +40,10 @@ export const SKINS: Record<string, Skin> = {
     slide: { c: P.sumi[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },
     grip: { c: P.kiji[1], tex: 'wood' }, detail: { c: P.sumi[0] }, mag: { c: P.sumi[1], metal: true },
   },
-  olive: {      // AWM：銃床と先台はくすんだ緑のざらざらの樹脂、金属とスコープは墨
-    name: 'オリーブ',
+  nezumi: {     // AWM：銃床と先台は灰色のざらざらの樹脂、金属とスコープは墨（黒と灰色）
+    name: '鼠',
     slide: { c: P.sumi[1], metal: true }, barrel: { c: P.sumi[1], metal: true }, frame: { c: P.sumi[1] },
-    grip: { c: P.moegi[0], tex: 'stipple' }, detail: { c: P.sumi[0] }, mag: { c: P.sumi[1], metal: true },
+    grip: { c: P.nezumi[0], tex: 'stipple' }, detail: { c: P.sumi[0] }, mag: { c: P.sumi[1], metal: true },
   },
   hagane: {     // カランビット
     name: '鋼',

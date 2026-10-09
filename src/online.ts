@@ -17,7 +17,7 @@ import { Grenades } from './grenades';
 import { Particles, Tracers } from './effects';
 import { Gadgets } from './gadgets';
 import { damagePlayer } from './ai';
-import { killBot } from './hud';
+import { heardFoe, killBot } from './hud';
 import { BoardMode } from './boardmode';
 import { MAP_LIST, applyAtmos, pickMap, selectableMaps } from './world';
 import { equippedAll } from './loadout';
@@ -161,13 +161,13 @@ Net.onMsg = (m: any) => {
     case 'arrow':
       if (!inMatch()) break;
       Arrows.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, head: m.hd, gravity: m.g, drag: m.dr || 0, homing: !!m.hm, turn: m.tu || 0, full: !!m.fu });
-      SFX.play('bow', V(m.p));
+      SFX.play('bow', V(m.p)); heardFoe(V(m.p), 'shot');
       break;
     case 'gren':
       if (!inMatch()) break;
       Grenades.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, radius: m.r, gravity: m.g, fuse: m.fu,
         big: !!m.big, knock: m.kn, lift: m.li, self: m.se, mine: m.mn ? SKILLS.mine : null });
-      SFX.play('m79', V(m.p));
+      SFX.play('m79', V(m.p)); heardFoe(V(m.p), 'shot');
       break;
     case 'skill':
       if (!inMatch() || bot.dead) break;
@@ -196,7 +196,7 @@ function remoteFire(m) {
     if (e[3]) Particles.impact(end, mz.clone().sub(end).normalize());
   }
   bot.flashT = 0.05;
-  SFX.play('shot', mz, bot.w.model);
+  SFX.play('shot', mz, bot.w.model); heardFoe(mz, 'shot');
 }
 
 // ================= 毎フレーム =================

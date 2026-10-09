@@ -205,6 +205,32 @@ export const VM: any = (() => {
   const f3 = f2.clone(); f3.rotation.set(Math.PI / 2, 0, Math.PI / 2);
   flash.add(f1, f2, f3); flash.visible = false;
   const shield = makeShield(0.56, 0.44); shield.visible = false; vmScene.add(shield);
+  // 左手の道具（スキル）：救急キット（成銀）・フレアガン（龍）。camera.ts の poseItems が動かす
+  const items: any = {};
+  {
+    const red = toon({ color: C(P.shu[1]) }), white = toon({ color: C(P.shiro[2]) }), dark = toon({ color: C(P.sumi[1]) });
+    const box = (w, h, d, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); return o; };
+    // 救急キット：赤い箱に白い十字、上に取っ手。ふたは後ろの辺で開き、中の包帯と注射器が見える
+    const kit = new THREE.Group(); kit.scale.setScalar(0.8);
+    kit.add(box(0.15, 0.1, 0.05, red), box(0.06, 0.018, 0.004, white, 0, 0, 0.026), box(0.018, 0.06, 0.004, white, 0, 0, 0.026));
+    kit.add(box(0.15, 0.006, 0.052, dark, 0, 0.047, 0));   // ふたとの合わせ目
+    const lid = new THREE.Group(); lid.name = 'lid'; lid.position.set(0, 0.05, -0.026);
+    lid.add(box(0.152, 0.014, 0.054, red, 0, 0.007, 0.027), box(0.06, 0.01, 0.01, dark, 0, 0.02, 0.027));   // ふた・取っ手
+    kit.add(lid);
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.055, 10).rotateZ(Math.PI / 2), white); roll.position.set(-0.035, 0.05, 0); kit.add(roll);
+    const syr = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.075, 6).rotateZ(Math.PI / 2), toon({ color: C(P.midori[2]) })); syr.position.set(0.03, 0.05, 0.006); kit.add(syr);
+    items.medkit = kit;
+    // フレアガン：太い銃身の橙色の信号拳銃
+    const or = toon({ color: C(P.daidai[1]) }), fg = new THREE.Group();
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.15, 12).rotateX(Math.PI / 2), or); barrel.position.set(0, 0.032, -0.075); fg.add(barrel);
+    const bore = new THREE.Mesh(new THREE.CircleGeometry(0.015, 12), dark); bore.position.set(0, 0.032, -0.151); bore.rotation.y = Math.PI; fg.add(bore);
+    fg.add(box(0.032, 0.04, 0.07, or, 0, 0.02, 0.005), box(0.012, 0.022, 0.014, dark, 0, 0.05, 0.036));   // 機関部・撃鉄
+    const grip = box(0.03, 0.095, 0.038, or, 0, -0.03, 0.026); grip.rotation.x = -0.3; fg.add(grip);
+    const guard = new THREE.Mesh(new THREE.TorusGeometry(0.019, 0.004, 4, 10, Math.PI), dark); guard.rotation.set(0, Math.PI / 2, Math.PI); guard.position.set(0, 0.002, -0.012); fg.add(guard);
+    const ff = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), fm); ff.name = 'flash'; ff.position.set(0, 0.032, -0.17); fg.add(ff);
+    items.flare = fg;
+    for (const g of Object.values(items) as any[]) { g.visible = false; vmScene.add(g); }
+  }
   // 薬莢：排莢口から右へ飛ぶ（一人称の画面の中だけ）
   const caseGeo = new THREE.CylinderGeometry(0.0068, 0.0068, 0.033, 6).rotateX(Math.PI / 2);
   const caseMat = toon({ color: C(P.kin[1]) });
@@ -229,7 +255,7 @@ export const VM: any = (() => {
     return root.worldToLocal(out);
   };
   const vm = {
-    root, models, pist, flash, fx: {} as any, left, leftRoot, leftMirror, flashLeft: false, kickL: 0, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
+    root, models, pist, flash, fx: {} as any, left, leftRoot, leftMirror, flashLeft: false, kickL: 0, items, itemK: 0, itemKind: '', flareT: 0, flareKick: 0, shield, shieldT: 0, kick: 0, slideT: 0, flashT: 0, sway: new V3(), bob: 0, equip: 1, dip: 0,
     // 持っている銃の見た目を切り替える
     setWeapon(model) {
       for (const [k, m] of Object.entries(models) as [string, any][]) m.g.visible = k === model;

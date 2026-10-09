@@ -230,8 +230,8 @@ export function buildAWM(opt: { skin?: string; hand?: THREE.Material } = {}) {
     },
   };
   return makeGun({
-    B, clips, muzzle, eject, addons, skin: opt.skin || 'olive', scope: { eye: S.at(340.8, 190), r: 0.019, rin: 0.015 },
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'nezumi', scope: { eye: S.at(340.8, 190), r: 0.019, rin: 0.015 },
     info: { name: 'AWM', real: '全長 1230mm・銃身 686mm（ボルトアクション・5連）', reload: 2.8 },
-    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
+    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.85 },
   });
 }

@@ -7,6 +7,7 @@ import { cam, sky } from './render';
 import { HIP, Particles, VM, updateGunLod, vmCam, vmFlashLight } from './effects';
 import { act, bot, botActor, eyeOf, player, playerActor, surfOf, view } from './game';
 import { keys } from './input';
+import { heardFoe } from './hud';
 import { Sword } from './sword';
 
 // ================= カメラ・銃の動き =================
@@ -37,20 +38,6 @@ export function updateCamera(dt, rdt) {
     return;
   }
   const canLook = (gs.state === 'fight' || (gs.state === 'countdown' && gs.stateT > 1.3)) && !p.dead;
-  if (p.ghost) {
-    if (canLook) { view.yaw -= gs.mdx * sens; view.pitch = clamp(view.pitch - gs.mdy * sens, -1.52, 1.52); }
-    gs.mdx = 0; gs.mdy = 0;
-    playerActor.root.visible = true;
-    animateActor(playerActor, p, dt, p.pos.clone().add(new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw))));
-    const t = performance.now() / 1000;
-    cam.position.copy(p.ghost.pos).add(new V3(0, Math.sin(t * 2) * 0.05, 0));
-    cam.rotation.set(view.pitch, view.yaw, Math.sin(t * 1.3) * 0.02);
-    cam.fov = damp(cam.fov, hipFov() + 6, 6, rdt); cam.updateProjectionMatrix();
-    sky.position.copy(cam.position); SFX.listener(cam);
-    VM.root.visible = false; VM.shield.visible = false; VM.leftMirror.visible = false;
-    botActor.xray.visible = false;
-    return;
-  }
   if (canLook) { view.yaw -= gs.mdx * sens; view.pitch = clamp(view.pitch - gs.mdy * sens, -1.52, 1.52); }
   // オートエイム（開発者メニュー）：キーを押している間、照準を相手の頭に合わせる
   const aimKey = (settings as any).dev.aimKey;
@@ -165,8 +152,9 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
     VM.leftRoot.position.set(r.position.x, r.position.y, r.position.z + (VM.kickL - VM.kick) * 0.07);
     VM.leftRoot.rotation.set(r.rotation.x + (VM.kickL - VM.kick) * 0.22, r.rotation.y, r.rotation.z);
   }
-  VM.low = damp(VM.low || 0, act(p, 'medkit') || act(p, 'roll') ? 1 : 0, 10, rdt);
+  VM.low = damp(VM.low || 0, act(p, 'medkit') || act(p, 'roll') ? 1 : VM.flareT > 0 ? 0.5 : 0, 10, rdt);
   if (VM.low > 0.01) { r.position.y -= VM.low * 0.12; r.rotation.x -= VM.low * 0.35; }
+  poseItems(p, rdt, bobY);
   VM.shield.visible = VM.guard > 0.02;
   VM.shield.position.set(-0.04 + VM.sway.x, lerp(-0.75, -0.3, VM.guard) + bobY * 0.5, -0.56);
   VM.shield.rotation.set(-0.12, 0.1, 0);
@@ -191,6 +179,29 @@ export function poseViewModel(p, rdt, swayX, swayY, bobX, bobY) {
 
 // スコープの照準（HUD とキルカメラで共通）：十字と赤い点（ドットサイトは赤い点と輪）をレンズの丸の中だけに描く
 //   赤い点はいつも画面の真ん中（＝弾が飛ぶ遠くの一点）。十字は crossInf が 0 なら枠と一緒に揺れる
+// 左手の道具：救急キット（使っている間・ふたを開けて手当て）・フレアガン（構えて撃つ）
+function poseItems(p, rdt, bobY) {
+  const I = VM.items, med = act(p, 'medkit');
+  VM.flareT = Math.max(0, VM.flareT - rdt); VM.flareKick = Math.max(0, VM.flareKick - rdt * 5);
+  const kind = p.dead ? null : med ? 'medkit' : VM.flareT > 0 ? 'flare' : null;
+  if (kind) VM.itemKind = kind;
+  VM.itemK = damp(VM.itemK, kind ? 1 : 0, kind === 'flare' ? 30 : 12, rdt);
+  for (const k in I) I[k].visible = k === VM.itemKind && VM.itemK > 0.02;
+  if (VM.itemK <= 0.02) return;
+  const k = VM.itemK, g = I[VM.itemKind];
+  if (VM.itemKind === 'medkit') {
+    const u = med ? 1 - med.t / med.sk.duration : 1;   // 使い始め 0 → 終わり 1
+    const open = clamp((u - 0.1) / 0.2, 0, 1), ap = clamp((u - 0.35) / 0.65, 0, 1), w = Math.sin(ap * Math.PI * 4);
+    g.position.set(-0.07 + ap * 0.03, lerp(-0.45, -0.19, k) + bobY * 0.4 + w * 0.008, -0.42 + ap * 0.03);
+    g.rotation.set(0.6 - open * 0.25 + w * 0.06, 0.3 - ap * 0.15, 0.05);
+    g.getObjectByName('lid').rotation.x = -open * 1.9;
+  } else {
+    const kk = VM.flareKick;
+    g.position.set(-0.12, lerp(-0.45, -0.15, k) + kk * 0.015 + bobY * 0.4, -0.4 + kk * 0.05);
+    g.rotation.set(kk * 0.3, -0.45, 0.3);   // 横を少し見せて照準の方へ向ける
+    const fl = g.getObjectByName('flash'); fl.visible = kk > 0.8; fl.rotation.z = rand(0, 6);
+  }
+}
 export function drawScope(el: HTMLElement, on: boolean) {
   const L = VM.lens;
   el.style.display = on && L ? 'block' : 'none';
@@ -240,7 +251,7 @@ export function animateActor(A, e, dt, lookAt) {
   const prev = Math.sin(e.stepPhase * 2);
   e.stepPhase += dt * (6 + spd * 1.3);
   const hop = Math.max(0, Math.sin(e.stepPhase * 2));
-  if (e.isBot && mk > 0.3 && prev > 0 && Math.sin(e.stepPhase * 2) <= 0) SFX.play('step', e.pos, 1, surfOf(e));
+  if (e.isBot && mk > 0.3 && prev > 0 && Math.sin(e.stepPhase * 2) <= 0) { SFX.play('step', e.pos, 1, surfOf(e)); heardFoe(e.pos, 'step'); }
   const inv = A.root.rotation.y;
   const lf = e.vel.x * Math.sin(inv) + e.vel.z * Math.cos(inv);  // 前後
   const ls = e.vel.x * Math.cos(inv) - e.vel.z * Math.sin(inv);  // 左右

@@ -1,4 +1,4 @@
-// 成駒のスキルの仕組み：毒（成桂）・地雷（馬）・ドーム（成銀）・フレア弾（龍）・空爆要請（帝）・竜巻（侍）・幽体離脱（成香）
+// 成駒のスキルの仕組み：毒（成桂）・地雷（馬）・ドーム（成銀）・フレア弾（龍）・空爆要請（帝）・竜巻（侍）
 // 出した物の形はリプレイ用に gadgets.ts の track に登録する（対局中は消さずに隠すだけ）
 import * as THREE from 'three';
 import { P } from './palette';
@@ -7,8 +7,7 @@ import { SFX } from './audio';
 import { cam, flatGeo, toon } from './render';
 import { blockers } from './physics';
 import { DmgNums, Particles } from './effects';
-import { bot, eyeOf, facingOf, hasLOS, player, view } from './game';
-import { collide } from './game/move';
+import { bot, eyeOf, facingOf, hasLOS, player } from './game';
 import { gs } from './state';
 import { track } from './gadgets';
 import { explodeAt } from './grenades';
@@ -18,6 +17,21 @@ import { damagePlayer } from './ai';
 const foeOf = e => (e === player ? bot : player);
 // 動きをこの画面で決めている駒か（自分・オフラインの CPU。オンラインの相手の位置は相手の画面が決める）
 const local = e => e === player || !Net.on;
+// 決まった並びの乱数（オンラインでも両方の画面で同じ所に落ちる）
+const seeded = (n: number, k: number) => { const x = Math.sin(n * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
+// 投げた物を1こま進める（重力・壁や床で止まる）。止まったら当たった点を返す
+const ray = new THREE.Raycaster();
+function flyStep(o, dt, grav) {
+  o.vel.y -= grav * dt;
+  const next = o.pos.clone().addScaledVector(o.vel, dt), d = next.clone().sub(o.pos), len = d.length();
+  if (len < 1e-6) return null;
+  ray.set(o.pos, d.normalize()); ray.far = len;
+  const h = ray.intersectObjects(blockers, true)[0];
+  if (!h) { o.pos.copy(next); return null; }
+  const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : d.clone().negate();
+  o.pos.copy(h.point).addScaledVector(n, 0.08);
+  return { point: h.point.clone(), n };
+}
 
 // ---------- 毒（成桂の毒矢）：5秒じわじわ減り、足が遅くなる。毒では体力1までしか減らない ----------
 //   ダメージは撃った側の画面が決める（オンラインでは 'hit' で届く。届いた側は鈍足と見た目だけ）
@@ -86,46 +100,69 @@ function updateMines(dt) {
   }
 }
 
-// ---------- ドーム（成銀）：まわりに弾を通さないドーム（中から外へも撃てない）。歩いて出入りはできる ----------
-const domeGeo = new THREE.IcosahedronGeometry(1, 3);
+// ---------- ドーム（成銀）：金色の六角形の網の半球（EMP の青い球と見分けがつくように）。弾を通さない（中から外へも撃てない）。歩いて出入りはできる ----------
+const domeGeo = new THREE.SphereGeometry(1, 48, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+const domeRingGeo = new THREE.TorusGeometry(1, 0.025, 4, 48).rotateX(Math.PI / 2);
+const domeMat = () => new THREE.ShaderMaterial({
+  uniforms: { uColor: { value: new THREE.Color(P.kin[2]) }, uOp: { value: 0 }, uT: { value: 0 } },
+  vertexShader: `varying vec3 vP; varying vec3 vN; varying vec3 vV;
+    void main() { vP = position; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform vec3 uColor; uniform float uOp; uniform float uT; varying vec3 vP; varying vec3 vN; varying vec3 vV;
+    float hexD(vec2 p) { p = abs(p); return max(dot(p, vec2(0.5, 0.8660254)), p.x); }
+    void main() {
+      // 球の表面に六角形を並べる（横は一周でちょうど 36 個になるように）
+      vec2 uv = vec2(atan(vP.z, vP.x) / 6.2831853 * 36.0, asin(clamp(vP.y, 0.0, 1.0)) * 9.0);
+      vec2 r = vec2(1.0, 1.7320508), h = r * 0.5;
+      vec2 a = mod(uv, r) - h, b = mod(uv - h, r) - h;
+      vec2 g = dot(a, a) < dot(b, b) ? a : b;
+      float edge = smoothstep(0.40, 0.47, hexD(g));
+      float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.5);   // 縁ほど濃く
+      float wave = smoothstep(0.92, 1.0, sin(vP.y * 9.0 - uT * 4.0));      // 下から上へ流れる光の帯
+      float al = (0.06 + edge * (0.5 + wave * 0.4) + rim * 0.35) * uOp;
+      gl_FragColor = vec4(uColor * (0.75 + edge * 0.5 + wave * 0.3), al);
+    }`,
+  transparent: true, depthWrite: false, side: THREE.DoubleSide,
+});
 const domes: any[] = [];
 export function spawnDome(e, sk) {
-  const mat = new THREE.MeshBasicMaterial({ color: P.mizu[2], transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
-  const shell = track(new THREE.Mesh(domeGeo, mat));
-  const wire = track(new THREE.Mesh(domeGeo, new THREE.MeshBasicMaterial({ color: P.shiro[2], wireframe: true, transparent: true, opacity: 0.35, depthWrite: false })));
-  const c = e.pos.clone();
-  shell.position.copy(c); wire.position.copy(c); shell.scale.setScalar(0.01); wire.scale.setScalar(0.01);
+  const shell = track(new THREE.Mesh(domeGeo, domeMat()));
+  const ring = track(new THREE.Mesh(domeRingGeo, new THREE.MeshBasicMaterial({ color: P.kin[2], transparent: true, opacity: 0, depthWrite: false })));
+  const c = e.pos.clone().add(new V3(0, -0.2, 0));   // 少し沈めて、坂でも足元にすき間ができないように
+  shell.position.copy(c); ring.position.copy(c).add(new V3(0, 0.22, 0)); shell.scale.setScalar(0.01);
   blockers.push(shell);
-  domes.push({ shell, wire, t: 0, life: sk.duration, r: sk.radius });
-  SFX.play('skEmp', e.isBot ? c : null);
+  domes.push({ shell, ring, t: 0, life: sk.duration, r: sk.radius });
+  for (let k = 0; k < 18; k++) { const a = rand(0, Math.PI * 2); Particles.glow(c.clone().add(new V3(Math.cos(a) * sk.radius, 0.4, Math.sin(a) * sk.radius)), P.kin[2]); }
+  SFX.play('guardUp', e.isBot ? c : null);
 }
 function updateDomes(dt) {
   for (let i = domes.length - 1; i >= 0; i--) {
     const D = domes[i]; D.t += dt;
-    const k = Math.min(1, D.t / 0.25), f = clamp((D.life - D.t) / 0.4, 0, 1);
+    const k = Math.min(1, D.t / 0.3), f = clamp((D.life - D.t) / 0.4, 0, 1);
     const r = Math.max(0.01, D.r * (1 - (1 - k) ** 3));
-    D.shell.scale.setScalar(r); D.wire.scale.setScalar(r * 1.005);
-    D.shell.material.opacity = 0.22 * f; D.wire.material.opacity = 0.35 * f; D.wire.rotation.y += dt * 0.6;
+    D.shell.scale.setScalar(r); D.ring.scale.setScalar(r);
+    const u = D.shell.material.uniforms; u.uT.value = D.t; u.uOp.value = f * (D.life - D.t < 1 ? 0.6 + 0.4 * Math.sign(Math.sin(D.t * 30)) : 1);   // 消える前の1秒はちらつく
+    D.ring.material.opacity = 0.8 * f;
     if (D.t >= D.life) {
-      D.shell.visible = D.wire.visible = false;
+      D.shell.visible = D.ring.visible = false;
       const b = blockers.indexOf(D.shell); if (b >= 0) blockers.splice(b, 1);
       domes.splice(i, 1);
     }
   }
 }
 
-// ---------- フレア弾（龍）：閃光弾のように投げ、燃え出したら 6 秒光り続ける。見ている間は目がくらむ ----------
-const flareGeo = flatGeo(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 6)), flareM = toon({ color: C(P.shu[1]), emissive: C(P.daidai[2]), emissiveIntensity: 0.4 });
+// ---------- フレア弾（龍）：フレアガンで撃つ。光りながらまっすぐ進み、3 秒で消える（壁に当たったらそこで燃える）。光を見た相手は目がくらむ ----------
+const flareGeo = flatGeo(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 6)), flareM = toon({ color: C(P.shu[1]), emissive: C(P.daidai[2]), emissiveIntensity: 0.6 });
 const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,240,200,0.8)'); r.addColorStop(1, 'rgba(255,200,120,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const flares: any[] = [];
 export function tossFlare(e, aim, sk) {
   const m = track(new THREE.Mesh(flareGeo, flareM));
   const glow = track(new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xfff0d0, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })));
-  glow.visible = false;
-  const pos = eyeOf(e).addScaledVector(aim, 0.6);
-  m.position.copy(pos);
-  flares.push({ owner: e, sk, m, glow, pos, vel: aim.clone().multiplyScalar(sk.speed).add(new V3(0, 3, 0)), t: 0, stuck: false, burning: false });
-  SFX.play('skFlashPin', e.isBot ? pos : null);
+  const dir = aim.clone().normalize();
+  const pos = eyeOf(e).addScaledVector(dir, 0.7);
+  m.position.copy(pos); m.quaternion.setFromUnitVectors(new V3(0, 1, 0), dir);
+  flares.push({ owner: e, sk, m, glow, pos, vel: dir.multiplyScalar(sk.speed), t: 0, stuck: false });
+  SFX.play('m79', e.isBot ? pos : null);
+  SFX.play('skFlash', pos);
 }
 // 目に入っているか（CPU は正面の約 ±53°、自分は画面の中）
 function sees(e, p) {
@@ -139,60 +176,78 @@ function updateFlares(dt) {
   for (let i = flares.length - 1; i >= 0; i--) {
     const F = flares[i]; F.t += dt;
     if (!F.stuck) {
-      F.vel.y -= 20 * dt;
-      const next = F.pos.clone().addScaledVector(F.vel, dt), d = next.clone().sub(F.pos), len = d.length();
-      if (len > 1e-6) {
-        const r = new THREE.Raycaster(F.pos, d.normalize(), 0, len);
-        const h = r.intersectObjects(blockers, true)[0];
-        if (h) { const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : d.clone().negate(); F.pos.copy(h.point).addScaledVector(n, 0.1); F.stuck = true; }
-        else F.pos.copy(next);
-      }
-      F.m.position.copy(F.pos); F.m.rotation.x += dt * 9;
+      if (flyStep(F, dt, 0)) F.stuck = true;
+      F.m.position.copy(F.pos);
+      if (Math.random() < dt * 40) Particles.trail(F.pos.clone(), Math.random() < 0.5 ? P.daidai[2] : P.shu[2]);
     }
-    if (!F.burning && F.t >= F.sk.fuse) { F.burning = true; F.burnT = F.sk.burn; F.glow.visible = true; SFX.play('skFlash', F.pos); }
-    if (!F.burning) continue;
-    F.burnT -= dt;
-    const fl = 0.85 + Math.sin(F.t * 37) * 0.1 + rand(-0.05, 0.05);
-    F.glow.position.copy(F.pos); F.glow.scale.setScalar(2.2 * fl);
+    const left = F.sk.burn - F.t, fl = (0.85 + Math.sin(F.t * 37) * 0.1 + rand(-0.05, 0.05)) * clamp(left / 0.3, 0, 1);
+    F.glow.position.copy(F.pos); F.glow.scale.setScalar(2.4 * fl * Math.min(1, 0.2 + F.t * 3));   // 撃った直後は小さく（目の前でまぶしすぎないように）
     if (Math.random() < dt * 25) Particles.glow(F.pos.clone().add(new V3(rand(-0.15, 0.15), rand(0, 0.4), rand(-0.15, 0.15))), Math.random() < 0.5 ? P.daidai[2] : P.shiro[2]);
-    // 見ている間は目がくらむ（見るのをやめると少しで戻る）
+    // 見ている間は目がくらむ（見るのをやめると少しで戻る）。撃った本人は平気
     for (const e of [player, bot]) {
-      if (!e || e.dead || eyeOf(e).distanceTo(F.pos) > F.sk.radius || !sees(e, F.pos)) continue;
+      if (!e || e === F.owner || e.dead || eyeOf(e).distanceTo(F.pos) > F.sk.radius || !sees(e, F.pos)) continue;
       if (e.isBot) e.blindT = Math.max(e.blindT || 0, F.sk.blind);
       else gs.flash = Math.max(gs.flash || 0, F.sk.blind);
     }
-    if (F.burnT <= 0) { F.m.visible = false; F.glow.visible = false; flares.splice(i, 1); }
+    if (left <= 0) { F.m.visible = false; F.glow.visible = false; flares.splice(i, 1); }
   }
 }
 
-// ---------- 空爆要請（帝）：狙った所に印、1.5 秒後に 3 回の爆撃（落ちる所は決まった形にずらす：オンラインでも同じ所に落ちる） ----------
-const markGeo = new THREE.TorusGeometry(1, 0.08, 4, 28).rotateX(Math.PI / 2);
+// ---------- 空爆要請（帝）：発煙筒を投げ、落ちた所のまわりに砲弾が降り続ける（Apex のジブラルタルのウルトのように） ----------
+//   落ちる所は決まった並びの乱数（オンラインでも同じ所に落ちる）。自分が巻き込まれたときは少しだけ減る
+const canGeo = flatGeo(new THREE.CylinderGeometry(0.05, 0.05, 0.24, 8)), canM = toon({ color: C(P.shu[1]), emissive: C(P.shu[1]), emissiveIntensity: 0.3 });
+const markGeo = new THREE.TorusGeometry(1, 0.03, 4, 56).rotateX(Math.PI / 2);
 const strikes: any[] = [];
+const FALL = 0.45;   // 砲弾が見えてから落ちるまでの秒数
 export function callAirstrike(e, aim, sk) {
-  const from = eyeOf(e), r = new THREE.Raycaster(from, aim.clone().normalize(), 0, sk.range);
-  const h = r.intersectObjects(blockers, true)[0];
-  if (!h) return false;
-  const p = h.point.clone();
-  const mark = track(new THREE.Mesh(markGeo, new THREE.MeshBasicMaterial({ color: P.shu[2], transparent: true, opacity: 0.8, depthWrite: false })));
-  mark.position.copy(p).add(new V3(0, 0.08, 0)); mark.scale.setScalar(sk.spread);
-  // 落ちる所：狙った向き（左右）に合わせて、真ん中・右前・左後ろ
-  const yaw = Math.atan2(aim.x, aim.z), rt = new V3(Math.cos(yaw), 0, -Math.sin(yaw)), fw = new V3(Math.sin(yaw), 0, Math.cos(yaw));
-  const offs = [[0, 0], [0.8, 0.5], [-0.7, -0.6]].map(([a, b]) => rt.clone().multiplyScalar(a * sk.spread).addScaledVector(fw, b * sk.spread));
-  strikes.push({ owner: e, sk, p, mark, t: 0, n: 0, offs });
-  SFX.play('skMissile', e.isBot ? p : null);
+  const m = track(new THREE.Mesh(canGeo, canM));
+  const pos = eyeOf(e).addScaledVector(aim, 0.6);
+  m.position.copy(pos);
+  strikes.push({ owner: e, sk, m, pos, vel: aim.clone().multiplyScalar(sk.speed).add(new V3(0, 3, 0)), t: 0, landed: false, lt: 0, n: 0, falling: [] });
+  SFX.play('skFlashPin', e.isBot ? pos : null);
   return true;
+}
+function landStrike(S) {
+  S.landed = true; S.lt = 0;
+  S.mark = track(new THREE.Mesh(markGeo, new THREE.MeshBasicMaterial({ color: P.shu[2], transparent: true, opacity: 0.8, depthWrite: false })));
+  S.mark.position.copy(S.pos).add(new V3(0, 0.1, 0)); S.mark.scale.setScalar(S.sk.area);
+  SFX.play('skMissile', S.pos);
+}
+// 砲弾が落ちる地面：上から下へ調べる（屋根があれば屋根に落ちる）
+function groundUnder(x, y, z) {
+  ray.set(new V3(x, y + 25, z), new V3(0, -1, 0)); ray.far = 60;
+  const h = ray.intersectObjects(blockers, true)[0];
+  return h ? h.point : new V3(x, y, z);
 }
 function updateStrikes(dt) {
   for (let i = strikes.length - 1; i >= 0; i--) {
     const S = strikes[i]; S.t += dt;
-    S.mark.rotation.y += dt * 2; S.mark.material.opacity = 0.5 + Math.sin(S.t * 18) * 0.3;
-    while (S.n < S.sk.count && S.t >= S.sk.delay + S.n * S.sk.gap) {
-      const q = S.p.clone().add(S.offs[S.n % S.offs.length]).add(new V3(0, 0.4, 0));
-      for (let k = 0; k < 6; k++) Particles.trail(q.clone().add(new V3(0, 3 + k * 2.5, 0)), P.daidai[2]);
-      explodeAt(q, S.owner, S.sk.dmg, S.sk.radius, { knock: S.sk.knock, lift: S.sk.lift, self: S.sk.self });
+    if (!S.landed) {
+      if (flyStep(S, dt, 20) || S.t > 5) landStrike(S);
+      S.m.position.copy(S.pos); S.m.rotation.x += dt * 9;
+      continue;
+    }
+    S.lt += dt;
+    // 発煙筒：赤い煙を上げ続ける・印の輪が回る
+    if (S.n < S.sk.count && Math.random() < dt * 30) Particles.trail(S.pos.clone().add(new V3(rand(-0.1, 0.1), rand(0.1, 1.2), rand(-0.1, 0.1))), P.shu[2]);
+    S.mark.rotation.y += dt * 0.8; S.mark.material.opacity = 0.45 + Math.sin(S.lt * 10) * 0.25;
+    // 次の砲弾：落ちる少し前から空に光の筋が見える
+    const gap = S.sk.time / S.sk.count;
+    while (S.n < S.sk.count && S.lt >= S.sk.delay + S.n * gap - FALL) {
+      const a = seeded(S.n, 1) * Math.PI * 2, r = Math.sqrt(seeded(S.n, 2)) * S.sk.area;
+      S.falling.push({ q: groundUnder(S.pos.x + Math.cos(a) * r, S.pos.y, S.pos.z + Math.sin(a) * r), t: 0 });
       S.n++;
     }
-    if (S.n >= S.sk.count) { S.mark.visible = false; strikes.splice(i, 1); }
+    for (let k = S.falling.length - 1; k >= 0; k--) {
+      const F = S.falling[k]; F.t += dt;
+      const hgt = 18 * Math.max(0, 1 - F.t / FALL);
+      Particles.trail(F.q.clone().add(new V3(0, hgt + 0.5, 0)), P.daidai[2]);
+      if (F.t >= FALL) {
+        explodeAt(F.q.clone().add(new V3(0, 0.4, 0)), S.owner, S.sk.dmg, S.sk.radius, { knock: S.sk.knock, lift: S.sk.lift, self: S.sk.self });
+        S.falling.splice(k, 1);
+      }
+    }
+    if (S.n >= S.sk.count && !S.falling.length) { S.mark.visible = false; S.m.visible = false; strikes.splice(i, 1); }
   }
 }
 
@@ -227,32 +282,6 @@ function updateTwisters(dt) {
   }
 }
 
-// ---------- 幽体離脱（成香）：体はその場に残り、幽体で偵察する（壁はすり抜けない） ----------
-//   幽体は自分の画面の中だけ（相手には見えない）。ジャンプ長押しで上昇、離すと下降
-export function startGhost(e, sk) {
-  e.ghost = { pos: eyeOf(e).add(new V3(0, -0.3, 0)), vel: new V3(), vy: 0, radius: 0.25, height: 0.5, onGround: false, sk };
-  SFX.play('skCloak');
-  for (let k = 0; k < 14; k++) Particles.glow(e.pos.clone().add(new V3(rand(-0.4, 0.4), rand(0.3, e.height), rand(-0.4, 0.4))), P.shiro[2]);
-}
-export function endGhost(e) {
-  if (!e.ghost) return;
-  e.ghost = null;
-  const s = e.slots.find(x => x.sk.type === 'ghost'); if (s) s.t = 0;
-  if (!e.isBot) SFX.play('skCloak');
-}
-// 幽体を動かす（wish：水平の向き、up：ジャンプを押しているか）
-export function moveGhost(e, wish, up, dt) {
-  const g = e.ghost; if (!g) return;
-  const sp = g.sk.speed;
-  g.vel.lerp(wish.clone().multiplyScalar(sp), 1 - Math.exp(-8 * dt));
-  g.vy += ((up ? g.sk.rise : -g.sk.rise * 0.7) - g.vy) * (1 - Math.exp(-4 * dt));   // ゆるやかに上がる・下がる
-  g.prevX = g.pos.x; g.prevZ = g.pos.z; g.prevY = g.pos.y;
-  g.pos.x += g.vel.x * dt; g.pos.z += g.vel.z * dt; g.pos.y += g.vy * dt;
-  g.pos.y = Math.min(g.pos.y, 60);
-  collide(g);   // 壁・床・天井で止まる
-  if (g.onGround && g.vy < 0) g.vy = 0;
-}
-
 export const Promo = {
   update(dt) {
     if (dt <= 0) return;
@@ -263,7 +292,7 @@ export const Promo = {
     mines.length = 0; flares.length = 0; strikes.length = 0; twisters.length = 0;
     for (const D of domes) { const b = blockers.indexOf(D.shell); if (b >= 0) blockers.splice(b, 1); }
     domes.length = 0;
-    for (const e of [player, bot]) if (e) { e.poisonT = 0; e.ghost = null; }
+    for (const e of [player, bot]) if (e) e.poisonT = 0;
   },
   minesOf: e => mines.filter(m => m.owner === e).length,
 };

@@ -121,7 +121,7 @@ export function buildCrossbow(opt: { skin?: string; hand?: THREE.Material } = {}
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
     info: { name: 'クロスボウ', real: '全長 約960mm・弓の幅 約720mm', reload: 2.4 },
-    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
+    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.82 },
     events: { load: anim => { anim.stop('fire'); anim.stop('fireLast'); } },
   });
 }

@@ -318,7 +318,9 @@ function showPieceSelect() {
   document.querySelectorAll<HTMLElement>('#plist .prow').forEach(b => b.onclick = e => {
     e.stopPropagation();
     settings[mine ? 'myPiece' : 'foePiece'] = b.dataset.k; saveSettings();
+    const st = $('plist').scrollTop;
     resetMatch(); showPieceSelect();
+    $('plist').scrollTop = st;
   });
   const stage = (d: number) => { settings.map = maps[(mapI + d + maps.length) % maps.length][0]; saveSettings(); resetMatch(); showPieceSelect(); };
   on('stPrev', () => stage(-1)); on('stNext', () => stage(1));

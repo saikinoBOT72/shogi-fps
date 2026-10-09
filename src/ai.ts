@@ -8,9 +8,8 @@ import { cam } from './render';
 import { MAPS, groundAt, insideCollider, mapId, propMeshes } from './world';
 import { Nav } from './nav';
 import { Smoke } from './grenades';
-import { endGhost } from './promo';
 import { act, bot, botActor, canFire, eyeOf, fire, fireGrenade, hasLOS, moveEntity, player, ray, regenTick, shootArrow, skillTick, startReload, stats, tryJump, useSkill, view, weaponTick } from './game';
-import { addDamageDir, hud, killPlayer } from './hud';
+import { addDamageDir, heardFoe, hud, killPlayer } from './hud';
 import { Clones } from './clones';
 import { Sword } from './sword';
 import { swordTick } from './swordai';
@@ -358,7 +357,7 @@ export function updateBot(dt) {
         if (b.w.burst) b.fireDelay = b.burstLeft > 0 ? 0 : Math.max(rand(D.gap[0], D.gap[1]), b.w.dmg * b.w.burst / D.dps - b.w.rate);
       }
       b.flashT = 0.05;
-      SFX.play('shot', muzzle, b.w.model);
+      SFX.play('shot', muzzle, b.w.model); heardFoe(muzzle, 'shot');
       if (res.dmg > 0) damagePlayer(res.dmg, b.pos);
       else if (res.miss) {
         ray.set(bEye, res.miss);
@@ -512,9 +511,10 @@ export const SKILL_AI = {
   },
   // 空爆要請：見えている相手の足元へ
   airstrike(b, c, i, s) {
-    if (!ready(s) || !c.los || c.dist < 10 || c.dist > 60 || Math.random() > c.dt * 0.5 * b.persona.eager) return;
+    if (!ready(s) || !c.los || c.dist < 10 || c.dist > 26 || Math.random() > c.dt * 0.5 * b.persona.eager) return;
     const e = new V3(b.pos.x, b.pos.y + b.eyeH, b.pos.z);
-    b.skillAim = player.pos.clone().sub(e).normalize();
+    const to = player.pos.clone().sub(e); to.y += to.length() * 0.35;   // 山なりに投げる
+    b.skillAim = to.normalize();
     useSkill(b, i, c.toP); b.skillAim = null;
   },
   // 竜巻：刀の届かない少し先の相手を引き寄せる
@@ -542,7 +542,6 @@ export function aiHear(pos, radius) {
 // quiet：毒のじわじわ（揺れ・音を小さく）
 export function damagePlayer(dmg, from, quiet = false) {
   player.hp -= dmg; stats.taken += dmg; player.sinceHit = 0;
-  if (player.ghost) endGhost(player);   // 幽体離脱中に本体が撃たれたら戻る
   hud.hurt = quiet ? Math.max(hud.hurt || 0, 0.3) : 0.85;
   if (!quiet) {
     view.shake = Math.max(view.shake, 0.35);

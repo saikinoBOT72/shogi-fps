@@ -131,6 +131,6 @@ export function buildVector(opt: { skin?: string; hand?: THREE.Material } = {}) 
   return makeGun({
     B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
     info: { name: 'KRISS Vector', real: '全長 620mm・銃身 140mm（サプレッサー付きで約 880mm）', reload: 1.8 },
-    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3() },
+    vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.66 },
   });
 }

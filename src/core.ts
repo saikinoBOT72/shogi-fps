@@ -33,7 +33,7 @@ export const PIECES = {
   // 成駒（promo：元の駒）：将棋モードで成った駒が一騎打ちでなる姿。字は盤と同じ赤い字（red）。ランダムには出ない
   //   性格：と＝成り上がりの足軽 / 成香＝重い狙撃手 / 成桂＝身軽な射手 / 成銀＝万能の兵 / 馬＝重装の砲兵 / 龍＝機動の切り込み役 / 帝＝威厳の王
   'P+': { name: 'と', value: 6, hp: 110, size: 0.8,  speed: 7.0, jump: 7.5, weapon: 'pistol', skills: ['dual', 'roll'], promo: 'P', red: true },
-  'L+': { name: '杏', value: 6, hp: 100, size: 0.85, speed: 6.4, jump: 7,   weapon: 'awm',    skills: ['pierce', 'ghost'], strafe: 0.6, promo: 'L', red: true },
+  'L+': { name: '杏', value: 6, hp: 100, size: 0.85, speed: 6.4, jump: 7,   weapon: 'awm',    skills: ['pierce', 'hearing'], strafe: 0.6, promo: 'L', red: true },
   'N+': { name: '圭', value: 6, hp: 100, size: 0.85, speed: 7.4, jump: 10,  weapon: 'xbow',   skills: ['poison', 'multishot'], promo: 'N', red: true },
   'S+': { name: '全', value: 6, hp: 115, size: 0.85, speed: 7,   jump: 7.5, weapon: 'famas',  skills: ['medkit', 'dome'], promo: 'S', red: true },
   'B+': { name: '馬', value: 10, hp: 140, size: 0.95, speed: 6.0, jump: 7,  weapon: 'mgl',    skills: ['mine', 'smoke2'], promo: 'B', red: true },
@@ -63,7 +63,7 @@ export const WEAPONS = {
     move: 0.03, air: 0.09, ads: 0.35, mag: 17, reload: 1.5, auto: false, recoil: 0.016, falloff: [16, 38, 0.65], pref: 12,
   },
   pistol: {
-    name: 'デザートイーグル', model: 'pistol', dmg: 34, head: 1.7, rate: 0.32, spread: 0.012, bloomShot: 0.018, bloomMax: 0.05, bloomRecover: 0.12,
+    name: 'デザートイーグル', model: 'pistol', dmg: 34, head: 1.7, rate: 0.5, spread: 0.012, bloomShot: 0.018, bloomMax: 0.05, bloomRecover: 0.12,
     move: 0.03, air: 0.09, ads: 0.35, mag: 7, reload: 1.5, auto: false, recoil: 0.034, falloff: [20, 45, 0.7], pref: 12,
   },
   // ---------- 成駒の武器（元の武器と強さは同じくらい、性格が違う） ----------
@@ -73,14 +73,15 @@ export const WEAPONS = {
   },
   xbow: {
     name: 'クロスボウ', model: 'xbow', kind: 'xbow', dmg: 62, dmgMin: 62, head: 1.6, speedMin: 82, speedMax: 82, gravity: 7, drag: 0.01, rate: 0.25, spread: 0.004, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
-    move: 0.02, air: 0.05, ads: 0.5, mag: 1, reload: 1.4, auto: false, recoil: 0.03, falloff: [999, 1000, 1], pref: 18,
+    move: 0.02, air: 0.05, ads: 0.5, mag: 1, reload: 0.85, auto: false, recoil: 0.03, falloff: [999, 1000, 1], pref: 18,
   },
+  // 3点バースト。1回押すと3発、次のバーストまで間が空く。跳ね上がりが強く扱いにくい
   famas: {
-    name: 'FAMAS', model: 'famas', dmg: 11, head: 1.5, rate: 0.068, spread: 0.017, bloomShot: 0.007, bloomMax: 0.045, bloomRecover: 0.14,
-    move: 0.03, air: 0.09, ads: 0.45, mag: 25, reload: 2.1, auto: true, recoil: 0.016, falloff: [18, 38, 0.65], pref: 14,
+    name: 'FAMAS', model: 'famas', dmg: 15, head: 1.5, rate: 0.38, burst: 3, burstGap: 0.065, spread: 0.017, bloomShot: 0.013, bloomMax: 0.05, bloomRecover: 0.11,
+    move: 0.035, air: 0.09, ads: 0.45, mag: 24, reload: 2.1, auto: false, recoil: 0.03, falloff: [18, 38, 0.65], pref: 14,
   },
   mgl: {
-    name: 'MGL', model: 'mgl', kind: 'grenade', dmg: 50, knock: 16, lift: 18, self: 0.1, radius: 4.6, speed: 36, gravity: 9, fuse: 3, rate: 0.5, spread: 0.012,
+    name: 'MGL', model: 'mgl', kind: 'grenade', dmg: 50, knock: 16, lift: 18, self: 0.1, radius: 4.6, speed: 36, gravity: 9, fuse: 3, rate: 0.75, spread: 0.012,
     bloomShot: 0, bloomMax: 0, bloomRecover: 0.1, move: 0.012, air: 0.025, ads: 0.6, mag: 6, reload: 3.2, auto: false, recoil: 0.045, falloff: [999, 1000, 1], pref: 13,
   },
   vector: {
@@ -223,23 +224,25 @@ export const SKILLS = {
   guard: { name: '守りの構え', type: 'guard', key: 'KeyE', cooldown: 27, duration: 5, damageTaken: 0.1, slow: 0.55,
     help: '盾を構えて前からの被ダメ1/10・撃つと解除' },
   // ---------- 成駒のスキル ----------
-  dual: { name: '早撃ち', type: 'dual', cooldown: 28, duration: 4, rateMul: 0.5, spreadAdd: 0.012, damageTaken: 1, help: '4秒間 2丁持ち。連射が2倍・弾も2丁分（覗き込めない）' },
+  dual: { name: '早撃ち', type: 'dual', cooldown: 28, duration: 4, rateMul: 0.7, spreadAdd: 0.012, damageTaken: 1, help: '4秒間 2丁持ち。左右交互に撃てて連射が少し速くなる・弾も2丁分（覗き込めない）' },
   roll: { name: '前転', type: 'roll', cooldown: 10, duration: 0.42, speed: 11, damageTaken: 0.5, help: '押した方向へ前転（被ダメ半分）。転がり終わるとリロードも済む' },
   pierce: { name: '貫通', type: 'pierce', cooldown: 24, duration: 12, walls: 2, wallMul: 0.7, damageTaken: 1, help: '次の1発が壁を2枚まで抜ける。1枚ごとにダメージ3割減（頭も同じ）' },
-  ghost: { name: '幽体離脱', type: 'ghost', cooldown: 36, duration: 10, speed: 12, rise: 4, damageTaken: 1,
-    help: '体を置いて幽体で偵察（10秒）。ジャンプ長押しで上昇・離すと下降。もう一度押すと戻る。本体は無防備' },
-  poison: { name: '毒矢', type: 'poison', cooldown: 24, duration: 12, dot: 6, time: 5, slow: 0.7, damageTaken: 1, help: '次の矢に毒。当たると5秒じわじわ減り足が遅くなる（毒では体力1までしか減らない）' },
+  // stepRange：足音が見える距離（足音が聞こえる距離のおよそ8割）・shotRange：銃声が見える距離
+  hearing: { name: '聴覚強化', type: 'hearing', cooldown: 30, duration: 20, stepRange: 24, shotRange: 120, damageTaken: 1,
+    help: '20秒間、相手の足音・銃声がした向きを照準のまわりに出す（足音は白・銃声は金）' },
+  poison: { name: '毒矢', type: 'poison', cooldown: 24, duration: 12, dot: 10, time: 5, slow: 0.6, damageTaken: 1, help: '次の矢に毒。当たると5秒で50じわじわ減り足が遅くなる（毒では体力1までしか減らない）' },
   multishot: { name: '拡散', type: 'multishot', cooldown: 30, duration: 8, count: 3, angle: 0.12, damageTaken: 1, help: '8秒間、矢を3本ずつ扇形に放つ' },
   medkit: { name: '救急キット', type: 'medkit', cooldown: 30, duration: 1.5, amount: 50, damageTaken: 1, help: '1.5秒かけて体力を50回復。歩く以外（撃つ・跳ぶ・走る・スキル）をすると中断' },
   dome: { name: 'ドーム', type: 'dome', cooldown: 36, duration: 6, radius: 3.6, damageTaken: 1, help: 'まわりに6秒、弾を通さないドームを張る（中から外へも撃てない）' },
   mine: { name: '地雷', type: 'mine', cooldown: 14, duration: 15, dmg: 100, radius: 4, arm: 1, delay: 0.5, trigger: 2.2, see: 3, max: 12, damageTaken: 1,
     help: '次の弾が着弾した所に地雷が残る。1秒で起動し、相手が近づくとピッと鳴って0.5秒後に爆発（真ん中で100）。12個まで・試合中ずっと残る' },
-  smoke2: { name: '煙幕', type: 'smoke', charges: 2, cooldown: 30, duration: 0, radius: 5, life: 8, damageTaken: 1, help: 'その場に球の煙幕を張る（2回分ためられる）' },
+  smoke2: { name: '煙幕', type: 'smoke', cooldown: 30, duration: 0, radius: 5, life: 8, damageTaken: 1, help: 'その場に球の煙幕を張る' },
   grapple2: { name: '鉤縄', type: 'grapple', charges: 2, chain: true, cooldown: 20, duration: 1.4, range: 35, speed: 26, damageTaken: 1,
     help: '2回まで。引き寄せられている途中でもう一度使うと、縄を掛け替えて勢いのまま向きを変える' },
-  flare: { name: 'フレア弾', type: 'flare', cooldown: 36, duration: 0, fuse: 0.9, speed: 20, radius: 26, burn: 6, blind: 1.2, damageTaken: 1, help: '投げて約1秒後に燃え出し、6秒光り続ける。光を見ている間は目がくらむ（自分も注意）' },
-  airstrike: { name: '空爆要請', type: 'airstrike', cooldown: 45, duration: 0, range: 70, delay: 1.5, count: 3, gap: 0.35, spread: 3, dmg: 55, radius: 4.5, knock: 12, lift: 8, self: 0.5, damageTaken: 1,
-    help: '狙った所に印を付け、1.5秒後に3回の爆撃が落ちる（自分も巻き込まれる）' },
+  flare: { name: 'フレア弾', type: 'flare', cooldown: 30, duration: 0, speed: 11, radius: 26, burn: 3, blind: 1.2, damageTaken: 1, help: 'フレアガンで光の弾を撃つ。光りながらまっすぐ3秒進んで消える。光を見た相手は目がくらむ' },
+  // 発煙筒を投げ、落ちた所のまわり（area m）に time 秒、count 発の砲弾がばらばらに降る。自分が巻き込まれたときは self 倍
+  airstrike: { name: '空爆要請', type: 'airstrike', cooldown: 50, duration: 0, speed: 20, delay: 2, time: 6, count: 30, area: 8, dmg: 32, radius: 3.8, knock: 6, lift: 5, self: 0.25, damageTaken: 1,
+    help: '発煙筒を投げる。2秒後、落ちた所のまわり8mに6秒間砲弾が降り続ける（自分が巻き込まれても少ししか減らない）' },
   tornado: { name: '竜巻', type: 'tornado', cooldown: 30, duration: 1.1, radius: 8, pull: 16, lift: 3, damageTaken: 1, help: 'まわり8mの相手を1秒ほど自分の方へ引き寄せる' },
 };
 export const skillType = e => SKILLS[e.def.skill].type;

@@ -13,7 +13,7 @@ import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
 import { down, keys } from './input';
 import { PERSONAS, aiHear, damagePlayer } from './ai';
-import { initPips, killBot, showHitmarker } from './hud';
+import { heardFoe, initPips, killBot, showHitmarker } from './hud';
 import { Replay } from './replay';
 import { Net, r2, vec } from './net';
 import { questEvent } from './quests';
@@ -23,7 +23,7 @@ import { eyeOf, surfOf, hasLOS, act, moveEntity, tryJump } from './game/move';
 import { currentSpread, canFire, startReload, weaponTick, facingOf, skillDamageMul, fire } from './game/weapons';
 import { Sword } from './sword';
 import { Clones } from './clones';
-import { Promo, callAirstrike, endGhost, moveGhost, spawnDome, startGhost, startTornado, tossFlare } from './promo';
+import { Promo, callAirstrike, spawnDome, startTornado, tossFlare } from './promo';
 export * from './game/move';
 export * from './game/weapons';
 
@@ -137,7 +137,6 @@ export function skillTick(e, dt) {
         if (!e.isBot) SFX.play('heal');
       }
       if (sk.type === 'dual' && s.t <= 0) e.ammo = Math.min(e.ammo, e.w.mag);   // 2丁目をしまう
-      if (sk.type === 'ghost' && s.t <= 0 && e.ghost) endGhost(e);
       if (sk.type === 'medkit' && s.t > 0 && Math.random() < dt * 10) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.midori[2]);
       if (sk.type === 'heal' && !e.dead) {
         e.hp = Math.min(e.def.hp, e.hp + sk.amount / sk.duration * dt);
@@ -158,7 +157,6 @@ export function useSkill(e, i, dir, force = false) {
   // もう一度押す系：C4 の起爆・ミサイルの操作をやめる
   if (sk.type === 'c4' && Gadgets.c4Of(e)) { SFX.play('skC4b', e.isBot ? e.pos : null); Gadgets.detonate(e); return true; }
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
-  if (sk.type === 'ghost' && e.ghost) { endGhost(e); return true; }
   // 鉤縄（2回）：引き寄せられている途中なら、縄を掛け替えて勢いのまま向きを変える
   const chain = sk.type === 'grapple' && sk.chain && s.t > 0 && s.charges > 0;
   if (!force && e.empT > 0) { if (!e.isBot) SFX.play('empty'); return false; }   // EMP を受けている間はスキルが使えない
@@ -169,8 +167,6 @@ export function useSkill(e, i, dir, force = false) {
   // 鉤縄は掛ける所が無ければ使わない（回数も減らさない）
   let hook = null;
   if (sk.type === 'grapple') { hook = Gadgets.grappleTarget(e, aim, sk.range); if (!hook) { if (!e.isBot) SFX.play('empty'); return false; } }
-  // 空爆要請は狙った先に地面や壁が無ければ使わない（回数も減らさない）
-  if (sk.type === 'airstrike' && !callAirstrike(e, aim, sk)) { if (!e.isBot) SFX.play('empty'); return false; }
   cancelMedkit(e, s);   // ほかのスキルを使うと救急キットは中断
   s.dir.copy(dir).setY(0).normalize();
   s.charges--; if (s.cd <= 0) s.cd = sk.cooldown;
@@ -198,17 +194,17 @@ export function useSkill(e, i, dir, force = false) {
     e.reloading = 0;
   } else if (t === 'pierce' || t === 'poison' || t === 'multishot' || t === 'mine') {
     SFX.play(t === 'multishot' ? 'skVolley' : t === 'pierce' ? 'skXray' : t === 'mine' ? 'skC4' : 'skHoming', e.isBot ? e.pos : null);
-  } else if (t === 'ghost') {
-    if (e.isBot) { s.t = 0; return false; }   // 幽体離脱は自分の画面だけの技（CPU は使わない）
-    startGhost(e, sk);
+  } else if (t === 'hearing') {
+    SFX.play('skXray', e.isBot ? e.pos : null);
   } else if (t === 'medkit') {
     SFX.play('heal', e.isBot ? e.pos : null);
   } else if (t === 'dome') {
     spawnDome(e, sk);
   } else if (t === 'flare') {
     onAttack(e); tossFlare(e, aim, sk);
+    if (!e.isBot) { VM.flareT = 0.75; VM.flareKick = 1; view.shake = Math.max(view.shake, 0.12); }   // 左手のフレアガンを構えて撃つ
   } else if (t === 'airstrike') {
-    onAttack(e);
+    onAttack(e); callAirstrike(e, aim, sk);
   } else if (t === 'tornado') {
     onAttack(e); startTornado(e, sk);
   } else if (t === 'hagakure') {
@@ -286,17 +282,8 @@ export function updatePlayer(dt) {
   const fwd = new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw)), right = new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw));
   const wish = new V3();
   if (gs.state === 'fight' && !p.dead && !gs.paused) {
-    // 幽体離脱中：入力で幽体が動き、体はその場に止まる
-    if (p.ghost) {
-      const gw = new V3();
-      if (down('forward')) gw.add(fwd); if (down('back')) gw.sub(fwd);
-      if (down('right')) gw.add(right); if (down('left')) gw.sub(right);
-      if (gw.lengthSq() > 0) gw.normalize();
-      moveGhost(p, gw, down('jump'), dt);
-      gs.jumpPressed = 0;
-    }
     // ミサイルを操作している間は、自分の駒は動かない
-    else if (!Gadgets.ctrlOf(p)) {
+    if (!Gadgets.ctrlOf(p)) {
       if (down('forward')) wish.add(fwd); if (down('back')) wish.sub(fwd);
       if (down('right')) wish.add(right); if (down('left')) wish.sub(right);
       if (wish.lengthSq() > 0) wish.normalize();
@@ -336,7 +323,7 @@ export function updatePlayer(dt) {
     p.inspectHeld = down('inspect');
   }
   gs.jumpPressed -= dt;
-  const guardOrDash = p.slots.some(s => s.t > 0 && ['guard', 'dash', 'step', 'leap', 'grapple', 'blink', 'roll', 'dual', 'medkit'].includes(s.sk.type)) || !!Gadgets.ctrlOf(p) || !!p.ghost;   // 覗き込めないスキル中
+  const guardOrDash = p.slots.some(s => s.t > 0 && ['guard', 'dash', 'step', 'leap', 'grapple', 'blink', 'roll', 'dual', 'medkit'].includes(s.sk.type)) || !!Gadgets.ctrlOf(p);   // 覗き込めないスキル中
   p.adsT = damp(p.adsT || 0, gs.rightDown && !p.dead && p.reloading <= 0 && !guardOrDash && p.w.kind !== 'melee' && p.w.kind !== 'sword' ? 1 : 0, p.w.adsSpeed || 14, dt);
   // 壁に向かってジャンプ長押しで登る
   p.wantClimb = !!(down('jump') && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
@@ -356,7 +343,7 @@ export function updatePlayer(dt) {
   }
 
   weaponTick(p, dt);
-  if (gs.state !== 'fight' || p.dead || gs.paused || Gadgets.ctrlOf(p) || p.ghost) { if (p.w.kind === 'sword') Sword.input(p, false, false); return; }
+  if (gs.state !== 'fight' || p.dead || gs.paused || Gadgets.ctrlOf(p)) { if (p.w.kind === 'sword') Sword.input(p, false, false); return; }
   // 刀：連打で1段目・長押しで4段目まで（sword.ts）
   if (p.w.kind === 'sword') { Sword.input(p, !!gs.mouseDown, !!gs.rightDown); return; }
   // 弓：押している間は引き絞り、離したら放つ
@@ -459,6 +446,7 @@ export function fireGrenade(e, dir, origin) {
   Grenades.fire({ owner: e, target: e === player ? bot : player, pos: origin, vel: d.multiplyScalar(w.speed), dmg: w.dmg, radius: big ? big.sk.radius : w.radius, gravity: w.gravity, fuse: w.fuse,
     big: !!big, knock: big ? big.sk.knock : w.knock, lift: big ? big.sk.lift : w.lift, self: w.self, mine: mn ? mn.sk : null });
   SFX.play('m79', e.isBot ? origin : null);
+  if (e.isBot) heardFoe(origin, 'shot');
   if (Net.on && e === player) Net.send({ t: 'gren', p: vec(origin), v: vec(d), dmg: w.dmg, r: big ? big.sk.radius : w.radius, g: w.gravity, fu: w.fuse,
     big: big ? 1 : 0, kn: big ? big.sk.knock : w.knock, li: big ? big.sk.lift : w.lift, se: w.self, mn: mn ? 1 : 0 });
 }
@@ -490,6 +478,7 @@ export function shootArrow(e, dir, origin) {
   if (w.kind === 'xbow') { e.ammo--; if (e.ammo <= 0) startReload(e); }   // クロスボウは1本ずつ込める
   e.cd = w.rate; e.draw = 0;
   SFX.play('bow', e.isBot ? origin : null);
+  if (e.isBot) heardFoe(origin, 'shot');
   if (!e.isBot) aiHear(e.pos, 20);
 }
 // クロスボウを撃つ（いつも引き切った強さ）
