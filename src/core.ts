@@ -72,7 +72,7 @@ export const WEAPONS = {
     move: 0.07, air: 0.16, ads: 0.015, zoom: 26, scopeSize: 0.9, scopeSway: 1.1, crossInf: 0, reticle: 'cross', mag: 5, reload: 2.8, auto: false, recoil: 0.09, falloff: [999, 1000, 1], pref: 30,
   },
   xbow: {
-    name: 'クロスボウ', model: 'xbow', kind: 'xbow', dmg: 62, dmgMin: 62, head: 1.6, speedMin: 82, speedMax: 82, gravity: 7, drag: 0.01, rate: 0.25, spread: 0.004, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
+    name: 'クロスボウ', model: 'xbow', kind: 'xbow', dmg: 54, dmgMin: 54, head: 1.6, speedMin: 82, speedMax: 82, gravity: 7, drag: 0.01, rate: 0.25, spread: 0.004, bloomShot: 0, bloomMax: 0, bloomRecover: 0.1,
     move: 0.02, air: 0.05, ads: 0.5, mag: 1, reload: 0.85, auto: false, recoil: 0.03, falloff: [999, 1000, 1], pref: 18,
   },
   // 3点バースト。1回押すと3発、次のバーストまで間が空く。跳ね上がりが強く扱いにくい
@@ -232,7 +232,7 @@ export const SKILLS = {
     help: '20秒間、相手の足音・銃声がした向きを照準のまわりに出す（足音は白・銃声は金）' },
   poison: { name: '毒矢', type: 'poison', cooldown: 24, duration: 12, dot: 10, time: 5, slow: 0.6, damageTaken: 1, help: '次の矢に毒。当たると5秒で50じわじわ減り足が遅くなる（毒では体力1までしか減らない）' },
   multishot: { name: '拡散', type: 'multishot', cooldown: 30, duration: 8, count: 3, angle: 0.12, damageTaken: 1, help: '8秒間、矢を3本ずつ扇形に放つ' },
-  medkit: { name: '救急キット', type: 'medkit', cooldown: 30, duration: 1.5, amount: 50, damageTaken: 1, help: '1.5秒かけて体力を50回復。歩く以外（撃つ・跳ぶ・走る・スキル）をすると中断' },
+  medkit: { name: '救急キット', type: 'medkit', cooldown: 30, duration: 1.5, amount: 50, damageTaken: 1, help: '1.5秒かけて体力を50回復。その間は走れない。撃つ・跳ぶ・スキルを使うと中断（中断したら使わなかったことになる）' },
   dome: { name: 'ドーム', type: 'dome', cooldown: 36, duration: 6, radius: 3.6, damageTaken: 1, help: 'まわりに6秒、弾を通さないドームを張る（中から外へも撃てない）' },
   mine: { name: '地雷', type: 'mine', cooldown: 14, duration: 15, dmg: 100, radius: 4, arm: 1, delay: 0.5, trigger: 2.2, see: 3, max: 12, damageTaken: 1,
     help: '次の弾が着弾した所に地雷が残る。1秒で起動し、相手が近づくとピッと鳴って0.5秒後に爆発（真ん中で100）。12個まで・試合中ずっと残る' },

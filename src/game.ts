@@ -8,7 +8,7 @@ import { SFX } from './audio';
 import { cam, scene } from './render';
 import { LV, SPAWN, SPAWN2, WATER_Y, colTop, colliders, floorBelow, groundAt, pickMap, useMap } from './world';
 import { PHYS, blockers, physOf } from './physics';
-import { Decals, DmgNums, Particles, Tracers, VM, buildActor } from './effects';
+import { Decals, DmgNums, Particles, Tracers, VM, buildActor, vmCam } from './effects';
 import { Arrows } from './arrows';
 import { Grenades, Smoke } from './grenades';
 import { down, keys } from './input';
@@ -346,8 +346,7 @@ export function updatePlayer(dt) {
   // 壁に向かってジャンプ長押しで登る
   p.wantClimb = !!(down('jump') && p.wallN && wish.dot(p.wallN) < -0.2 && gs.state === 'fight');
   if (p.climbing && (p.climbSnd = (p.climbSnd || 0) - dt) <= 0) { SFX.play('climb'); p.climbSnd = 0.22; }
-  p.running = down('run');
-  if (p.running && p.moving) cancelMedkit(p);   // 走ると救急キットは中断
+  p.running = down('run') && !act(p, 'medkit');   // 救急キット中は走れない（歩きのまま続く）
   p.speedMul = lerp(1, 0.6, p.adsT) * (p.draw > 0 ? 0.75 : 1) * (p.w.moveMul || 1) * (p.blinkCh != null ? 0.5 : 1) * (p.swGuard ? 0.35 : 1);   // 瞬を溜めている間は遅い・刀で守っている間はかなり遅い
   moveEntity(p, wish, dt);
   skillTick(p, dt);
@@ -423,6 +422,16 @@ export function meleePlayer() {
   damageBot({ dmg, head: false, point: chest.clone().addScaledVector(to, -0.3) });
   view.shake = Math.max(view.shake, 0.15);
 }
+// 弾の線の出どころ：一人称の銃口が画面に見えている所（覗き込みでも真ん中へ寄せきらないので、銃口から出て見えるように）
+function muzzleOnScreen(left: boolean) {
+  const m = left ? VM.left.muzzle : VM.pist.muzzle;
+  if (!m) return null;
+  (left ? VM.leftMirror : VM.root).updateMatrixWorld(true); vmCam.updateMatrixWorld();
+  const s = m.getWorldPosition(new V3()).project(vmCam);
+  if (!Number.isFinite(s.x) || Math.abs(s.x) > 1.2 || Math.abs(s.y) > 1.2 || s.z > 1) return null;
+  const pt = new V3(s.x, s.y, 0.5).unproject(cam).sub(cam.position).normalize();
+  return cam.position.clone().addScaledVector(pt, 0.9);
+}
 export function shootPlayer() {
   const p = player;
   if (p.w.kind === 'melee') { meleePlayer(); return; }
@@ -430,7 +439,7 @@ export function shootPlayer() {
   const dir = new V3(0, 0, -1).applyQuaternion(cam.quaternion);
   const dual = !!act(p, 'dual');
   if (dual) p.dualLeft = !p.dualLeft;
-  const muzzle = cam.localToWorld(new V3(lerp(0.19, 0, p.adsT) * 0.9 * (dual && p.dualLeft ? -1 : 1), -0.14, -0.9));
+  const muzzle = (!VM.scoped && muzzleOnScreen(dual && p.dualLeft)) || cam.localToWorld(new V3(lerp(0.19, 0, p.adsT) * 0.9 * (dual && p.dualLeft ? -1 : 1), -0.14, -0.9));
   endGuard(p);
   if (p.w.kind === 'grenade') {
     fireGrenade(p, dir, eyeOf(p).addScaledVector(dir, 0.6));
