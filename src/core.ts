@@ -29,7 +29,7 @@ export const PIECES = {
   // 王は取られたら負けの駒。価値は ∞（99 以上は ∞ と表示）
   K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',       skills: ['pearl', 'turret'] },
   // 特殊駒（special）：今は開発者メニューの「特殊駒」をオンにしたときだけ、一騎打ちの自分・相手の駒に出る。将棋モード・ランダムには出ない
-  SA: { name: '侍', value: 99, hp: 120, size: 0.9, speed: 7.2, jump: 7.5, weapon: 'katana', skills: ['blink', 'tornado'], special: true },   // 影分身（'clone'）・葉隠れ（'hagakure'）は外した（仕組みは残してある）
+  SA: { name: '侍', value: 99, hp: 120, size: 0.9, speed: 7.2, jump: 7.5, weapon: 'katana', skills: ['blink', 'tornado'] },   // ふつうの駒として誰でも使える（一騎打ち・オンライン・CPU）。影分身（'clone'）・葉隠れ（'hagakure'）は外した（仕組みは残してある）
   // 成駒（promo：元の駒）：将棋モードで成った駒が一騎打ちでなる姿。字は盤と同じ赤い字（red）。ランダムには出ない
   //   性格：と＝成り上がりの足軽 / 成香＝重い狙撃手 / 成桂＝身軽な射手 / 成銀＝万能の兵 / 馬＝重装の砲兵 / 龍＝機動の切り込み役 / 帝＝威厳の王
   'P+': { name: 'と', value: 6, hp: 110, size: 0.8,  speed: 7.0, jump: 7.5, weapon: 'pistol', skills: ['dual', 'roll'], promo: 'P', red: true },
