@@ -1,0 +1,333 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- 駒の強さ表（開発者メニューから開く）。const D のところに balance.ts が core.ts の今の数値を入れる -->
+<title>将棋FPS 駒の強さ表</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 盤と駒の世界：木地の地に墨の字、成駒の朱。表は数字を縦にそろえ、指数は横棒で */
+:root {
+  --bg: #f3ece0; --panel: #fbf7ef; --ink: #2a2522; --dim: #6f655b; --line: #ddd2c1;
+  --wood: #e2c99a; --wood-ink: #3a2a1a; --shu: #b8432f; --ao: #2f5d8a; --good: #2f7a4f; --bad: #b8432f;
+  --display: "Shippori Mincho B1", "Yu Mincho", "Hiragino Mincho ProN", serif;
+  --body: "Zen Kaku Gothic New", "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1d1a17; --panel: #26221e; --ink: #ece4d6; --dim: #a69a8b; --line: #3b352f;
+  --wood: #c9ad7c; --wood-ink: #2a1d10; --shu: #e0715c; --ao: #79a7d6; --good: #6cc08d; --bad: #e0715c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #1d1a17; --panel: #26221e; --ink: #ece4d6; --dim: #a69a8b; --line: #3b352f;
+  --wood: #c9ad7c; --wood-ink: #2a1d10; --shu: #e0715c; --ao: #79a7d6; --good: #6cc08d; --bad: #e0715c; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 14px/1.6 var(--body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: grid; gap: 22px; }
+h1 { font: 800 28px/1.25 var(--display); margin: 0; text-wrap: balance; }
+h2 { font: 800 19px/1.3 var(--display); margin: 0; text-wrap: balance; }
+.lead { color: var(--dim); margin: 6px 0 0; max-width: 68ch; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); }
+.tabs button { font: 700 14px var(--body); background: none; border: 0; color: var(--dim); padding: 8px 12px; border-bottom: 3px solid transparent; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--shu); }
+.tabs button:focus-visible, .ctl input:focus-visible, .ctl select:focus-visible, th button:focus-visible { outline: 2px solid var(--ao); outline-offset: 2px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.ctl label { display: flex; gap: 8px; align-items: center; font-weight: 500; }
+.ctl output { font: 500 13px var(--mono); min-width: 4ch; }
+.ctl input[type=range] { width: 140px; accent-color: var(--shu); }
+.ctl select { font: 14px var(--body); background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: right; }
+th { font: 700 12px var(--body); color: var(--dim); position: sticky; top: 0; background: var(--panel); vertical-align: bottom; }
+th button { all: unset; cursor: pointer; display: inline-flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+th small { font-weight: 400; font-size: 10.5px; }
+th.grp { text-align: center; color: var(--ink); font-size: 12px; border-bottom: 2px solid var(--line); }
+td.l, th.l { text-align: left; }
+td { font: 13px var(--mono); }
+tr.promo td.name b { color: var(--shu); }
+tr:hover td { background: color-mix(in srgb, var(--wood) 18%, transparent); }
+.koma { display: inline-grid; place-items: center; width: 24px; height: 28px; background: var(--wood); color: var(--wood-ink);
+  clip-path: polygon(50% 0, 94% 22%, 88% 100%, 12% 100%, 6% 22%); font: 800 15px var(--display); vertical-align: middle; margin-right: 6px; }
+.koma.red { color: var(--shu); }
+td.name { font: 500 13px var(--body); }
+td.name small { color: var(--dim); font-size: 11.5px; margin-left: 4px; }
+.hi { background: color-mix(in srgb, var(--good) 16%, transparent); }
+.lo { background: color-mix(in srgb, var(--bad) 14%, transparent); }
+.idx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.idx { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.idx h3 { margin: 0; font: 800 15px var(--display); }
+.idx p { margin: 0; color: var(--dim); font-size: 12px; }
+.bar { display: grid; grid-template-columns: 30px 1fr 38px; gap: 8px; align-items: center; font-size: 12.5px; }
+.bar .track { height: 10px; background: color-mix(in srgb, var(--line) 70%, transparent); border-radius: 5px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--ink); border-radius: 5px; }
+.bar.promo .fill { background: var(--shu); }
+.bar span:last-child { font: 12px var(--mono); text-align: right; }
+.mx td { text-align: center; font-size: 12px; min-width: 40px; }
+.mx th { text-align: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--dim); font-size: 12px; align-items: center; }
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; margin-right: 4px; }
+.notes { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+.notes ul { margin: 6px 0 0; padding-left: 1.2em; display: grid; gap: 4px; max-width: 80ch; }
+.skills td { white-space: normal; text-align: left; font: 13px var(--body); vertical-align: top; }
+.skills td.n { font: 12.5px var(--mono); white-space: nowrap; text-align: right; }
+.skills td .h { color: var(--dim); font-size: 12px; }
+[hidden] { display: none !important; }
+@media (max-width: 560px) { h1 { font-size: 23px; } .ctl input[type=range] { width: 110px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>駒の強さ表</h1>
+    <p class="lead">一騎打ちで使う 16 の駒（成駒・侍を含む）の能力と武器を、同じ物差しで並べました。数値はゲームの設定値（core.ts）から計算しています。下のつまみで距離やヘッド率を変えると、表・指数・相性がすべて計算し直されます。</p>
+  </header>
+
+  <div class="ctl" role="group" aria-label="計算の条件">
+    <label for="dist">距離 <input id="dist" type="range" min="3" max="60" step="1" value="15"><output id="distO">15m</output></label>
+    <label for="head">ヘッド率 <input id="head" type="range" min="0" max="100" step="5" value="25"><output id="headO">25%</output></label>
+    <label for="tgt">倒す相手の体力 <input id="tgt" type="range" min="80" max="160" step="5" value="120"><output id="tgtO">120</output></label>
+    <label for="show">表示 <select id="show"><option value="all">すべて</option><option value="base">元の駒</option><option value="promo">成駒</option></select></label>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="t-table" aria-selected="true">一覧表</button>
+    <button role="tab" id="t-idx" aria-selected="false">強さ指数</button>
+    <button role="tab" id="t-mx" aria-selected="false">相性表</button>
+    <button role="tab" id="t-sk" aria-selected="false">スキル</button>
+    <button role="tab" id="t-notes" aria-selected="false">計算の前提</button>
+  </nav>
+
+  <section id="p-table" role="tabpanel"><div class="scroll"><table id="tbl"></table></div>
+    <p class="legend"><span><span class="sw hi"></span>その列でいちばん良い 3 つ</span><span><span class="sw lo"></span>いちばん悪い 3 つ</span><span>見出しを押すと並べ替え</span></p></section>
+  <section id="p-idx" role="tabpanel" hidden><div class="idx-grid" id="idx"></div></section>
+  <section id="p-mx" role="tabpanel" hidden>
+    <div class="scroll"><table class="mx" id="mx"></table></div>
+    <p class="legend"><span>行の駒が列の駒と撃ち合ったとき：</span><span><span class="sw" style="background:var(--good)"></span>先に倒せる（数字＝相手の何倍速く倒せるか）</span><span><span class="sw" style="background:var(--bad)"></span>先に倒される</span><span>距離・ヘッド率は上のつまみ。スキルは入れていない</span></p>
+  </section>
+  <section id="p-sk" role="tabpanel" hidden><div class="scroll"><table class="skills" id="sk"></table></div></section>
+  <section id="p-notes" role="tabpanel" hidden><div class="notes">
+    <h2>計算の前提</h2>
+    <ul>
+      <li>撃つ間隔：連射できない銃も最速で撃ち続けるとして計算。バースト銃は「3発（間隔 burstGap）＋ 次のバーストまで rate」の平均。弓は「引き絞り 0.75 秒＋つがえ直し」、クロスボウは「1発ごとのリロード」。</li>
+      <li>持続 DPS：弾倉を撃ち切ってリロードするまでを 1 周として平均。瞬間 DPS はリロードを入れない値。</li>
+      <li>当たる割合（命中率）：覗き込んだときのばらつき（spread × ads）と連射の広がりを少し足し、相手の幅を半径 0.5m として「距離 × ばらつき」から計算。ショットガンは粒ごとに当たる割合を掛ける。人が狙う上手さ・反動の戻しは入れていない。</li>
+      <li>弓・クロスボウ・グレネードは弾が飛ぶので、20m までは必ず当たるとし、遠いほど当たりにくくした目安（弓類は 95m で 6 割、グレネードは 80m で 5 割まで下がる）。グレネードのダメージは爆心から半分の距離で当たったとき（設定値の 62.5%）。頭の倍率はない。</li>
+      <li>侍（刀）は 3m 以内は斬撃（30・約 0.55 秒ごと）、それより遠いと飛ぶ斬撃（16・約 0.8 秒ごと、当たる割合は弓と同じ目安）。</li>
+      <li>倒す速さ（TTK）：最初の 1 発から相手の体力を削り切るまでの秒数。弾倉が尽きればリロードを足す。ダメージは「体 ×(1−ヘッド率)＋頭 × ヘッド率」の平均で、外れる分は撃つ数を増やして計算。</li>
+      <li>耐久：体力 ÷ 当たり判定の大きさ（size の 2 乗）。駒が大きいほど弾が当たりやすいため。走る速さは設定値 × 全体倍率 0.8。</li>
+      <li>総合：近距離 20%・中距離 20%・遠距離 10%・倒す速さ 15%・耐久 20%・機動 15%。対戦の強さは 5m・15m・30m で全員と撃ち合わせ、先に倒せた度合いの平均。どちらもスキルは入れていない（スキルは「スキル」の表で見比べる）。</li>
+      <li>指数はどれも、その見方でいちばん強い駒を 100 とした値。</li>
+    </ul>
+  </div></section>
+</div>
+
+<script>
+const D = /*DATA*/null;
+const $ = id => document.getElementById(id);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x)), lerp = (a, b, t) => a + (b - a) * t;
+const FULL = { 'P': '歩兵', 'P+': 'と金', 'L': '香車', 'L+': '成香', 'N': '桂馬', 'N+': '成桂', 'S': '銀将', 'S+': '成銀', 'G': '金将', 'B': '角行', 'B+': '竜馬', 'R': '飛車', 'R+': '竜王', 'K': '王将', 'K+': '帝', 'SA': '侍' };
+const R_HIT = 0.5;
+const st = { dist: 15, head: 0.25, tgt: 120, show: 'all', sort: null, dir: -1, tab: 'table' };
+
+// ---------- 武器の計算 ----------
+const isProj = w => w.kind === 'bow' || w.kind === 'xbow';
+const isSword = w => w.kind === 'sword';
+function shotInterval(w, d) {
+  if (isSword(w)) return d <= 3 ? 0.55 : 0.8;
+  if (w.kind === 'bow') return w.drawTime + w.reload;
+  if (w.mag === 1) return Math.max(w.rate, w.reload);
+  if (w.burst) return (w.burstGap * (w.burst - 1) + w.rate) / w.burst;
+  return w.rate;
+}
+// 1発（ショットガンは1回）の体へのダメージ（距離で減る）
+function bodyDmg(w, d) {
+  if (isSword(w)) return d <= 3 ? w.dmg : w.waveDmg;
+  if (w.kind === 'grenade') return w.dmg * 0.625;
+  const [f0, f1, fm] = w.falloff;
+  return w.dmg * lerp(1, fm, clamp((d - f0) / (f1 - f0), 0, 1)) * (w.pellets || 1);
+}
+const headMul = w => (w.kind === 'grenade' || isSword(w)) ? 1 : (w.head || 1);
+function pHit(w, d) {
+  if (isSword(w)) return d <= 3 ? 1 : clamp(1 - (d - 20) / 75, 0.6, 1) * (d > w.waveRange ? 0 : 1);
+  if (w.kind === 'grenade') return clamp(1 - (d - 20) / 120, 0.5, 1);
+  if (isProj(w)) return clamp(1 - (d - 20) / 187.5, 0.6, 1);
+  const s = w.spread * w.ads + (w.bloomShot || 0) * w.ads * 1.5;
+  return Math.min(1, R_HIT / Math.max(1e-6, s * d));
+}
+// 弾倉・リロード込みの、n 発目を撃つまでの時間（1発目 = 0）
+function timeForShots(w, n, d) {
+  if (n <= 1) return 0;
+  const k = n - 1;
+  if (isSword(w) || w.mag === 1 || w.kind === 'bow') return k * shotInterval(w, d);
+  let t;
+  if (w.burst) { const c = w.burstGap * (w.burst - 1) + w.rate; t = Math.floor(k / w.burst) * c + (k % w.burst) * w.burstGap; }
+  else t = k * w.rate;
+  return t + Math.floor(k / w.mag) * w.reload;
+}
+const mix = (w, h) => (1 - h) + headMul(w) * h;
+function expDmgPerShot(w, d, h) { return bodyDmg(w, d) * mix(w, h) * pHit(w, d); }
+function burstDps(w, d, h) { return expDmgPerShot(w, d, h) / shotInterval(w, d); }
+function sustDps(w, d, h) {
+  if (isSword(w) || w.mag === 1 || w.kind === 'bow') return burstDps(w, d, h);
+  return expDmgPerShot(w, d, h) * w.mag / (timeForShots(w, w.mag, d) + (w.burst ? w.rate : w.rate) + w.reload);
+}
+function ttk(w, d, h, hp) {
+  const per = expDmgPerShot(w, d, h);
+  if (per <= 0) return Infinity;
+  const n = hp / per;                         // 外れる分も含めた撃つ数（端数は次の 1 発まで）
+  return timeForShots(w, Math.ceil(n - 1e-9), d);
+}
+const shotsToKill = (w, d, h, hp) => { const per = bodyDmg(w, d) * mix(w, h); return per > 0 ? Math.ceil(hp / per - 1e-9) : Infinity; };
+
+// ---------- 駒ごとの値 ----------
+function rowsFor() {
+  const { dist: d, head: h, tgt } = st;
+  return D.order.map(k => {
+    const p = D.P[k], w = D.W[p.weapon];
+    const run = p.speed * D.RULES.speed;
+    return {
+      k, p, w, promo: !!p.promo, special: p.special,
+      hp: p.hp, size: p.size, run, jump: p.jump, strafe: p.strafe,
+      wname: w.name, dmg: bodyDmg(w, d) / (w.pellets || 1), pellets: w.pellets || 1, headDmg: bodyDmg(w, d) * headMul(w),
+      interval: shotInterval(w, d), mag: isSword(w) ? null : w.mag, reload: isSword(w) ? null : w.reload,
+      hit: pHit(w, d), burst: burstDps(w, d, h), sust: sustDps(w, d, h),
+      stkBody: shotsToKill(w, d, 0, tgt), stkHead: shotsToKill(w, d, 1, tgt), ttk: ttk(w, d, h, tgt),
+      falloff: w.falloff && w.falloff[0] < 900 ? w.falloff[0] + '–' + w.falloff[1] + 'm' : '—',
+      tough: p.hp / (p.size * p.size),
+    };
+  });
+}
+
+// ---------- 一覧表 ----------
+const COLS = [
+  { g: '駒', k: 'name', t: '駒', l: true },
+  { g: '体', k: 'hp', t: '体力', f: 0, best: 1 },
+  { g: '体', k: 'size', t: '大きさ', s: '当たり判定', f: 2, best: -1 },
+  { g: '体', k: 'run', t: '走る速さ', s: 'm/秒', f: 2, best: 1 },
+  { g: '体', k: 'jump', t: 'ジャンプ', f: 1, best: 1 },
+  { g: '体', k: 'strafe', t: '横移動', s: '倍率', f: 2, best: 1 },
+  { g: '武器', k: 'wname', t: '武器', l: true },
+  { g: '武器', k: 'dmg', t: '1発', s: '体・この距離', f: 1, best: 1 },
+  { g: '武器', k: 'headDmg', t: 'ヘッド', s: '1回の合計', f: 1, best: 1 },
+  { g: '武器', k: 'interval', t: '撃つ間隔', s: '秒/発', f: 3, best: -1 },
+  { g: '武器', k: 'mag', t: '弾数', f: 0, best: 1 },
+  { g: '武器', k: 'reload', t: 'リロード', s: '秒', f: 2, best: -1 },
+  { g: '武器', k: 'falloff', t: '減衰', s: '始まり–最大', l: true },
+  { g: 'この距離での強さ', k: 'hit', t: '命中率', s: '目安', pct: true, best: 1 },
+  { g: 'この距離での強さ', k: 'burst', t: '瞬間DPS', s: '命中込み', f: 1, best: 1 },
+  { g: 'この距離での強さ', k: 'sust', t: '持続DPS', s: 'リロード込み', f: 1, best: 1 },
+  { g: 'この距離での強さ', k: 'stkBody', t: '確殺 体', s: '発', f: 0, best: -1 },
+  { g: 'この距離での強さ', k: 'stkHead', t: '確殺 頭', s: '発', f: 0, best: -1 },
+  { g: 'この距離での強さ', k: 'ttk', t: '倒す速さ', s: '秒（TTK）', f: 2, best: -1 },
+  { g: '耐久', k: 'tough', t: '耐久', s: '体力÷大きさ²', f: 0, best: 1 },
+];
+const komaHTML = r => `<span class="koma${r.promo ? ' red' : ''}">${r.p.name}</span><b>${FULL[r.k]}</b>${r.special ? '<small>特殊</small>' : ''}`;
+const fmt = (c, v) => v == null || v === Infinity ? '—' : c.pct ? Math.round(v * 100) + '%' : typeof v === 'number' ? v.toFixed(c.f) : v;
+function shown(rows) { return rows.filter(r => st.show === 'all' || (st.show === 'promo' ? r.promo : !r.promo)); }
+function drawTable(rows) {
+  rows = shown(rows);
+  if (st.sort) rows.sort((a, b) => { const x = a[st.sort], y = b[st.sort]; return (typeof x === 'string' ? x.localeCompare(y) : (x ?? -1e9) - (y ?? -1e9)) * st.dir; });
+  // 列ごとに上位・下位3つに色
+  const marks = {};
+  for (const c of COLS) if (c.best) {
+    const vals = rows.map(r => r[c.k]).filter(v => typeof v === 'number' && isFinite(v)).sort((a, b) => (a - b) * c.best);
+    marks[c.k] = { lo: vals[2], hi: vals[vals.length - 3] };
+  }
+  const groups = []; for (const c of COLS) { const g = groups[groups.length - 1]; if (g && g.g === c.g) g.n++; else groups.push({ g: c.g, n: 1 }); }
+  let h = '<thead><tr>' + groups.map(g => `<th class="grp" colspan="${g.n}">${g.g}</th>`).join('') + '</tr><tr>';
+  h += COLS.map(c => `<th class="${c.l ? 'l' : ''}"><button data-k="${c.k}" aria-label="${c.t}で並べ替え">${c.t}${st.sort === c.k ? (st.dir < 0 ? ' ▼' : ' ▲') : ''}${c.s ? `<small>${c.s}</small>` : ''}</button></th>`).join('') + '</tr></thead><tbody>';
+  for (const r of rows) {
+    h += `<tr class="${r.promo ? 'promo' : ''}">` + COLS.map(c => {
+      if (c.k === 'name') return `<td class="l name">${komaHTML(r)}</td>`;
+      const v = r[c.k], m = marks[c.k];
+      let cls = c.l ? 'l' : '';
+      if (m && typeof v === 'number' && isFinite(v)) { if (c.best * v >= c.best * m.hi) cls += ' hi'; else if (c.best * v <= c.best * m.lo) cls += ' lo'; }
+      const extra = c.k === 'dmg' && r.pellets > 1 ? `×${r.pellets}` : '';
+      return `<td class="${cls}">${fmt(c, v)}${extra}</td>`;
+    }).join('') + '</tr>';
+  }
+  $('tbl').innerHTML = h + '</tbody>';
+  $('tbl').querySelectorAll('th button').forEach(b => b.onclick = () => { const k = b.dataset.k; if (st.sort === k) st.dir *= -1; else { st.sort = k; const c = COLS.find(x => x.k === k); st.dir = c.best === -1 ? 1 : -1; } drawTable(rowsFor()); });
+}
+
+// ---------- 相性（撃ち合い） ----------
+function duelAdv(a, b, d, h) {   // a が b を倒す速さに対して、b が a を倒す速さが何倍か（>1 なら a が先に倒せる）
+  // 大きい駒は当たりやすい：相手の体力を大きさで割って、当たりやすさの差を入れる（ふつうの大きさ 0.9 を基準）
+  const ta = ttk(D.W[D.P[a].weapon], d, h, D.P[b].hp * 0.9 / D.P[b].size), tb = ttk(D.W[D.P[b].weapon], d, h, D.P[a].hp * 0.9 / D.P[a].size);
+  if (!isFinite(ta) && !isFinite(tb)) return 1;
+  if (!isFinite(ta)) return 0.01; if (!isFinite(tb)) return 100;
+  return (tb + 0.15) / (ta + 0.15);   // 0.15 秒：反応の時間（1発で倒せる同士を同点にしすぎない）
+}
+function drawMatrix() {
+  const ks = D.order.filter(k => st.show === 'all' || (st.show === 'promo' ? D.P[k].promo : !D.P[k].promo));
+  let h = '<thead><tr><th>攻 ＼ 受</th>' + ks.map(k => `<th><span class="koma${D.P[k].promo ? ' red' : ''}">${D.P[k].name}</span></th>`).join('') + '</tr></thead><tbody>';
+  for (const a of ks) {
+    h += `<tr><th><span class="koma${D.P[a].promo ? ' red' : ''}">${D.P[a].name}</span></th>`;
+    for (const b of ks) {
+      if (a === b) { h += '<td style="color:var(--dim)">—</td>'; continue; }
+      const v = duelAdv(a, b, st.dist, st.head), lg = Math.log2(v), k = clamp(Math.abs(lg) / 2, 0, 1);
+      const col = lg >= 0 ? 'var(--good)' : 'var(--bad)';
+      h += `<td style="background:color-mix(in srgb, ${col} ${Math.round(k * 70)}%, transparent)">${v >= 1 ? v.toFixed(1) : '1/' + (1 / v).toFixed(1)}</td>`;
+    }
+    h += '</tr>';
+  }
+  $('mx').innerHTML = h + '</tbody>';
+}
+
+// ---------- 強さ指数 ----------
+function indices() {
+  const h = st.head, hp = st.tgt;
+  const raw = {};
+  for (const k of D.order) {
+    const p = D.P[k], w = D.W[p.weapon];
+    let duel = 0, n = 0;
+    for (const b of D.order) if (b !== k) for (const d of [5, 15, 30]) { duel += clamp(Math.log2(duelAdv(k, b, d, h)), -3, 3); n++; }
+    raw[k] = {
+      near: sustDps(w, 5, h), mid: sustDps(w, 20, h), far: sustDps(w, 40, h),
+      kill: 1 / (ttk(w, 10, h, hp) + 0.25), tough: p.hp / (p.size * p.size), move: (p.speed / 7.4) * 0.7 + (p.jump / 10) * 0.2 + (p.strafe || 1) * 0.1,
+      duel: duel / n,
+    };
+  }
+  const norm = key => { const vals = D.order.map(k => raw[k][key]); const mx = Math.max(...vals), mn = Math.min(...vals);
+    for (const k of D.order) raw[k][key + 'N'] = key === 'duel' ? (raw[k].duel - mn) / (mx - mn || 1) * 100 : raw[k][key] / mx * 100; };
+  ['near', 'mid', 'far', 'kill', 'tough', 'move', 'duel'].forEach(norm);
+  for (const k of D.order) { const r = raw[k]; r.total = r.nearN * 0.2 + r.midN * 0.2 + r.farN * 0.1 + r.killN * 0.15 + r.toughN * 0.2 + r.moveN * 0.15; }
+  const mt = Math.max(...D.order.map(k => raw[k].total)); for (const k of D.order) raw[k].totalN = raw[k].total / mt * 100;
+  return raw;
+}
+const IDX = [
+  { k: 'totalN', t: '総合', d: '下の 6 つを重みづけして足したもの（スキルは入れない）' },
+  { k: 'duelN', t: '対戦の強さ', d: '5m・15m・30m で全員と撃ち合い、先に倒せた度合いの平均（0 = いちばん弱い）' },
+  { k: 'nearN', t: '近距離の火力', d: '5m での持続 DPS（命中・リロード込み）' },
+  { k: 'midN', t: '中距離の火力', d: '20m での持続 DPS' },
+  { k: 'farN', t: '遠距離の火力', d: '40m での持続 DPS' },
+  { k: 'killN', t: '倒す速さ', d: '10m で「倒す相手の体力」を削り切る速さ' },
+  { k: 'toughN', t: '耐久', d: '体力 ÷ 大きさ²（大きいほど当たりやすい）' },
+  { k: 'moveN', t: '機動', d: '走る速さ 7 割・ジャンプ 2 割・横移動 1 割' },
+];
+function drawIdx() {
+  const raw = indices();
+  const ks = D.order.filter(k => st.show === 'all' || (st.show === 'promo' ? D.P[k].promo : !D.P[k].promo));
+  $('idx').innerHTML = IDX.map(ix => {
+    const list = ks.slice().sort((a, b) => raw[b][ix.k] - raw[a][ix.k]);
+    return `<div class="idx"><h3>${ix.t}</h3><p>${ix.d}</p>` + list.map(k => `<div class="bar${D.P[k].promo ? ' promo' : ''}"><span class="koma${D.P[k].promo ? ' red' : ''}">${D.P[k].name}</span><span class="track"><span class="fill" style="width:${Math.max(1, raw[k][ix.k]).toFixed(1)}%;display:block"></span></span><span>${raw[k][ix.k].toFixed(0)}</span></div>`).join('') + '</div>';
+  }).join('');
+}
+
+// ---------- スキル ----------
+function drawSkills() {
+  const ks = D.order.filter(k => st.show === 'all' || (st.show === 'promo' ? D.P[k].promo : !D.P[k].promo));
+  let h = '<thead><tr><th class="l">駒</th><th class="l">スキル</th><th>待ち時間</th><th>回数</th><th>効く時間</th><th class="l">中身</th></tr></thead><tbody>';
+  for (const k of ks) D.P[k].skills.forEach((s, i) => {
+    const x = D.S[s];
+    h += `<tr class="${D.P[k].promo ? 'promo' : ''}">${i === 0 ? `<td class="name" rowspan="${D.P[k].skills.length}"><span class="koma${D.P[k].promo ? ' red' : ''}">${D.P[k].name}</span>${FULL[k]}</td>` : ''}<td><b>${x.name}</b></td><td class="n">${x.cd}秒</td><td class="n">${x.charges}</td><td class="n">${x.dur ? x.dur + '秒' : '—'}</td><td><span class="h">${x.help}</span></td></tr>`;
+  });
+  $('sk').innerHTML = h + '</tbody>';
+}
+
+function drawAll() { drawTable(rowsFor()); drawMatrix(); drawIdx(); drawSkills(); }
+function bind(id, key, f, out) { const el = $(id); const set = () => { st[key] = f(el.value); $(id + 'O') && ($(id + 'O').textContent = out(el.value)); drawAll(); }; el.addEventListener('input', set); }
+bind('dist', 'dist', Number, v => v + 'm'); bind('head', 'head', v => v / 100, v => v + '%'); bind('tgt', 'tgt', Number, v => v);
+$('show').addEventListener('change', e => { st.show = e.target.value; drawAll(); });
+const TABS = ['table', 'idx', 'mx', 'sk', 'notes'];
+function tab(t) { st.tab = t; TABS.forEach(x => { $('t-' + x).setAttribute('aria-selected', x === t); $('p-' + x).hidden = x !== t; }); try { localStorage.setItem('tab', t); } catch (e) {} }
+TABS.forEach(x => $('t-' + x).onclick = () => tab(x));
+try { const t = localStorage.getItem('tab'); if (TABS.includes(t)) tab(t); } catch (e) {}
+drawAll();
+</script>

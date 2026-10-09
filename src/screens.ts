@@ -20,6 +20,7 @@ import { Account, accountAvailable, onAccountChange } from './account';
 import { VS_TIME, showVsCut } from './vscut';
 import { showHero } from './hero';
 import { bindTouchSettings, touchSettingsHTML } from './touch';
+import { openBalance } from './balance';
 
 // ================= 共通 =================
 const H_EN: Record<string, string> = {
@@ -119,6 +120,7 @@ function showDevMenu(back: () => void) {
       <div class="row"><span>オートエイム<small>押している間、相手の頭に照準が吸い付く</small></span>
         <span><button class="kbd-btn" id="devAim">${D.aimKey ? keyName(D.aimKey) : 'なし'}</button> <button class="small" id="devAimClear">なしにする</button></span></div>
       <div class="row"><span>特殊駒<small>オンにすると、一騎打ちの自分の駒・相手（CPU）の駒の欄に侍が出る</small></span>${seg('devSpecial', D.special ? '1' : '0')}</div>
+      <div class="row"><span>駒の強さ表<small>今の数値で計算した一覧表・強さ指数・相性表</small></span><button class="small" id="devBalance">開く</button></div>
     </div>
     <div class="menu"><button class="btn sub" id="back">戻る</button></div>
   </div>`, true);
@@ -129,6 +131,7 @@ function showDevMenu(back: () => void) {
     if (!D.special) { if (!pieceUsable(settings.myPiece)) settings.myPiece = 'P'; if (PIECES[settings.foePiece]?.special) settings.foePiece = 'P'; }
     saveSettings(); showDevMenu(back);
   });
+  on('devBalance', () => openBalance());
   on('devAimClear', () => { D.aimKey = ''; saveSettings(); showDevMenu(back); });
   // キー設定と同じ：押してから割り当てたいキー（またはホイール・横のボタン）を押す。ESC でやめる
   on('devAim', () => {
