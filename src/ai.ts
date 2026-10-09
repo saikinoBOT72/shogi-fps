@@ -403,19 +403,20 @@ export function updateBot(dt) {
       botActor.root.updateMatrixWorld(true);
       const muzzle = botActor.gun.muzzle.getWorldPosition(new V3());
       const res = fire(b, player, bEye, muzzle, aim);
+      const dps = D.dps * (b.w.aiDps || 1);   // 1秒あたりのダメージの上限（武器ごとに CPU だけ下げられる）
       // 連射武器は数発ずつ撃つ（バースト）
       if (b.w.auto) {
         if (!(b.burst > 0)) { b.burst = 3 + Math.floor(Math.random() * 5); b.burstN = b.burst; }
         b.burst--;
         // バーストの合間も、1秒あたりのダメージが上限を超えないよう間を空ける
-        b.fireDelay = b.burst > 0 ? rand(0, 0.03) : Math.max(rand(D.gap[0], D.gap[1]) + 0.15, b.burstN * b.w.dmg / D.dps - b.burstN * b.w.rate);
+        b.fireDelay = b.burst > 0 ? rand(0, 0.03) : Math.max(rand(D.gap[0], D.gap[1]) + 0.15, b.burstN * b.w.dmg / dps - b.burstN * b.w.rate);
       } else {
         b.fireDelay = rand(D.gap[0], D.gap[1]) + (b.w.zoom ? 0.9 : 0);
         // 1発が重い武器は、1秒あたりのダメージが上限を超えないよう間を空ける
         const perShot = b.w.dmg * (b.w.pellets ? b.w.pellets * 0.5 : 1);
-        b.fireDelay = Math.max(b.fireDelay, perShot / D.dps - b.w.rate);
+        b.fireDelay = Math.max(b.fireDelay, perShot / dps - b.w.rate);
         // バースト：続きはすぐ撃ち、撃ち終わったら1回分の間を空ける
-        if (b.w.burst) b.fireDelay = b.burstLeft > 0 ? 0 : Math.max(rand(D.gap[0], D.gap[1]), b.w.dmg * b.w.burst / D.dps - b.w.rate);
+        if (b.w.burst) b.fireDelay = b.burstLeft > 0 ? 0 : Math.max(rand(D.gap[0], D.gap[1]), b.w.dmg * b.w.burst / dps - b.w.rate);
       }
       b.flashT = 0.05;
       SFX.play('shot', muzzle, b.w.model); heardFoe(muzzle, 'shot');

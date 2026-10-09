@@ -61,6 +61,7 @@ export const WEAPONS = {
   glock: {
     name: 'Glock 17', model: 'glock', dmg: 16, head: 1.6, rate: 0.21, spread: 0.013, bloomShot: 0.01, bloomMax: 0.04, bloomRecover: 0.13,
     move: 0.03, air: 0.09, ads: 0.35, mag: 17, reload: 1.5, auto: false, recoil: 0.016, falloff: [16, 38, 0.65], pref: 12,
+    aiDps: 0.75,   // CPU が持つと撃つペースを落とす（軽く速い銃は外れが少なく安定して削ってくるため、ふつうでも強すぎた）
   },
   pistol: {
     name: 'デザートイーグル', model: 'pistol', dmg: 29, head: 1.7, rate: 0.5, spread: 0.012, bloomShot: 0.018, bloomMax: 0.05, bloomRecover: 0.12,
