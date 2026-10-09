@@ -73,6 +73,13 @@ export function makeSpace(ou: number, ov: number) {
       return flat(g);
     },
     // 前後に向いた円柱（銃口の穴など）。seg を少なくしてローポリに
+    // 形の uv を図面の mm（u, v）にする。スキンの色の流れ（fade）が、丸や箱の部品にも位置どおりに乗るように
+    mmUV(g: THREE.BufferGeometry) {
+      const p = g.attributes.position, uv = new Float32Array(p.count * 2);
+      for (let i = 0; i < p.count; i++) { uv[i * 2] = -p.getZ(i) * 1000 + ou; uv[i * 2 + 1] = p.getY(i) * 1000 + ov; }
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      return g;
+    },
     rod(u0: number, u1: number, v: number, r: number, seg = 8, x = 0) {
       const g = new THREE.CylinderGeometry(r / 1000, r / 1000, (u1 - u0) / 1000, seg);
       g.rotateX(Math.PI / 2);
@@ -97,7 +104,8 @@ export class PartBuilder {
   parts: Record<string, THREE.Object3D> = {};
   slots: Record<string, THREE.Mesh[]> = {};
   private pending = new Map<THREE.Object3D, Record<string, THREE.BufferGeometry[]>>();
-  constructor(private space: ReturnType<typeof makeSpace>) { this.parts.root = this.root; }
+  // mm：グリップの板以外の形の uv を図面の mm にそろえる（mmUV。後から作った銃で使う）
+  constructor(private space: ReturnType<typeof makeSpace>, private mm = false) { this.parts.root = this.root; }
 
   // 動く部品：pivot（図面の点）を回転の中心にした入れ物を作る。x：回転の中心を左右にずらす（mm。リボルバーのクレーンなど）
   part(name: string, pivot: Pt, parent: THREE.Object3D = this.root, x = 0) {
@@ -113,6 +121,7 @@ export class PartBuilder {
   }
   // 形を足す（あとで塗りごとにまとめる）
   add(slot: string, geo: THREE.BufferGeometry, to: THREE.Object3D = this.root) {
+    if (this.mm && slot !== 'grip') this.space.mmUV(geo);
     const at = to === this.root ? null : (to.userData.pivotAt as THREE.Vector3);
     if (at) geo.translate(-at.x, -at.y, -at.z);
     let m = this.pending.get(to);

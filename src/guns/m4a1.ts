@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 import { inspectClip, handPath, magDrop, reloadTilt } from './std';
 
 // 図面は写真（全長 840mm）の座標そのまま。u=0 が床尾の後ろ、v=0 が弾倉の底
@@ -16,7 +16,7 @@ const RW = 30;                  // 機関部の幅
 const BV = 196;                 // 銃身の中心の高さ
 
 export function buildM4A1(opt: { skin?: string; hand?: THREE.Material } = {}) {
-  const B = new PartBuilder(S);
+  const B = new PartBuilder(S, true);
   const carrier = B.part('carrier', [320, 198]);
   const chandle = B.part('chandle', [214, 218]);
   const trigger = B.part('trigger', [294, 140]);
@@ -85,6 +85,31 @@ export function buildM4A1(opt: { skin?: string; hand?: THREE.Material } = {}) {
   B.add('slideDark', S.box(298, 348, 190, 204, 1, RW / 2 + 0.5), carrier);
   B.add('detail', S.extrude([[196, 214], [226, 214], [226, 222], [204, 222], [192, 226], [192, 218]], 26, { bevel: 1 }), chandle);
 
+  // ---------- スキンの付け足し ----------
+  const addons: Addon[] = [];
+  // R タクティカル：横と下のレールの覆い（横は溝つき）・弾倉の底の継ぎ足しと引き手・前の負い紐の輪から下がる駒の根付
+  for (const x of [-1, 1]) {
+    addons.push({ name: 'm4_covers', slot: 'cover', geo: S.box(426, 556, 187, 207, 3, x * 27.5) });
+    for (let u = 432; u < 552; u += 12) addons.push({ name: 'm4_covers', slot: 'ink', geo: S.box(u, u + 3, 188, 206, 0.6, x * 29.2) });
+  }
+  addons.push({ name: 'm4_covers', slot: 'cover', geo: S.box(426, 556, 158, 162.6, 24) });
+  addons.push({ name: 'm4_mag', slot: 'cover', geo: S.extrude([[350, 1], [418, 9], [417, -1], [352, -10]], 28, { bevel: 1 }), part: mag });
+  addons.push({ name: 'm4_mag', slot: 'ink', geo: S.extrude([[372, -6], [396, -3], [394, -18], [376, -20]], 10, { bevel: 1, holes: [[[378, -9], [391, -7], [390, -14], [380, -15]]] }), part: mag });
+  for (let i = 0; i < 4; i++) addons.push({ name: 'm4_charm', slot: 'ink', geo: S.put(new THREE.TorusGeometry(2.6, 0.8, 4, 6), 630, 162 - i * 5.2, 0, [0, i % 2 ? 0 : Math.PI / 2, 0]) });
+  addons.push({ name: 'm4_charm', slot: 'cover', geo: S.extrude([[621, 128], [639, 128], [641, 145], [630, 152], [619, 145]], 5, { bevel: 1.2 }) });   // 駒の形
+  // SR 焼き色：太い銃口制退器（横と上に穴）・ハンドガード・機関部・ストックの肉抜きを走る光る線
+  addons.push({ name: 'm4_brake', slot: 'brake', geo: S.rod(788, 850, BV, 14.5, 8) });
+  for (const u of [800, 814, 828]) {
+    for (const x of [-1, 1]) addons.push({ name: 'm4_brake', slot: 'bore', geo: S.box(u, u + 7, 191, 201, 0.8, x * 13.6) });
+    addons.push({ name: 'm4_brake', slot: 'bore', geo: S.box(u, u + 7, 209.2, 209.8, 6) });
+  }
+  addons.push({ name: 'm4_brake', slot: 'bore', geo: S.rod(849.6, 850.6, BV, 5, 8) });
+  for (const x of [-1, 1]) {
+    for (const v of [176, 213]) addons.push({ name: 'm4_lines', slot: 'line', geo: S.box(418, 604, v, v + 2, 0.6, x * 19.4) });
+    addons.push({ name: 'm4_lines', slot: 'line', geo: S.box(208, 404, 208.5, 210.5, 0.6, x * 16.4) });
+    for (const [a, b2, v] of [[30, 120, 178], [34, 104, 160]]) addons.push({ name: 'm4_lines', slot: 'line', geo: S.extrude([[a, v + 1], [b2, v + 1 + (b2 - a) * 0.12], [b2, v + 5 + (b2 - a) * 0.12], [a, v + 5]], 0.6, { bevel: 0, x: x * 15.95 }) });
+  }
+
   if (opt.hand) {
     const rh = handMesh(opt.hand, 0.75, 0.95, 0.85); rh.position.copy(S.at(222, 100, 40)); B.root.add(rh);
     const lh = handMesh(opt.hand, 0.8, 0.8, 0.95); lh.position.set(-0.045, -0.005, 0); lhand.add(lh);
@@ -123,7 +148,7 @@ export function buildM4A1(opt: { skin?: string; hand?: THREE.Material } = {}) {
     },
   };
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
     info: { name: 'M4A1', real: '全長 840mm・銃身 368mm', reload: 2.0 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.85 },
   });

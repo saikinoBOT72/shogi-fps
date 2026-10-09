@@ -6,16 +6,17 @@
 import * as THREE from 'three';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 import { inspectClip, handPath } from './std';
 
 const S = makeSpace(300, 80);   // 原点：グリップの付け根
 const AV = 132;                 // 矢の高さ
 const NOCK = 560;               // 弦を掛ける所
 const REST = 826;               // 撃ったあとの弦の位置
+const LIMB_WING: [number, number, number, number][] = [[0, 0.3, 60, 18], [0, 0.7, 70, 19], [1, 0.15, 80, 20], [1, 0.45, 90, 22], [1, 0.75, 100, 23], [2, 0.25, 105, 24], [2, 0.7, 95, 22]];   // スキンの翼の羽：[弓の区間, 割合, 長さ, 幅]
 
 export function buildCrossbow(opt: { skin?: string; hand?: THREE.Material } = {}) {
-  const B = new PartBuilder(S);
+  const B = new PartBuilder(S, true);
   const arrow = B.part('arrow', [NOCK, AV]);
   const stringC = B.part('stringC', [NOCK, AV]);
   const stringR = B.part('stringR', [REST, AV]);
@@ -81,6 +82,34 @@ export function buildCrossbow(opt: { skin?: string; hand?: THREE.Material } = {}
     B.add('mag', S.put(new THREE.BoxGeometry(1, 14, 60).rotateZ(-a + Math.PI / 2), NOCK + 40, AV + Math.sin(a) * 8, Math.cos(a) * 8), arrow);
   }
 
+  // ---------- スキンの付け足し ----------
+  const addons: Addon[] = [];
+  // 弓の線（上から見た u, x）の区間 i の割合 t の点
+  const LIMB: [number, number][] = [[890, 30], [870, 150], [832, 290], [806, 350]];
+  const limbAt = (i: number, t: number): [number, number] => [LIMB[i][0] + (LIMB[i + 1][0] - LIMB[i][0]) * t, LIMB[i][1] + (LIMB[i + 1][1] - LIMB[i][1]) * t];
+  for (const s of [1, -1]) {
+    // R 羽飾り：弓に巻いた紐（3か所）・弓の先から下がる2枚の羽と軸
+    for (const [i, t0, t1, w, h] of [[0, 0.5, 0.62, 15.5, 29], [1, 0.42, 0.56, 13.5, 25], [2, 0.3, 0.45, 12.5, 21]]) {
+      const [a0, b0] = limbAt(i, t0), [a1, b1] = limbAt(i, t1);
+      addons.push({ name: 'xb_wraps', slot: 'wrap', geo: bar(a0, b0 * s, a1, b1 * s, 118, w, h) });
+    }
+    addons.push({ name: 'xb_feathers', slot: 'ink', geo: S.box(815.4, 816.6, 64, 108, 1.2, s * 360) });
+    for (const [du, dv, x] of [[0, 0, 360], [8, 6, 362.5]])
+      addons.push({ name: 'xb_feathers', slot: 'feather', geo: S.extrude([[816 + du, 64 + dv], [822 + du, 50 + dv], [823 + du, 30 + dv], [818 + du, 8 + dv], [816 + du, 4 + dv], [812 + du, 16 + dv], [810 + du, 40 + dv], [812 + du, 54 + dv]], 1.2, { bevel: 0, x: s * x }) });
+    addons.push({ name: 'xb_feathers', slot: 'ink', geo: S.box(815.6, 816.4, 6, 62, 1.6, s * 360.8) });
+    // SR 天弓：弓から後ろ外へ広がる羽の翼（外ほど長く開く）・矢の台と銃床と前の台の光る線・前の台の横の宝石
+    LIMB_WING.forEach(([i, t, L, W], k) => {
+      const [u, x] = limbAt(i, t), a = 0.35 + k * 0.08;
+      const sh = new THREE.Shape([[0, 0], [W * 0.5, L * 0.25], [W * 0.4, L * 0.7], [0, L], [-W * 0.3, L * 0.6], [-W * 0.35, L * 0.2]].map(([p, q]) => new THREE.Vector2(p, q)));
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: 2, bevelEnabled: false }).translate(0, 0, -1).rotateZ(Math.PI + s * a).rotateX(-Math.PI / 2);
+      addons.push({ name: 'xb_wings', slot: 'wing', geo: S.put(geo, u, 136, x * s) });
+    });
+    addons.push({ name: 'xb_lines', slot: 'line', geo: S.box(400, 880, 120.5, 122.5, 0.6, s * 20.5) });
+    addons.push({ name: 'xb_lines', slot: 'line', geo: S.box(860, 906, 112, 114, 0.6, s * 32.4) });
+    addons.push({ name: 'xb_lines', slot: 'line', geo: S.extrude([[20, 133], [220, 123], [220, 125.5], [20, 135.5]], 0.6, { bevel: 0, x: s * 17.4 }) });
+    addons.push({ name: 'xb_gem', slot: 'gem', geo: S.put(new THREE.OctahedronGeometry(9, 0), 883, 124, s * 33) });
+  }
+
   if (opt.hand) {
     const rh = handMesh(opt.hand, 0.75, 0.95, 0.85); rh.position.copy(S.at(304, 44, 40)); B.root.add(rh);
     const lh = handMesh(opt.hand, 0.8, 0.8, 0.95); lh.position.set(-0.045, 0, 0); lhand.add(lh);
@@ -119,7 +148,7 @@ export function buildCrossbow(opt: { skin?: string; hand?: THREE.Material } = {}
     equip: { dur: 0.6, tracks: [['root', 'rz', [[0, 0.3], [0.3, 0.12], [0.6, 0]]]] },
   };
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
     info: { name: 'クロスボウ', real: '全長 約960mm・弓の幅 約720mm', reload: 2.4 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.82 },
     events: { load: anim => { anim.stop('fire'); anim.stop('fireLast'); } },

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { Clip, Key, Track } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 import { inspectClip, handPath } from './std';
 
 const S = makeSpace(40, 98);    // 原点：グリップの付け根
@@ -15,7 +15,7 @@ const LOCK = 0.028;             // スライドが下がる量（m）
 const SW = 25.5, FW = 28;       // スライド・フレームの幅
 
 export function buildGlock17(opt: { skin?: string; hand?: THREE.Material } = {}) {
-  const B = new PartBuilder(S);
+  const B = new PartBuilder(S, true);
   const slide = B.part('slide', [93, 127]);
   const trigger = B.part('trigger', [80, 96]);
   const mag = B.part('mag', [30, 40]);
@@ -60,6 +60,20 @@ export function buildGlock17(opt: { skin?: string; hand?: THREE.Material } = {})
   // ---------- 弾倉（グリップの中。底の板が見える） ----------
   B.add('mag', S.extrude([[gb(14) + 6, 14], [gf(14) - 6, 14], [gf(80) - 6, 80], [gb(80) + 6, 80]], FW - 8, { bevel: 0.6 }), mag);
   B.add('mag', S.extrude([[-3, 4], [41, 4], [42.5, 9], [-3, 9]], FW - 2, { bevel: 1 }), mag);
+
+  // ---------- スキンの付け足し ----------
+  const addons: Addon[] = [];
+  // R 競技：スライドの上と横の肉抜き（中の c2 の銃身が見える）・グリップの下の広がった弾倉の口・長いスライドストップ
+  for (const u of [122, 139, 156]) addons.push({ name: 'gl_ports', slot: 'port', geo: S.box(u, u + 11, 139.1, 139.8, 9), part: slide });
+  for (const x of [-1, 1]) addons.push({ name: 'gl_ports', slot: 'port', geo: S.box(146, 176, 121, 127, 0.6, x * (SW / 2 + 0.2)), part: slide });
+  addons.push({ name: 'gl_well', slot: 'well', geo: S.extrude([[-19, 9], [48, 9], [gf(26) + 1.5, 26], [gb(26) - 1.5, 26]], FW + 5, { bevel: 1.5, taper: [1.12, 1] }) });
+  addons.push({ name: 'gl_well', slot: 'well', geo: S.box(44, 70, 110, 114.5, 2.4, -(FW / 2 + 0.6)) });
+  // SR 焼け色：スライドの前の横に並ぶ放熱のひれ・銃口の先の補正器（上に2つの穴、横に光る線）
+  for (let u = 108; u <= 164; u += 8) for (const x of [-1, 1]) addons.push({ name: 'gl_fins', slot: 'fin', geo: S.box(u, u + 3, 118, 127, 1.8, x * (SW / 2 + 0.8)), part: slide });
+  addons.push({ name: 'gl_comp', slot: 'comp', geo: S.extrude([[186, 117], [186, 138], [189, 139], [212, 139], [214, 136], [214, 117]], SW - 1, { bevel: 1.2 }), part: slide });
+  for (const u of [192, 202]) addons.push({ name: 'gl_comp', slot: 'bore', geo: S.box(u, u + 6, 138.6, 139.4, 10), part: slide });
+  addons.push({ name: 'gl_comp', slot: 'bore', geo: S.rod(213.6, 214.6, 127, 4.6, 8), part: slide });
+  for (const x of [-1, 1]) addons.push({ name: 'gl_comp', slot: 'line', geo: S.box(190, 210, 121, 123, 0.6, x * (SW / 2 - 0.2)), part: slide });
 
   if (opt.hand) {
     const rh = handMesh(opt.hand, 0.72, 0.95, 0.8); rh.position.copy(S.at(26, 52, 40)); B.root.add(rh);
@@ -107,7 +121,7 @@ export function buildGlock17(opt: { skin?: string; hand?: THREE.Material } = {})
     },
   };
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
     info: { name: 'Glock 17', real: '全長 202mm・高さ 139mm・銃身 114mm', reload: 1.5 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.62 },
     events: { release: anim => { if (anim.has('fireLast')) { anim.stop('fireLast'); anim.play('release'); } } },

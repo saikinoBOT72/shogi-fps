@@ -16,6 +16,7 @@ import { Net } from './net';
 import { leave, showLobby } from './online';
 import { HAND_ORDER, PRO, allMoves, attackedBy, canPromote, deadEnd, dropSquares, findKing, inCheck, inZone, initialBoard, label, nifu, rawMoves } from './shogi/rules';
 import { chooseMove, recordBattle } from './shogi/cpu';
+import { Replay } from './replay';
 
 export const BoardMode = (() => {
   const S = 1.15;                                   // マスの大きさ
@@ -377,13 +378,18 @@ export const BoardMode = (() => {
     const ctx = gs.matchCtx;
     const attackerWon = win === null ? false : (win === true) === ctx.playerIsAttacker;
     const playerWon = win === null ? !ctx.playerIsAttacker : win;
-    if (!online && win !== null) recordBattle(ctx.myType, ctx.foeType, ctx.playerIsAttacker, playerWon);
-    if (playerWon) questEvent('capture', 1, online);   // 攻めて勝っても守り切っても、相手の駒が1つ盤から消える
+    if (!ctx.counted) {   // リプレイを見直して戻ってきたときは数え直さない
+      ctx.counted = true;
+      if (!online && win !== null) recordBattle(ctx.myType, ctx.foeType, ctx.playerIsAttacker, playerWon);
+      if (playerWon) questEvent('capture', 1, online);   // 攻めて勝っても守り切っても、相手の駒が1つ盤から消える
+    }
     $('hud').style.display = 'none';
     overlay(`${ctx.playerIsAttacker ? (attackerWon ? sealHTML('取った', 'CAPTURE') : sealHTML('取られた', 'CAPTURED'))
       : (attackerWon ? sealHTML('取られた', 'CAPTURED') : sealHTML('守った', 'DEFENDED'))}
       <p>${ctx.playerIsAttacker ? (attackerWon ? '駒を取った！' : '取り返された…') : (attackerWon ? '駒を取られた…' : '守り切った！')}</p>
-      <button class="btn" id="bmBack">盤面へ戻る</button>`, true);
+      <div class="menu">${Replay.canAgain ? '<button class="btn sub" id="bmReplay">もう一回リプレイ</button>' : ''}<button class="btn" id="bmBack">盤面へ戻る</button></div>`, true);
+    // リプレイを見直す（自分の画面だけ。見終わるかスキップでこの画面に戻る）
+    if (Replay.canAgain) $('bmReplay').onclick = e => { e.stopPropagation(); hideOverlay(); if (!Replay.again(() => battleResult(win))) battleResult(win); };
     $('bmBack').onclick = e => {
       e.stopPropagation();
       gs.matchCtx = null; gs.boardMap = null;

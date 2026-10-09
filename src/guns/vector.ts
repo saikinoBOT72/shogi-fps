@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 import { inspectClip, handPath, magDrop, reloadTilt } from './std';
 
 // 図面は写真（全長 880mm：サプレッサー込み）の座標そのまま。u=0 が床尾の後ろ、v=0 が弾倉の底
@@ -15,7 +15,7 @@ const PULL = 0.06;
 const BV = 220;                 // 銃身（サプレッサー）の中心の高さ
 
 export function buildVector(opt: { skin?: string; hand?: THREE.Material } = {}) {
-  const B = new PartBuilder(S);
+  const B = new PartBuilder(S, true);
   const handle = B.part('handle', [532, 248]);
   const trigger = B.part('trigger', [306, 170]);
   const mag = B.part('mag', [404, 50]);
@@ -96,6 +96,33 @@ export function buildVector(opt: { skin?: string; hand?: THREE.Material } = {}) 
   // ---------- コッキングハンドル（左前） ----------
   B.add('detail', S.box(520, 546, 244, 258, 12, -24), handle);
 
+  // ---------- スキンの付け足し ----------
+  const addons: Addon[] = [];
+  // a→b の帯（幅 w）を側面の形として返す（斜めの線用）
+  const strip = (a: [number, number], b: [number, number], w: number): [number, number][] => {
+    const du = b[0] - a[0], dv = b[1] - a[1], l = Math.hypot(du, dv), nu = -dv / l * w / 2, nv = du / l * w / 2;
+    return [[a[0] - nu, a[1] - nv], [b[0] - nu, b[1] - nv], [b[0] + nu, b[1] + nv], [a[0] + nu, a[1] + nv]];
+  };
+  // R 装備品：左の短いレールのライト（c2 の帯・白く光るレンズ）・ストックの下の負い紐の輪と留め金・縦グリップのテープ
+  addons.push({ name: 'vc_light', slot: 'lightBody', geo: S.box(498, 538, 223, 237, 8, -29) });
+  addons.push({ name: 'vc_light', slot: 'lightBody', geo: S.rod(470, 548, 230, 12, 10, -45) });
+  addons.push({ name: 'vc_light', slot: 'lightBody', geo: S.rod(546, 566, 230, 15, 10, -45) });
+  for (const [a, b, r] of [[538, 545, 13], [462, 470, 8]]) addons.push({ name: 'vc_light', slot: 'band', geo: S.rod(a, b, 230, r, 10, -45) });
+  addons.push({ name: 'vc_light', slot: 'lens', geo: S.rod(565.6, 566.6, 230, 12, 10, -45) });
+  addons.push({ name: 'vc_sling', slot: 'strap', geo: S.extrude([[20, 101], [52, 101], [58, 70], [46, 44], [26, 44], [14, 70]], 14, { bevel: 1, holes: [[[24, 96], [48, 96], [52, 72], [43, 52], [29, 52], [20, 72]]] }) });
+  addons.push({ name: 'vc_sling', slot: 'buckle', geo: S.box(47, 61, 64, 80, 18) });
+  for (const v of [124, 148]) addons.push({ name: 'vc_wrap', slot: 'strap', geo: S.put(new THREE.CylinderGeometry(15.9, 15.9, 12, 10), 532, v) });
+  // SR 電脳：サプレッサーの光る輪・下の機関部のへこみを走る光る回路・上の段の光る線・ハンドガードの斜めの光る通気口
+  for (const u of [640, 690, 740, 790, 840]) addons.push({ name: 'vc_rings', slot: 'line', geo: S.rod(u, u + 4, BV, 20.3, 12) });
+  for (const x of [-1, 1]) {
+    const tr = (pts: [number, number][]) => { for (let i = 1; i < pts.length; i++) addons.push({ name: 'vc_trace', slot: 'line', geo: S.extrude(strip(pts[i - 1], pts[i], 2.5), 0.6, { bevel: 0, x: x * 15.9 }) }); };
+    tr([[352, 201], [424, 201], [432, 190]]);
+    tr([[362, 176], [392, 176], [404, 160], [404, 124]]);
+    for (const [u, v] of [[432, 190], [404, 124], [352, 201], [362, 176]]) addons.push({ name: 'vc_trace', slot: 'line', geo: S.box(u - 3, u + 3, v - 3, v + 3, 0.8, x * 16) });
+    addons.push({ name: 'vc_trace', slot: 'line', geo: S.box(216, 416, 246.5, 248.5, 0.6, x * 20.4) });
+    for (let i = 0; i < 4; i++) addons.push({ name: 'vc_vents', slot: 'line', geo: S.extrude(strip([494 + i * 18, 246], [504 + i * 18, 268], 3), 0.6, { bevel: 0, x: x * 21.4 }) });
+  }
+
   if (opt.hand) {
     const rh = handMesh(opt.hand, 0.75, 0.95, 0.85); rh.position.copy(S.at(258, 160, 44)); B.root.add(rh);
     const lh = handMesh(opt.hand, 0.8, 0.8, 0.95); lh.position.set(-0.04, -0.01, 0); lhand.add(lh);
@@ -129,7 +156,7 @@ export function buildVector(opt: { skin?: string; hand?: THREE.Material } = {}) 
     },
   };
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
     info: { name: 'KRISS Vector', real: '全長 620mm・銃身 140mm（サプレッサー付きで約 880mm）', reload: 1.8 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.66 },
   });

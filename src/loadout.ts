@@ -6,7 +6,10 @@ import { UNLOCKED, WEAPONS } from './core';
 export const weaponName = (m: string) => (Object.values(WEAPONS) as any[]).find(w => w.model === m)?.name || m;
 
 // ゲームの武器の見た目（model）→ スキンのデザインの銃の名前
-export const GUN_OF_MODEL: Record<string, string> = { pistol: 'pistol', burst: 'b93r', karambit: 'karambit', mp5: 'mp5', bow: 'yumi', mk2: 'mk2', ak: 'ak', m79: 'm79', m870: 'm870' };
+export const GUN_OF_MODEL: Record<string, string> = {
+  pistol: 'pistol', burst: 'b93r', karambit: 'karambit', mp5: 'mp5', bow: 'yumi', mk2: 'mk2', ak: 'ak', m79: 'm79', m870: 'm870',
+  glock: 'glock17', vector: 'vector', m4: 'm4a1', famas: 'famas', awm: 'awm', mgl: 'mgl', xbow: 'crossbow',   // 成駒の武器
+};
 export type SkinRef = [string, number];   // [デザイン, 色の番号]
 export type Owned = { id: number; base: string; seed: number; at: number; fav?: boolean };
 
@@ -110,7 +113,7 @@ export function paintGun(gun: any, r: SkinRef | null, lite = false) {
 }
 
 // ================= ガチャを引く =================
-// 1回ごとに レア度 → 武器（9武器から同じ確率）→ 色の番号（完全にランダム）の順に決める
+// 1回ごとに レア度 → 武器（そのレア度のデザインがある武器から同じ確率）→ 色の番号（完全にランダム）の順に決める
 export const RATES: [string, number][] = [['LR', 2], ['SR', 10], ['R', 28], ['N', 60]];
 export const MODEL_OF_GUN = Object.fromEntries(Object.entries(GUN_OF_MODEL).map(([m, g]) => [g, m]));
 export const modelOf = (it: Owned) => MODEL_OF_GUN[DESIGNS[it.base]?.gun];
@@ -121,9 +124,11 @@ function rollRarity() {
 }
 export function pull(n: 1 | 10): Owned[] | null {
   if (!spendPoints(PULL_COST[n])) return null;
-  const out: Owned[] = [], now = Date.now(), models = Object.keys(GUN_OF_MODEL);
+  const out: Owned[] = [], now = Date.now();
   for (let i = 0; i < n; i++) {
     const r = rollRarity();
+    // LR がまだ無い武器（成駒の武器）は、LR のときは選ばない
+    const models = Object.keys(GUN_OF_MODEL).filter(m => Object.values(DESIGNS).some(d => d.gun === GUN_OF_MODEL[m] && d.rarity === r));
     const m = models[Math.floor(Math.random() * models.length)];
     // 同じ武器・同じレア度のデザインが複数あれば（AK の LR 鬼・金継ぎなど）その中から等しい確率で
     const pick = (ks: string[]) => ks[Math.floor(Math.random() * ks.length)];

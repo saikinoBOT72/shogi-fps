@@ -14,7 +14,7 @@ import { MARKET, listItem } from './market';
 import { notify } from './quests';
 
 // 並べる順（持ち替えの順と同じ：ハンドガン系 → 連射 → 重い銃 → 弓・ナイフ）
-const MODELS = ['pistol', 'burst', 'mp5', 'ak', 'm870', 'mk2', 'm79', 'bow', 'karambit'];
+const MODELS = ['pistol', 'glock', 'burst', 'mp5', 'vector', 'ak', 'm4', 'famas', 'm870', 'mk2', 'awm', 'm79', 'mgl', 'bow', 'xbow', 'karambit'];
 const wName = weaponName;
 const RANK = { N: 0, R: 1, SR: 2, LR: 3 };
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');

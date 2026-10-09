@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 import { inspectClip, handPath } from './std';
 
 const S = makeSpace(200, 112);  // 原点：グリップの付け根
@@ -16,7 +16,7 @@ const STEP = Math.PI / 3;
 const SWING = 1.4;
 
 export function buildMGL(opt: { skin?: string; hand?: THREE.Material } = {}) {
-  const B = new PartBuilder(S);
+  const B = new PartBuilder(S, true);
   const crane = B.part('crane', [CU1, CV - 70], B.root, -30);
   const cylinder = B.part('cylinder', [(CU0 + CU1) / 2, CV], crane);
   const shells = B.part('shells', [CU0, CV], cylinder);
@@ -78,6 +78,31 @@ export function buildMGL(opt: { skin?: string; hand?: THREE.Material } = {}) {
   }
   for (let i = 0; i < 6; i++) { const a = i * STEP + Math.PI / 2; B.add('mag', S.rod(CU0 - 6, CU0 + 2, CV + Math.sin(a) * 44, 21, 10, Math.cos(a) * 44), shells); }   // 弾の底
 
+  // ---------- スキンの付け足し ----------
+  const addons: Addon[] = [];
+  // R 弾帯：ストックの右に予備の2発（帯で留める）・前の輪から下がる荷札・銃身に巻いたテープ
+  addons.push({ name: 'mg_belt', slot: 'strap', geo: S.box(22, 140, 150, 194, 3, 21) });
+  for (const u0 of [26, 84]) {
+    addons.push({ name: 'mg_belt', slot: 'case', geo: S.rod(u0, u0 + 36, 172, 18, 12, 41) });
+    addons.push({ name: 'mg_belt', slot: 'nose', geo: S.put(new THREE.SphereGeometry(18, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(-Math.PI / 2), u0 + 36, 172, 41) });
+  }
+  for (const u of [40, 98]) addons.push({ name: 'mg_belt', slot: 'strap', geo: S.box(u, u + 8, 150, 194, 2, 60) });
+  addons.push({ name: 'mg_tag', slot: 'ink', geo: S.box(681, 683, 104, 140, 1.2), part: crane });
+  addons.push({ name: 'mg_tag', slot: 'tag', geo: S.extrude([[666, 70], [696, 70], [696, 100], [688, 108], [674, 108], [666, 100]], 1.2, { bevel: 0 }), part: crane });
+  addons.push({ name: 'mg_tag', slot: 'ink', geo: S.ring(682, 101, 3.2, 1.8, 1.8, 8), part: crane });
+  for (const u of [700, 732]) addons.push({ name: 'mg_tape', slot: 'strap', geo: S.rod(u, u + 16, BV, 27, 12), part: crane });
+  // SR 六連星：シリンダーの膨らみの谷を走る光る線と、薬室の口の光る輪（一緒に回る）・後ろの枠の横の六つの星・シリンダーを巡る2本の光の輪
+  for (let i = 0; i < 6; i++) {
+    const a = i * STEP + Math.PI / 2 + STEP / 2, b = i * STEP + Math.PI / 2;
+    addons.push({ name: 'mg_flutes', slot: 'line', geo: S.put(new THREE.BoxGeometry(2.6, 2.6, CU1 - CU0 - 14), (CU0 + CU1) / 2, CV + Math.sin(a) * 58.8, Math.cos(a) * 58.8, [0, 0, a]), part: cylinder });
+    addons.push({ name: 'mg_flutes', slot: 'line', geo: S.put(new THREE.TorusGeometry(21.5, 1.4, 4, 16), CU1 - 3.6, CV + Math.sin(b) * 44, Math.cos(b) * 44), part: cylinder });
+  }
+  const star = (u: number, v: number, r: number): [number, number][] => Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4, k = i % 2 ? 0.38 : 1; return [u + Math.cos(a) * r * k, v + Math.sin(a) * r * k]; });
+  for (const s of [1, -1]) for (const [u, v, r] of [[226, 182, 6], [242, 192, 5], [258, 184, 7], [250, 168, 5], [232, 164, 6], [216, 170, 4]])
+    addons.push({ name: 'mg_stars', slot: 'star', geo: S.extrude(star(u, v, r), 1, { bevel: 0, x: 22.6 * s }) });
+  for (const t of [0.22, -0.22]) addons.push({ name: 'mg_orbit', slot: 'line', geo: S.put(new THREE.TorusGeometry(86, 1.4, 4, 40), 372, CV, 0, [t, 0, 0]), part: crane });
+  for (const v of [CV + 83.9, CV - 83.9]) addons.push({ name: 'mg_orbit', slot: 'star', geo: S.put(new THREE.OctahedronGeometry(4.5, 0), 353.2, v, 0), part: crane });
+
   if (opt.hand) {
     const rh = handMesh(opt.hand, 0.75, 0.95, 0.85); rh.position.copy(S.at(172, 70, 42)); B.root.add(rh);
     const lh = handMesh(opt.hand, 0.85, 0.95, 0.85); lh.position.set(-0.04, 0, 0); lhand.add(lh);
@@ -111,7 +136,7 @@ export function buildMGL(opt: { skin?: string; hand?: THREE.Material } = {}) {
     equip: { dur: 0.7, tracks: [['root', 'rz', [[0, 0.3], [0.35, 0.15], [0.6, 0]]], ['cylinder', 'rz', [[0, 0], [0.3, 0], [0.45, STEP]]]] },
   };
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
     info: { name: 'MGL', real: '全長 778mm・銃身 300mm（40mm・6連のシリンダー）', reload: 3.2 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.75 },
   });

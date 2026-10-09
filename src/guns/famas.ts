@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { Clip } from './anim';
 import { PartBuilder, makeSpace } from './kit';
-import { handMesh, makeGun } from './model';
+import { Addon, handMesh, makeGun } from './model';
 import { inspectClip, handPath, magDrop, reloadTilt } from './std';
 
 const S = makeSpace(330, 92);   // 原点：グリップの付け根
@@ -14,7 +14,7 @@ const PULL = 0.07;
 const BW = 44;                  // 本体の幅
 
 export function buildFAMAS(opt: { skin?: string; hand?: THREE.Material } = {}) {
-  const B = new PartBuilder(S);
+  const B = new PartBuilder(S, true);
   const chandle = B.part('chandle', [440, 168]);
   const trigger = B.part('trigger', [392, 89]);
   const mag = B.part('mag', [196, 20]);
@@ -74,6 +74,37 @@ export function buildFAMAS(opt: { skin?: string; hand?: THREE.Material } = {}) {
   // ---------- コッキングハンドル（取っ手の中の、上へ曲がった鉤） ----------
   B.add('detail', S.extrude([[430, 154], [448, 154], [448, 172], [442, 186], [434, 186], [436, 174], [430, 170]], 12, { bevel: 1.5 }), chandle);
 
+  // ---------- スキンの付け足し ----------
+  const addons: Addon[] = [];
+  // a→b の帯（幅 w）を側面の形として返す（斜めの線用）
+  const strip = (a: [number, number], b: [number, number], w: number): [number, number][] => {
+    const du = b[0] - a[0], dv = b[1] - a[1], l = Math.hypot(du, dv), nu = -dv / l * w / 2, nv = du / l * w / 2;
+    return [[a[0] - nu, a[1] - nv], [b[0] - nu, b[1] - nv], [b[0] + nu, b[1] + nv], [a[0] + nu, a[1] + nv]];
+  };
+  // R 三色流し：肩当ての横のへこみの丸い三重の印（c3・c2・c1）・取っ手の前に結んだリボン（帯・蝶結び・垂れ）
+  for (const s of [1, -1]) {
+    for (const [r, slot, x] of [[30, 'r3', 19.3], [20, 'r2', 19.7], [10, 'r1', 20.1]] as [number, string, number][])
+      addons.push({ name: 'fa_roundel', slot, geo: S.put(new THREE.CylinderGeometry(r, r, 0.6, 24).rotateZ(Math.PI / 2), 53, 112, x * s) });
+    addons.push({ name: 'fa_ribbon', slot: 'rib', geo: S.extrude([[551, 196], [557, 196], [553, 160], [549, 166], [544, 161]], 1, { bevel: 0, x: 16.5 * s }) });
+    addons.push({ name: 'fa_ribbon', slot: 'rib', geo: S.extrude([[556, 196], [562, 196], [570, 162], [565, 166], [561, 160]], 1, { bevel: 0, x: 17 * s }) });
+    for (const d of [-1, 1]) addons.push({ name: 'fa_ribbon', slot: 'rib', geo: S.extrude([[556, 213], [556 + d * 16, 225], [556 + d * 16, 203]], 3, { bevel: 0.6, x: 17.5 * s }) });
+  }
+  addons.push({ name: 'fa_ribbon', slot: 'rib', geo: S.box(550, 562, 194.5, 219.5, 32) });
+  // SR 軍楽：取っ手の上・肩当ての上・銃身の金の縁取り・肩当ての横の金の星・取っ手から垂れる2重の飾り紐と房
+  addons.push({ name: 'fa_trim', slot: 'accent', geo: S.extrude(strip([298, 226.3], [588, 217.4], 4), 32, { bevel: 0.6 }) });
+  addons.push({ name: 'fa_trim', slot: 'accent', geo: S.box(6, 96, 172, 177, BW + 6) });
+  addons.push({ name: 'fa_trim', slot: 'accent', geo: S.rod(636, 642, 126, 9, 8) });
+  addons.push({ name: 'fa_trim', slot: 'accent', geo: S.rod(700, 706, 126, 12.5, 8) });
+  const star: [number, number][] = Array.from({ length: 10 }, (_, i) => { const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 9 : 22; return [53 + Math.cos(a) * r, 112 + Math.sin(a) * r]; });
+  for (const s of [1, -1]) addons.push({ name: 'fa_star', slot: 'accent', geo: S.extrude(star, 1.2, { bevel: 0, x: 19.6 * s }) });
+  // 飾り紐：図面の点 [u, v, x] をなめらかに通る管
+  const cord = (pts: number[][], r = 2.2) => S.put(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(([u, v, x]) => new THREE.Vector3(x, v, -u))), 48, r, 5), 0, 0, 0);
+  addons.push({ name: 'fa_cord', slot: 'cord', geo: cord([[305, 200, 16], [330, 160, 25], [400, 118, 26], [480, 112, 26], [560, 124, 25], [596, 196, 16]]) });
+  addons.push({ name: 'fa_cord', slot: 'cord', geo: cord([[305, 200, 16], [360, 150, 25], [470, 134, 26], [560, 150, 25], [596, 196, 16]]) });
+  addons.push({ name: 'fa_cord', slot: 'cord', geo: cord([[596, 196, 16], [600, 184, 24], [600, 166, 27]], 1.6) });
+  addons.push({ name: 'fa_cord', slot: 'accent', geo: S.put(new THREE.IcosahedronGeometry(4.5, 1), 600, 162, 27) });
+  addons.push({ name: 'fa_cord', slot: 'cord', geo: S.put(new THREE.ConeGeometry(7, 24, 8), 600, 146, 27) });
+
   if (opt.hand) {
     const rh = handMesh(opt.hand, 0.75, 0.95, 0.85); rh.position.copy(S.at(326, 40, 42)); B.root.add(rh);
     const lh = handMesh(opt.hand, 0.8, 0.8, 0.95); lh.position.set(-0.045, -0.005, 0); lhand.add(lh);
@@ -107,7 +138,7 @@ export function buildFAMAS(opt: { skin?: string; hand?: THREE.Material } = {}) {
     },
   };
   return makeGun({
-    B, clips, muzzle, eject, skin: opt.skin || 'kurogane',
+    B, clips, muzzle, eject, addons, skin: opt.skin || 'kurogane',
     info: { name: 'FAMAS F1', real: '全長 757mm・銃身 488mm（ブルパップ）', reload: 2.1 },
     vm: { scale: 1, hip: new THREE.Vector3(), ads: new THREE.Vector3(), size: 0.72 },
   });
