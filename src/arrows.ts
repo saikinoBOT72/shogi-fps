@@ -72,6 +72,9 @@ export const Arrows = (() => {
     const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : dir.clone().negate();
     Particles.impact(wall.point, n);
     SFX.play('arrowHit', wall.point);
+    // タレット歩：銃と同じくダメージを与える（壊れたあと宙に浮かないよう、矢は刺さらずに消える）
+    const tur = Gadgets.turretOfHit(wall.object);
+    if (tur) { Gadgets.damageTurret(tur, a.dmg, a.owner); scene.remove(a.mesh); return; }
     const ph = physOf(wall);
     if (ph) { PHYS.hit(ph, wall.point, dir, a.dmg * 0.12); ph.obj.updateMatrixWorld(true); ph.obj.attach(a.mesh); }
     keepStuck(a.mesh);

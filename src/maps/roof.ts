@@ -288,9 +288,14 @@ export function buildRoof() {
         const e = LO + dir * opt.solidLen, b0 = Math.min(LO, e), b1 = Math.max(LO, e), ye = y0 + dy * opt.solidLen / len;
         cur.colliders.push({ kind: 'ramp', axis, lo: LO, hi: e, y0, y1: ye, walk: true, nav: true, surf: m.userData.surf,
           min: new V3(axis === 'z' ? wmin : b0, opt.base, axis === 'z' ? b0 : wmin), max: new V3(axis === 'z' ? wmax : b1, ye, axis === 'z' ? b1 : wmax) });
-        const fill = axis === 'z' ? boxMesh(w - 0.1, 1, b1 - b0, underM) : boxMesh(b1 - b0, 1, w - 0.1, underM);
-        const sh = ye - TH - opt.base;
-        if (sh > 0.05) { fill.scale.y = sh; fill.position.set(axis === 'z' ? A : (b0 + b1) / 2, opt.base + sh / 2, axis === 'z' ? (b0 + b1) / 2 : A); deco(fill); }
+        // 見た目は坂の裏に沿ったくさび形（平らな箱だと、低い端で坂の上へ黒い箱が突き出ていた）
+        const t0 = TH * len / dy, sh = ye - TH - opt.base;
+        if (sh > 0.05 && opt.solidLen > t0) {
+          const sp = new THREE.Shape([new THREE.Vector2(LO + dir * t0, opt.base), new THREE.Vector2(e, opt.base), new THREE.Vector2(e, ye - TH)]);
+          const fill = new THREE.Mesh(new THREE.ExtrudeGeometry(sp, { depth: w - 0.1, bevelEnabled: false }), steelM);
+          if (axis === 'z') { fill.rotation.y = -Math.PI / 2; fill.position.x = A + (w - 0.1) / 2; } else fill.position.z = A - (w - 0.1) / 2;
+          deco(fill);
+        }
       }
       // 手すり（両側。高さ 1m。当たる）
       if (opt.rails) for (const side of [-1, 1]) {
