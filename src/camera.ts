@@ -292,6 +292,7 @@ export function animateActor(A, e, dt, lookAt) {
   // 透明化：体と銃を隠して、うっすらした影だけ
   const cloaked = !!act(e, 'cloak'), hid = Sword.hidden(e);   // 葉隠れで止まっている間は影も含めて全く見えない
   A.piece.visible = !cloaked && !hid; A.gun.g.visible = !cloaked && !hid; A.ghost.visible = cloaked && !hid;
+  if (A.gun2) A.gun2.g.visible = !!act(e, 'dual') && !cloaked && !hid;   // 2丁持ち
   updateGunLod(A, cam.position);
   e.flashT -= dt;
   A.flash.visible = e.flashT > 0;

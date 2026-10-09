@@ -375,6 +375,13 @@ export function buildActor(ch, size, model = 'pistol', red = false): any {
   gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3, katana: 0.62, awm: 0.95, xbow: 1.05, famas: 1.3, mgl: 1.25, vector: 1.45, m4: 1.15 }[model] || 2.2) * 1.4 * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(-w * 0.55, h * 0.5, t + 0.16);
   body.add(gun.g);
+  // 2丁持ち（と）：左手のデザートイーグル。早撃ちの間だけ見える
+  let gun2 = null;
+  if (model === 'pistol') {
+    gun2 = buildGun('pistol'); gun2.g.traverse(o => { o.castShadow = false; });
+    gun2.g.scale.copy(gun.g.scale); gun2.g.rotation.y = Math.PI; gun2.g.position.set(w * 0.55, h * 0.5, t + 0.16);
+    gun2.g.visible = false; body.add(gun2.g);
+  }
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   flash.scale.setScalar(0.7); flash.visible = false; gun.muzzle.add(flash);
   // スキルの道具（ほかの人から見える）：救急キットは胸の前に、フレアガンは左手に。見やすいよう大きめ
@@ -387,7 +394,7 @@ export function buildActor(ch, size, model = 'pistol', red = false): any {
   body.add(shield);
   flatten(root);
   scene.add(root);
-  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, flash, shield, shieldT: 0, eyes, xray, ghost, items, w, h, t };
+  return { root, body, piece, hitMesh: piece.userData.body, wood, gun, gun2, flash, shield, shieldT: 0, eyes, xray, ghost, items, w, h, t };
 }
 
 // ================= 遠くの駒の銃：簡単な形 =================

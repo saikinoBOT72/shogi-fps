@@ -79,7 +79,8 @@ export function paintFoe(full: boolean) {
   paintGun(botActor.gun, r, !full);
   if (r && !full) skinMaterials(skinKey(r));   // リプレイで使う材質も先に作っておく（リプレイの始まりで止まらないように）
 }
-export const pieceKeys = NORMAL_PIECES;
+// ランダムで出る駒：ふつうの駒と成駒（特殊駒は出ない）
+export const pieceKeys = () => Object.keys(PIECES).filter(k => !PIECES[k].special);
 export const resolveMe = () => (settings.myPiece === 'random' ? pieceKeys()[Math.floor(Math.random() * pieceKeys().length)] : pieceUsable(settings.myPiece) ? settings.myPiece : 'P');
 export function resolveFoe() {
   const k = settings.foePiece;

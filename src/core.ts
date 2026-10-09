@@ -63,7 +63,7 @@ export const WEAPONS = {
     move: 0.03, air: 0.09, ads: 0.35, mag: 17, reload: 1.5, auto: false, recoil: 0.016, falloff: [16, 38, 0.65], pref: 12,
   },
   pistol: {
-    name: 'デザートイーグル', model: 'pistol', dmg: 34, head: 1.7, rate: 0.5, spread: 0.012, bloomShot: 0.018, bloomMax: 0.05, bloomRecover: 0.12,
+    name: 'デザートイーグル', model: 'pistol', dmg: 29, head: 1.7, rate: 0.5, spread: 0.012, bloomShot: 0.018, bloomMax: 0.05, bloomRecover: 0.12,
     move: 0.03, air: 0.09, ads: 0.35, mag: 7, reload: 1.5, auto: false, recoil: 0.034, falloff: [20, 45, 0.7], pref: 12,
   },
   // ---------- 成駒の武器（元の武器と強さは同じくらい、性格が違う） ----------
