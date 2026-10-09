@@ -26,6 +26,7 @@ import { buildMGL } from './guns/mgl';
 import { buildVector } from './guns/vector';
 import { buildM4A1 } from './guns/m4a1';
 import { buildKatana } from './guns/katana';
+import { buildShuriken } from './guns/shuriken';
 import { TOON_RAMP, flatGeo, flatten, mat, toon } from './materials';
 export { TOON_RAMP, flatGeo, flatten, mat, toon };   // 前からの読み込み先を変えずに使えるように
 
@@ -188,7 +189,7 @@ export const GUN_BUILDERS = {
   pistol: buildPistol, burst: () => buildB93R({ hand: handMat }), bow: () => buildYumi({ hand: handMat }), sniper: undefined as any,
   mk2: () => buildMk2({ hand: handMat }), m870: () => buildM870({ hand: handMat }), mp5: () => buildMP5({ hand: handMat }),
   ak: () => buildAK47({ hand: handMat }), m79: () => buildM79({ hand: handMat }), karambit: () => buildKarambit({ hand: handMat }),
-  katana: () => buildKatana({ hand: handMat }),
+  katana: () => buildKatana({ hand: handMat }), shuriken: () => buildShuriken({ hand: handMat }),
   // 成駒の武器（と＝デザートイーグル pistol、歩は Glock になった）
   glock: () => buildGlock17({ hand: handMat }), awm: () => buildAWM({ hand: handMat }), xbow: () => buildCrossbow({ hand: handMat }),
   famas: () => buildFAMAS({ hand: handMat }), mgl: () => buildMGL({ hand: handMat }), vector: () => buildVector({ hand: handMat }), m4: () => buildM4A1({ hand: handMat }),

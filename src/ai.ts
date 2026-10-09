@@ -13,6 +13,7 @@ import { addDamageDir, heardFoe, hud, killPlayer } from './hud';
 import { Clones } from './clones';
 import { Sword } from './sword';
 import { swordTick } from './swordai';
+import { Ninja } from './ninja';
 
 // ================= CPU =================
 // 浮島のマップで、(x, z) の足もとに床が無い（落ちたら負け）か
@@ -381,6 +382,19 @@ export function updateBot(dt) {
         b.draw = 1;
         shootArrow(b, aim, bEye.clone().addScaledVector(aim, 0.7));
         b.fireDelay = Math.max(rand(D.gap[0], D.gap[1]), b.w.dmg / D.dps - b.w.reload);
+      }
+    } else if (b.w.kind === 'ninja') {
+      // 手裏剣（忍）：相手の動きと落ちを見越して投げる
+      if (los && b.seen > D.react && b.cd <= 0 && !holdFire() && b.fireDelay <= 0 && !b.coverPt && !busy) {
+        const tgt = b.aimPt.clone(), speed = b.w.speed;
+        let t = bEye.distanceTo(tgt) / speed;
+        const lead = player.vel.clone().multiplyScalar(D.lead);
+        for (let k = 0; k < 2; k++) t = bEye.distanceTo(tgt.clone().addScaledVector(lead, t)) / speed;
+        const p = tgt.clone().addScaledVector(lead, t); p.y += 0.5 * b.w.gravity * t * t;
+        const aim = p.sub(bEye).normalize(), err = D.err * 0.8;
+        aim.add(new V3(rand(-err, err), rand(-err, err), rand(-err, err))).normalize();
+        Ninja.aiThrow(b, aim);
+        b.fireDelay = Math.max(rand(D.gap[0], D.gap[1]), b.w.dmg / D.dps - b.w.rate);
       }
     } else if (b.w.kind === 'grenade') {
       // グレネード：相手の足元へ、動きと落ちを見越して撃つ（近すぎると自分も巻き込むので撃たない）

@@ -377,8 +377,9 @@ export function buildActor(ch, size, model = 'pistol', red = false): any {
   const gun = buildGun(model);
   gun.g.traverse(o => { o.castShadow = false; });   // 駒が持つ銃は影を落とさない（小さくてほとんど見えないため）
   // 相手から見て分かりやすいよう、銃と手は大きめ（1.4倍）。体の正面は +z なので、右手は -x 側
-  gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3, katana: 0.62, awm: 0.95, xbow: 1.05, famas: 1.3, mgl: 1.25, vector: 1.45, m4: 1.15 }[model] || 2.2) * 1.4 * size); gun.g.rotation.y = Math.PI;
+  gun.g.scale.setScalar(({ bow: 0.9, ak: 1.25, mk2: 1.15, m870: 1.15, mp5: 2.0, m79: 1.3, katana: 0.62, shuriken: 2.6, awm: 0.95, xbow: 1.05, famas: 1.3, mgl: 1.25, vector: 1.45, m4: 1.15 }[model] || 2.2) * 1.4 * size); gun.g.rotation.y = Math.PI;
   gun.g.position.set(-w * 0.55, h * 0.5, t + 0.16);
+  if (model === 'shuriken') gun.parts.star.rotation.x = -1.3;   // 忍：手の上の手裏剣を立てて面を前へ向ける（寝かせたままだと正面から線にしか見えない）
   body.add(gun.g);
   // 2丁持ち（と）：左手のデザートイーグル。早撃ちの間だけ見える
   let gun2 = null;

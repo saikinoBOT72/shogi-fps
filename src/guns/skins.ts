@@ -55,6 +55,11 @@ export const SKINS: Record<string, Skin> = {
     slide: { c: P.nezumi[2], metal: true, sheen: P.mizu[2] }, barrel: { c: P.shiro[1], metal: true, sheen: P.shiro[2] }, frame: { c: P.sumi[1], metal: true },
     grip: { c: P.sumi[0] }, detail: { c: P.shiro[0] }, accent: { c: P.kin[1], metal: true },
   },
+  shinobi: {    // 忍の手裏剣・苦無：slide 黒い地鉄 / barrel 研いだ刃先（明るい鋼）/ frame 座金・苦無の輪 / grip 苦無の柄巻き / detail 房 / accent 朱の輪
+    name: '黒鉄',
+    slide: { c: P.sumi[1], metal: true, sheen: P.nezumi[2] }, barrel: { c: P.shiro[1], metal: true, sheen: P.shiro[2] }, frame: { c: P.sumi[2], metal: true },
+    grip: { c: P.sumi[0] }, detail: { c: P.shu[1] }, accent: { c: P.shu[1] },
+  },
 
 };
 export const DEFAULT_SKIN = 'kurogane';

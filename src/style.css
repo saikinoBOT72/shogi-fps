@@ -241,6 +241,9 @@ input[type=range] { width: 180px; accent-color: var(--shiro-2) }
 #hm i { position: absolute; width: 3px; height: 11px; background: var(--text); left: -1.5px; top: -5.5px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--sumi-0) 40%, transparent) }
 #hm.head i { background: var(--accent-hi) }
 #hm.kill i { background: var(--danger); height: 16px; top: -8px }
+/* 忍：手裏剣の形（4枚の刃が外を向く三角） */
+#hm.nin i { width: 7px; height: 13px; left: -3.5px; top: -13px; clip-path: polygon(50% 0, 100% 100%, 50% 78%, 0 100%); box-shadow: none; transform-origin: 50% 100% }
+#hm.nin.kill i { height: 17px; top: -17px }
 /* 被弾の向き・低HP・被弾・突撃 */
 .dd { position: absolute; left: 50%; top: 50%; width: 280px; height: 280px; margin: -140px 0 0 -140px; border-radius: 50%;
   background: conic-gradient(from -20deg, color-mix(in srgb, var(--danger) 85%, transparent) 0deg, transparent 40deg);

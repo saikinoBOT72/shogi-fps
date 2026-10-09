@@ -62,7 +62,7 @@ export function showStamp(txt: string, en: string) {
 }
 export let hmT = 0;
 export function showHitmarker(kind) {
-  const h = $('hm'); h.className = kind; hmT = kind === 'kill' ? 0.5 : 0.22;
+  const h = $('hm'); h.className = kind + (player && player.w.kind === 'ninja' ? ' nin' : ''); hmT = kind === 'kill' ? 0.5 : 0.22;
 }
 export const dds = [];
 export function addDamageDir(from) {
@@ -119,7 +119,7 @@ export function initPips() {
   $('meBar').style.setProperty('--seg', String(Math.max(1, Math.round(player.def.hp / 10))));   // 体力の目盛りは 10 ずつ
   initSkills();
   $('pips').innerHTML = '';
-  if (player.w.kind !== 'melee' && player.w.kind !== 'sword') for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
+  if (player.w.kind !== 'melee' && player.w.kind !== 'sword' && player.w.kind !== 'ninja') for (let i = 0; i < player.w.mag; i++) $('pips').appendChild(document.createElement('i'));
   // 武器の名前：今持っている方を明るく
   const K = (settings as any).keys, knife = player.w.kind === 'melee';
   if (player.mainW.kind === 'sword') { $('wepName').innerHTML = `<span class="on">${player.mainW.name}</span>`; return; }   // 侍は刀だけ
@@ -157,7 +157,8 @@ export function updateHUD(dt) {
   const hm = $('hm');
   hm.style.opacity = hmT > 0 ? 1 : 0;
   const hs = 8 + Math.max(0, hmT) * 20;
-  [...hm.children].forEach((c, i) => { c.style.transform = `rotate(${45 + i * 90}deg) translateY(${-hs}px)`; });
+  const nin = hm.classList.contains('nin'), spin = nin ? (1 - Math.max(0, hmT) / 0.5) * 120 : 0;   // 手裏剣の形は回りながら閉じる
+  [...hm.children].forEach((c, i) => { c.style.transform = `rotate(${(nin ? spin : 45) + i * 90}deg) translateY(${-(nin ? hs * 0.55 : hs)}px)`; });
 
   for (let i = dds.length - 1; i >= 0; i--) {
     const d = dds[i]; d.t -= dt;
@@ -177,7 +178,7 @@ export function updateHUD(dt) {
   hud.hurt = Math.max(0, hud.hurt - dt * 2.2); setStyle($('hurt'), 'opacity', hud.hurt.toFixed(2));
   hud.dash = act(p, 'dash') ? 1 : Math.max(0, hud.dash - dt * 4); setStyle($('dashfx'), 'opacity', hud.dash.toFixed(2));
 
-  if (p.w.kind === 'melee' || p.w.kind === 'sword') {
+  if (p.w.kind === 'melee' || p.w.kind === 'sword' || p.w.kind === 'ninja') {
     setHTML('ammoNum', '—');
     setStyle($('reloadTxt'), 'opacity', '0');
   } else if (p.w.kind === 'bow') {
@@ -191,7 +192,7 @@ export function updateHUD(dt) {
     $('pips').classList.toggle('low', p.ammo <= 3 && p.w.mag > 3);   // 残り少ない目盛りは赤
     [...$('pips').children].forEach((c, i) => c.classList.toggle('e', i >= p.ammo));
   }
-  if (p.w.kind !== 'bow' && p.w.kind !== 'melee' && p.w.kind !== 'sword') {
+  if (p.w.kind !== 'bow' && p.w.kind !== 'melee' && p.w.kind !== 'sword' && p.w.kind !== 'ninja') {
     setStyle($('reloadTxt'), 'opacity', p.reloading > 0 ? '1' : (p.ammo === 0 ? (0.7 + Math.sin(performance.now() / 120) * 0.3).toFixed(2) : '0'));
     setText('reloadTxt', p.reloading > 0 ? 'リロード中' : 'R でリロード');
   }

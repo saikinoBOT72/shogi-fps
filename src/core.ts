@@ -30,6 +30,8 @@ export const PIECES = {
   K: { name: '王', value: 99, hp: 150, size: 1.0, speed: 6.2, jump: 7,   weapon: 'ar',       skills: ['pearl', 'turret'] },
   // 特殊駒（special）：今は開発者メニューの「特殊駒」をオンにしたときだけ、一騎打ちの自分・相手の駒に出る。将棋モード・ランダムには出ない
   SA: { name: '侍', value: 99, hp: 120, size: 0.9, speed: 7.2, jump: 7.5, weapon: 'katana', skills: ['blink', 'tornado'] },   // ふつうの駒として誰でも使える（一騎打ち・オンライン・CPU）。影分身（'clone'）・葉隠れ（'hagakure'）は外した（仕組みは残してある）
+  // 忍：連打で手裏剣を1枚ずつ、長押しで背中の後ろ上に苦無を並べて離すと続けて飛ばす（ninja.ts）。侍と同じく誰でも使える
+  NI: { name: '忍', value: 99, hp: 100, size: 0.8, speed: 7.6, jump: 9, weapon: 'shuriken', skills: ['shippu', 'kawarimi'] },
   // 成駒（promo：元の駒）：将棋モードで成った駒が一騎打ちでなる姿。字は盤と同じ赤い字（red）。ランダムには出ない
   //   性格：と＝成り上がりの足軽 / 成香＝重い狙撃手 / 成桂＝身軽な射手 / 成銀＝万能の兵 / 馬＝重装の砲兵 / 龍＝機動の切り込み役 / 帝＝威厳の王
   'P+': { name: 'と', value: 6, hp: 110, size: 0.8,  speed: 7.0, jump: 7.5, weapon: 'pistol', skills: ['dual', 'roll'], promo: 'P', red: true },
@@ -110,6 +112,12 @@ export const WEAPONS = {
     name: '刀', model: 'katana', kind: 'sword', dmg: 30, head: 1, range: 2.9, cone: 0.72, moveMul: 1.05,
     waveDmg: 16, waveSpeed: 45, waveRange: 50, waveR: 0.5,
     rate: 0.3, spread: 0, bloomShot: 0, bloomMax: 0, bloomRecover: 1, move: 0, air: 0, ads: 1, mag: 1, reload: 0.1, auto: true, recoil: 0, falloff: [999, 1000, 1], pref: 3,
+  },
+  // 手裏剣（忍）：押した瞬間に1枚投げる（弾数・リロードなし）。少し落ちながら回って飛ぶ（arrows.ts の kind 'shuriken'）
+  //   speed：飛ぶ速さ / gravity：落ち方
+  shuriken: {
+    name: '手裏剣', model: 'shuriken', kind: 'ninja', dmg: 22, head: 1.5, speed: 55, gravity: 5, drag: 0, rate: 0.3, spread: 0.006, bloomShot: 0, bloomMax: 0, bloomRecover: 1,
+    move: 0.01, air: 0.02, ads: 1, mag: 1, reload: 0.1, auto: false, recoil: 0, falloff: [999, 1000, 1], pref: 12,
   },
   // 連射で押し切る。近〜中距離
   smg: {
@@ -247,6 +255,13 @@ export const SKILLS = {
   // 発煙筒を投げ、落ちた所のまわり（area m）に time 秒、count 発の砲弾がばらばらに降る。自分が巻き込まれたときは self 倍
   airstrike: { name: '空爆要請', type: 'airstrike', cooldown: 50, duration: 0, speed: 32, delay: 2, time: 6, count: 30, area: 8, dmg: 32, radius: 3.8, knock: 6, lift: 5, self: 0.25, damageTaken: 1,
     help: 'キーを押している間は投げる線が出て、離すと発煙筒を投げる。2秒後、落ちた所のまわり8mに6秒間砲弾が降り続ける（自分が巻き込まれても少ししか減らない）' },
+  // ---------- 忍のスキル ----------
+  // 残像疾風：duration 秒、speedMul 倍の速さで走れて無敵（damageTaken 0）。攻撃する・もう一度押すと終わる
+  shippu: { name: '残像疾風', type: 'shippu', cooldown: 22, duration: 3, speedMul: 2.6, damageTaken: 0,
+    help: '3秒間、残像を残して超高速で動ける・その間は無敵（攻撃すると終わる）' },
+  // 変わり身：構えてから duration 秒の間に受けた次の攻撃を丸太と入れ替わってよける。dist m 飛び、inv 秒は何も当たらない
+  kawarimi: { name: '変わり身', type: 'kawarimi', cooldown: 25, duration: 15, dist: 5, inv: 0.35, damageTaken: 1,
+    help: '構えてから15秒の間に受けた次の攻撃を丸太と入れ替わってよける（左右前を押していればその向き、押していなければ後ろへ）' },
   tornado: { name: '竜巻', type: 'tornado', cooldown: 30, duration: 1.1, radius: 16, pull: 16, lift: 3, damageTaken: 1, help: 'まわり16mの相手を1秒ほど自分の方へ引き寄せる' },
 };
 export const skillType = e => SKILLS[e.def.skill].type;

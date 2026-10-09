@@ -1,9 +1,10 @@
 // 矢（弓の弾）：重力で落ちる飛び道具。刺さった矢はしばらく残る。追尾の矢は相手を追いかける
+//   kind：'arrow' 矢（ふつう）/ 'shuriken' 忍の手裏剣（回りながら飛ぶ。光の輪と白い尾。壁には刃の1本を斜めに立てて刺さる）
 import { Net } from './net';
 import { Gadgets } from './gadgets';
 import { P } from './palette';
 import * as THREE from 'three';
-import { C, V3 } from './core';
+import { C, V3, rand } from './core';
 import { SFX } from './audio';
 import { mat, scene, toon } from './render';
 import { PHYS, blockers, physOf } from './physics';
@@ -11,6 +12,8 @@ import { Particles } from './effects';
 import { act, botActor, damageBot, eyeOf, player, ray, skillDamageMul } from './game';
 import { damagePlayer } from './ai';
 import { applyPoison } from './promo';
+import { skinMaterials } from './guns/skins';
+import { starMeshGeo } from './guns/shuriken';
 
 export const Arrows = (() => {
   const shaftGeo = new THREE.CylinderGeometry(0.016, 0.016, 1, 5); shaftGeo.rotateX(Math.PI / 2);
@@ -20,6 +23,34 @@ export const Arrows = (() => {
   const featherM = toon({ color: C(P.shu[1]), side: THREE.DoubleSide, roughness: 0.9 });
   const glowM = toon({ color: C(P.kiji[0]), emissive: C(P.mizu[1]), emissiveIntensity: 1.2 });
   const TIP = 0.56;   // 矢の中心から先端まで
+  const STAR = 1.8, STAR_TIP = 0.05 * STAR;   // 飛ぶ手裏剣は見やすいよう本物の 1.8 倍・中心から刃先まで
+  const KINDS = ['arrow', 'shuriken'];
+  // 手裏剣の回る残光：刃先のまわりの細い光の輪
+  const ringGeo = new THREE.RingGeometry(STAR_TIP * 0.86, STAR_TIP * 1.04, 28); ringGeo.rotateX(-Math.PI / 2);
+  const ringM = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  let starParts = null;
+  function makeStar() {
+    if (!starParts) { const m = skinMaterials('shinobi'); starParts = Object.entries(starMeshGeo(STAR)).map(([k, g]) => [g, m[k] || m.frame]); }
+    const g = new THREE.Group(), spin = new THREE.Group(); g.add(spin);
+    for (const [geo, m] of starParts) { const x = new THREE.Mesh(geo, m); x.castShadow = true; spin.add(x); }
+    const ring = new THREE.Mesh(ringGeo, ringM); g.add(ring);
+    g.userData.spin = spin; g.userData.ring = ring; g.userData.kind = 'shuriken';
+    return g;
+  }
+  const makeOf = (kind, homing) => (kind === 'shuriken' ? makeStar() : makeArrow(homing));
+  const tipOf = a => (a.kind === 'shuriken' ? STAR_TIP : TIP);
+  // 刺さった手裏剣：回るのをやめ、刃の1本を前（刺さる向き）へ向けて斜めに立てる
+  function plant(a, point, dir) {
+    const u = a.mesh.userData;
+    u.spin.rotation.y = Math.PI / 4; u.ring.visible = false;
+    a.mesh.position.copy(point);
+    a.mesh.lookAt(point.clone().add(dir));
+    a.mesh.rotateZ(rand(-1.2, 1.2)); a.mesh.rotateX((Math.random() < 0.5 ? -1 : 1) * rand(0.45, 0.85));   // 刃先を軸に斜めに倒す（面が見える）
+    // 前を向いた刃の先が、当たった所から少し奥（0.028m）に埋まるように置き直す
+    a.mesh.updateMatrixWorld(true);
+    const tip = a.mesh.localToWorld(new V3(0, 0, STAR_TIP));
+    a.mesh.position.add(point.clone().addScaledVector(dir, 0.028).sub(tip));
+  }
 
   function makeArrow(homing) {
     const g = new THREE.Group();
@@ -30,13 +61,13 @@ export const Arrows = (() => {
   }
 
   const live = [], stuck = [], ghosts = [];
-  const orient = a => { a.mesh.position.copy(a.pos); a.mesh.lookAt(a.pos.clone().add(a.vel)); };
+  const orient = a => { a.mesh.position.copy(a.pos); a.mesh.lookAt(a.pos.clone().add(a.vel)); if (a.roll) a.mesh.rotateZ(a.roll); if (a.tilt) a.mesh.rotateX(a.tilt); };   // tilt：手裏剣の面を前後へ傾ける（真後ろ・真正面から線に見えないように）
   const chestOf = e => new V3(e.pos.x, e.pos.y + e.height * 0.6, e.pos.z);
 
-  // o: { owner, target, pos, vel, dmg, head, gravity, homing, turn }
+  // o: { owner, target, pos, vel, dmg, head, gravity, homing, turn, kind?, roll?, tilt? }（roll・tilt：手裏剣の傾き）
   function fire(o) {
-    const a = Object.assign({}, o, { pos: o.pos.clone(), vel: o.vel.clone(), life: 6, whiz: false });
-    a.mesh = makeArrow(a.homing);
+    const a = Object.assign({ kind: 'arrow' }, o, { pos: o.pos.clone(), from: o.pos.clone(), vel: o.vel.clone(), life: 6, whiz: false });   // from：手裏剣の白い尾は手元から少し離れてから（目の前に大きく出ないように）
+    a.mesh = makeOf(a.kind, a.homing);
     scene.add(a.mesh); orient(a);
     live.push(a);
   }
@@ -59,7 +90,8 @@ export const Arrows = (() => {
       damageBot({ dmg, head, point, po: a.poison ? 1 : 0 });
       SFX.play('ding');   // 当たった「ピン」
       // 駒に刺さったまま残る
-      a.mesh.position.copy(point).addScaledVector(dir, 0.25 - TIP);
+      if (a.kind === 'shuriken') plant(a, point, dir);
+      else a.mesh.position.copy(point).addScaledVector(dir, 0.25 - TIP);
       botActor.body.attach(a.mesh); keepStuck(a.mesh);
     } else {
       if (!Net.on) damagePlayer(dmg, a.owner.pos);
@@ -71,6 +103,7 @@ export const Arrows = (() => {
     a.mesh.position.copy(wall.point).addScaledVector(dir, 0.22 - TIP);
     const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld) : dir.clone().negate();
     Particles.impact(wall.point, n);
+    if (a.kind === 'shuriken') { plant(a, wall.point, dir); for (let k = 0; k < 6; k++) Particles.glow(wall.point, P.kin[2]); }   // 鋼が当たった火花
     SFX.play('arrowHit', wall.point);
     // タレット歩：銃と同じくダメージを与える（壊れたあと宙に浮かないよう、矢は刺さらずに消える）
     const tur = Gadgets.turretOfHit(wall.object);
@@ -98,11 +131,12 @@ export const Arrows = (() => {
         a.vel.y -= a.gravity * dt;
         a.vel.multiplyScalar(Math.max(0, 1 - a.drag * dt));
         // 飛んだ弧が見えるように白い尾を残す
-        if (Math.random() < 0.85) Particles.trail(a.pos, a.full ? P.kin[2] : P.shiro[2]);
+        if (Math.random() < 0.85 && (a.kind !== 'shuriken' || a.pos.distanceTo(a.from) > 2.5)) Particles.trail(a.pos, a.full ? P.kin[2] : P.shiro[2]);
       }
+      if (a.kind === 'shuriken') a.mesh.userData.spin.rotation.y -= 42 * dt;   // 高速で回る
 
       const step = a.vel.clone().multiplyScalar(dt), len = step.length(), dir = step.clone().normalize();
-      ray.set(a.pos, dir); ray.far = len + TIP;
+      ray.set(a.pos, dir); ray.far = len + tipOf(a);
       const wall = ray.intersectObjects(blockers, true)[0];
       let hit = null;
       if (!tgt.dead) {
@@ -112,7 +146,7 @@ export const Arrows = (() => {
         } else {
           const r = tgt.radius, p = tgt.pos;
           const hp = ray.ray.intersectBox(new THREE.Box3(new V3(p.x - r, p.y, p.z - r), new V3(p.x + r, p.y + tgt.height, p.z + r)), new V3());
-          if (hp && hp.distanceTo(a.pos) <= len + TIP) hit = { point: hp, dist: hp.distanceTo(a.pos) };
+          if (hp && hp.distanceTo(a.pos) <= len + tipOf(a)) hit = { point: hp, dist: hp.distanceTo(a.pos) };
         }
       }
       ray.far = Infinity;
@@ -132,18 +166,21 @@ export const Arrows = (() => {
     showGhosts([]);
   }
   // キルカム用：飛んでいる矢の位置と向き
-  function snapshot() { return live.map(a => [a.pos.x, a.pos.y, a.pos.z, a.mesh.quaternion.x, a.mesh.quaternion.y, a.mesh.quaternion.z, a.mesh.quaternion.w, a.homing ? 1 : 0]); }
+  function snapshot() { return live.map(a => [a.pos.x, a.pos.y, a.pos.z, a.mesh.quaternion.x, a.mesh.quaternion.y, a.mesh.quaternion.z, a.mesh.quaternion.w, a.homing ? 1 : 0, KINDS.indexOf(a.kind), a.mesh.userData.spin ? a.mesh.userData.spin.rotation.y : 0]); }
   function showGhosts(list) {
     while (ghosts.length < list.length) { const g = makeArrow(false); scene.add(g); ghosts.push(g); }
     ghosts.forEach((g, i) => {
       const s = list[i];
+      // 種類が違えば作り直す（矢 ↔ 手裏剣）
+      const kind = s ? KINDS[s[8] || 0] || 'arrow' : null;
+      if (s && (g.userData.kind || 'arrow') !== kind) { scene.remove(g); g = ghosts[i] = makeOf(kind, false); scene.add(g); }
       g.visible = !!s;
-      if (s) { g.position.set(s[0], s[1], s[2]); g.quaternion.set(s[3], s[4], s[5], s[6]); }
+      if (s) { g.position.set(s[0], s[1], s[2]); g.quaternion.set(s[3], s[4], s[5], s[6]); if (g.userData.spin) g.userData.spin.rotation.y = s[9] || 0; }
     });
   }
   function setLiveVisible(v) { live.forEach(a => { a.mesh.visible = v; }); }
 
   // 読み込み時の事前準備用（初めて撃ったときに固まらないように）
-  const samples = () => [makeArrow(false), makeArrow(true)];
+  const samples = () => [makeArrow(false), makeArrow(true), makeStar()];
   return { fire, update, clear, snapshot, showGhosts, setLiveVisible, samples, last: () => live[live.length - 1] };
 })();

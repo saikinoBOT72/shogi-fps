@@ -43,7 +43,7 @@ const ICONS: Record<string, string> = {
 // ================= 設定 =================
 // 武器の種類（撃ち方の設定はこの単位）。ナイフは設定がないので入れない
 const CATS: [string, string][] = [['hand', 'ハンドガン'], ['auto', '連射'], ['sniper', 'スナイパー'], ['shotgun', 'ショットガン'], ['launcher', 'グレネード'], ['bow', '弓'], ['sword', '刀']];
-export const catOf = (w: any) => w.kind === 'melee' ? 'knife' : w.kind === 'sword' ? 'sword' : w.kind === 'bow' ? 'bow' : w.kind === 'grenade' ? 'launcher'
+export const catOf = (w: any) => w.kind === 'melee' ? 'knife' : w.kind === 'sword' || w.kind === 'ninja' ? 'sword' : w.kind === 'bow' ? 'bow' : w.kind === 'grenade' ? 'launcher'
   : (w.pellets || 1) > 1 ? 'shotgun' : w.zoom && w.zoom <= 30 ? 'sniper' : w.auto ? 'auto' : 'hand';
 // fire：'press' 押したら撃つ / 'release' 離したら撃つ　adsFire：撃つボタンで覗きも開く　ads：'toggle' タップで切り替え / 'hold' 押している間　adsSens：覗いている間の視点の速さ（倍）
 const wDef = (c: string) => ({ fire: c === 'sniper' ? 'release' : 'press', adsFire: c === 'sniper', ads: 'toggle', adsSens: 1 });
@@ -134,7 +134,7 @@ function hit(x: number, y: number) {
   });
   return best;
 }
-const gunLike = (k: string) => k !== 'sword' && k !== 'melee';
+const gunLike = (k: string) => k !== 'sword' && k !== 'melee' && k !== 'ninja';
 function start(t: Touch) {
   const x = t.clientX, y = t.clientY, b = hit(x, y);
   if (b) {
@@ -265,7 +265,7 @@ export function touchTick() {
   if (isPlaying()) syncAds();
   btn('cancel').classList.toggle('hide', !releaseHeld());
   // 刀・ナイフのときは銃のアイコンを隠して字だけ
-  for (const id of ['fire', 'fire2']) { btn(id).classList.toggle('txt', !gunLike(kind)); txt(btn(id), 'b', gunLike(kind) ? '' : '斬る'); }
+  for (const id of ['fire', 'fire2']) { btn(id).classList.toggle('txt', !gunLike(kind)); txt(btn(id), 'b', gunLike(kind) ? '' : kind === 'ninja' ? '投げる' : '斬る'); }
   btn('ads').classList.toggle('txt', kind === 'sword');
   txt(btn('ads'), 'b', kind === 'sword' ? '構え' : '');
   btn('ads').classList.toggle('off', kind === 'melee');

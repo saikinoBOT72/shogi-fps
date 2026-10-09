@@ -23,6 +23,7 @@ import { eyeOf, surfOf, hasLOS, act, moveEntity, tryJump } from './game/move';
 import { currentSpread, canFire, holdFire, startReload, weaponTick, facingOf, skillDamageMul, fire } from './game/weapons';
 import { Sword } from './sword';
 import { Clones } from './clones';
+import { Ninja } from './ninja';
 import { Promo, callAirstrike, showThrowArc, spawnDome, startTornado, tossFlare } from './promo';
 export * from './game/move';
 export * from './game/weapons';
@@ -114,7 +115,7 @@ export function resetMatch(foeType?, myPick?: string) {   // myPick：対局の�
   botActor.body.rotation.set(0, 0, 0); botActor.body.position.y = 0; botActor.dead = null; botActor.root.visible = true;
   playerActor.body.rotation.set(0, 0, 0); playerActor.dead = null;
   Replay.clear();
-  Arrows.clear(); Grenades.clear(); Smoke.clear(); Gadgets.clear(); Promo.clear(); Sword.clear(); Clones.clear();
+  Arrows.clear(); Grenades.clear(); Smoke.clear(); Gadgets.clear(); Promo.clear(); Sword.clear(); Clones.clear(); Ninja.clear();
   botActor.wood.emissive.setHex(0);
   Decals.clear();
   PHYS.reset();
@@ -162,6 +163,7 @@ export function useSkill(e, i, dir, force = false) {
   if (sk.type === 'missile' && Gadgets.ctrlOf(e)) { Gadgets.release(e); return true; }
   // 鉤縄（2回）：引き寄せられている途中なら、縄を掛け替えて勢いのまま向きを変える
   const chain = sk.type === 'grapple' && sk.chain && s.t > 0 && s.charges > 0;
+  if (sk.type === 'shippu' || sk.type === 'kawarimi') { if (!e.isBot) SFX.play('empty'); return false; }   // 忍のスキルはまだ作っていない（段階3・4でここを外す）
   if (!force && e.empT > 0) { if (!e.isBot) SFX.play('empty'); return false; }   // EMP を受けている間はスキルが使えない
   if (!force && (s.charges <= 0 || (s.t > 0 && !chain))) return false;
   if (!force && e.slots.some(x => x !== s && x.t > 0 && ['dash', 'step', 'leap', 'grapple', 'blink', 'roll'].includes(x.sk.type))) return false;   // 動くスキルの最中は重ねない
@@ -389,6 +391,8 @@ export function updatePlayer(dt) {
     }
     return;
   }
+  // 手裏剣（忍）：押した瞬間に1枚（ninja.ts）
+  if (p.w.kind === 'ninja') { Ninja.input(p, !!gs.mouseDown, dt); return; }
   if (down('reload')) startReload(p);
   if (p.w.kind === 'xbow') {
     if (gs.mouseDown && !gs.triggerUsed) {

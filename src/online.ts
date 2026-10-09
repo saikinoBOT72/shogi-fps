@@ -160,8 +160,9 @@ Net.onMsg = (m: any) => {
     case 'slow': if (inMatch() || gs.state === 'end') Sword.remoteSlow(m.s | 0); break;   // 刀が当たった：2人とも白黒スロー
     case 'arrow':
       if (!inMatch()) break;
-      Arrows.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, head: m.hd, gravity: m.g, drag: m.dr || 0, homing: !!m.hm, turn: m.tu || 0, full: !!m.fu });
-      SFX.play('bow', V(m.p)); heardFoe(V(m.p), 'shot');
+      Arrows.fire({ owner: bot, target: player, pos: V(m.p), vel: V(m.v), dmg: m.dmg, head: m.hd, gravity: m.g, drag: m.dr || 0, homing: !!m.hm, turn: m.tu || 0, full: !!m.fu,
+        kind: m.k === 'shuriken' ? 'shuriken' : 'arrow', roll: +m.ro || 0, tilt: +m.ti || 0 });   // k：忍の手裏剣
+      SFX.play(m.k === 'shuriken' ? 'swing' : 'bow', V(m.p)); heardFoe(V(m.p), 'shot');
       break;
     case 'gren':
       if (!inMatch()) break;
