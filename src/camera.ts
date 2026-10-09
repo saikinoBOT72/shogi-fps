@@ -267,7 +267,10 @@ export function animateActor(A, e, dt, lookAt) {
   A.body.position.y = hop * 0.11 * mk;
   const rl = act(e, 'roll');
   if (rl) {
-    const k = 1 - rl.t / rl.sk.duration, dl = rl.dir.clone().applyAxisAngle(new V3(0, 1, 0), -inv);
+    // 転がる向き：リプレイの駒（向きを持たない）は動いている向き
+    const rd = rl.dir ? rl.dir.clone() : new V3(e.vel.x, 0, e.vel.z);
+    if (rd.lengthSq() < 1e-4) rd.set(Math.sin(inv), 0, Math.cos(inv));
+    const k = clamp(1 - rl.t / rl.sk.duration, 0, 1), dl = rd.normalize().applyAxisAngle(new V3(0, 1, 0), -inv);
     const q = new THREE.Quaternion().setFromAxisAngle(new V3(dl.z, 0, -dl.x).normalize(), k * Math.PI * 2);
     const c = new V3(0, A.h * 0.5, 0);
     A.body.quaternion.copy(q);
