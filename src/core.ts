@@ -77,7 +77,7 @@ export const WEAPONS = {
   },
   // 3点バースト。1回押すと3発、次のバーストまで間が空く。跳ね上がりが強く扱いにくい
   famas: {
-    name: 'FAMAS', model: 'famas', dmg: 21, head: 1.5, rate: 0.38, burst: 3, burstGap: 0.065, spread: 0.017, bloomShot: 0.013, bloomMax: 0.05, bloomRecover: 0.11,
+    name: 'FAMAS', model: 'famas', dmg: 17, head: 1.5, rate: 0.42, burst: 3, burstGap: 0.065, spread: 0.017, bloomShot: 0.013, bloomMax: 0.05, bloomRecover: 0.11,
     move: 0.035, air: 0.09, ads: 0.45, mag: 24, reload: 2.1, auto: false, recoil: 0.03, falloff: [18, 38, 0.65], pref: 14,
   },
   mgl: {
@@ -94,7 +94,7 @@ export const WEAPONS = {
   },
   // 3発バースト（銀）。1発が重く、撃つほど上に跳ねる癖の強い銃。burstGap: バースト内の間隔
   burst: {
-    name: 'ベレッタ 93R', model: 'burst', dmg: 26, head: 1.6, rate: 0.42, burst: 3, burstGap: 0.07, spread: 0.016, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
+    name: 'ベレッタ 93R', model: 'burst', dmg: 20, head: 1.6, rate: 0.48, burst: 3, burstGap: 0.07, spread: 0.016, bloomShot: 0.02, bloomMax: 0.06, bloomRecover: 0.1,
     move: 0.035, air: 0.09, ads: 0.4, scopeSize: 0.4, scopeSway: 1, reticle: 'dot', mag: 15, reload: 1.6, auto: false, recoil: 0.034, falloff: [15, 35, 0.6], pref: 11,
   },
   // ナイフ（全員が持つ）：目の前を切りつける。ダメージは弱め、背中からは back 倍
