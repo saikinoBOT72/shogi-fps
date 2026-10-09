@@ -65,7 +65,7 @@ export function loop(now) {
   // 高い所（屋上・浮島）でも影の範囲に入るよう、高さも合わせる
   sun.target.position.set(sc.x, sc.y, sc.z); sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 60);
   gs.sndBudget = 4;
-  SFX.ambience(gs.state === 'board' ? null : mapId);   // 環境音（盤面では流さない）
+  SFX.ambience(gs.state === 'board' || gs.state === 'title' ? null : mapId);   // 環境音（盤面・タイトルや控室などのメニューでは流さない）
   Weather.update(rdt, gs.paused && !Net.on ? 0 : dt, gs.state !== 'board');   // 雪の温泉街の雪・湯けむり・足跡
 
   updateVsCut();
