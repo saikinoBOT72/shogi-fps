@@ -67,7 +67,7 @@ const mines: any[] = [];
 function makeMine() {
   const g = new THREE.Group();
   const body = new THREE.Mesh(mineGeo, mineM); body.castShadow = true;
-  const light = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.06), mineLight); light.position.y = 0.06; light.name = 'light';
+  const light = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.06), mineLight); light.position.y = 0.06; light.name = 'light'; g.userData.light = light;   // リプレイで点滅も再現する
   g.add(body, light);
   return g;
 }

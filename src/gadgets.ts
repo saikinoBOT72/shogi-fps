@@ -281,7 +281,7 @@ const turretW = { dmg: 8, head: 1, falloff: [15, 35, 0.6], model: 'pistol' };
 function makeTurret() {
   const g = new THREE.Group();
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.3, 8), toon({ color: C(P.sumi[1]) })); base.position.y = 0.15; g.add(base);
-  const head = new THREE.Group(); head.name = 'head'; head.position.y = 0.3; g.add(head);
+  const head = new THREE.Group(); head.name = 'head'; head.position.y = 0.3; g.add(head); g.userData.head = head;   // リプレイで向きも再現する
   // 駒の形の原点は真ん中あたりなので、下の端が台の上にくるように持ち上げる（前を向くよう裏返す）
   if (!pieceGeo.boundingBox) pieceGeo.computeBoundingBox();
   const bb = pieceGeo.boundingBox, k = 0.75, ph = (bb.max.y - bb.min.y) * k;
@@ -378,12 +378,14 @@ export const Gadgets = {
   update(dt) { updateRopes(); if (dt <= 0) return; updateC4(dt); updateMissiles(dt); updateThrows(dt); updateRings(dt); updateBubbles(dt); updateTurrets(dt); },
   clear() { [...turrets].forEach(T => breakTurret(T, false)); reg.forEach(o => scene.remove(o)); reg.length = 0; c4s.length = 0; missiles.length = 0; throws.length = 0; rings.length = 0; bubbles.length = 0; gs.flash = 0; },
   // リプレイ用：出ている物の位置・大きさ・濃さ
-  snapshot: () => reg.map((o, i) => (o.visible ? [i, o.position.x, o.position.y, o.position.z, o.rotation.x, o.rotation.y, o.rotation.z, o.scale.x, opOf(o)] : null)).filter(Boolean),
+  snapshot: () => reg.map((o, i) => (o.visible ? [i, o.position.x, o.position.y, o.position.z, o.rotation.x, o.rotation.y, o.rotation.z, o.scale.x, opOf(o), o.userData.light ? +o.userData.light.visible : -1, o.userData.head ? o.userData.head.rotation.y : 0] : null)).filter(Boolean),   // 地雷の光・タレットの向き
   restore(s) {
     reg.forEach(o => { o.visible = false; });
-    for (const [i, x, y, z, rx, ry, rz, sc, op] of s) {
+    for (const [i, x, y, z, rx, ry, rz, sc, op, lt, hy] of s) {
       const o: any = reg[i]; if (!o) continue;
       o.visible = true; o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.scale.setScalar(sc);
+      if (o.userData.light && lt >= 0) o.userData.light.visible = !!lt;
+      if (o.userData.head) o.userData.head.rotation.y = hy || 0;
       if (o.material && o.material.uniforms && o.material.uniforms.uOp) o.material.uniforms.uOp.value = op;
       else if (o.material && o.material.opacity !== undefined) o.material.opacity = op;
     }

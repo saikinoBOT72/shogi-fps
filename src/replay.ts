@@ -38,14 +38,14 @@ export const Replay = (() => {
 
   const ui = document.createElement('div');
   ui.id = 'killcam';
-  ui.innerHTML = `<div id="kcScope"></div><div id="kcHurt"></div><div id="kcFlash"></div>
+  ui.innerHTML = `<div id="kcScope"></div><div id="kcHurt"></div><div id="kcFlash"></div><div class="kc-fx cloak" id="kcCloak"></div><div class="kc-fx buff" id="kcBuff"></div>
     <div class="kc-xh"></div><div class="kc-hm" id="kcHm"><i></i><i></i><i></i><i></i></div>
     <div class="kc-top"><b id="kcTitle"></b><span id="kcWho"></span></div>
     <div class="kc-bars"><div class="kc-bar"><span id="kcName0"></span><i><b id="kcHp0"></b></i></div><div class="kc-bar foe"><span id="kcName1"></span><i><b id="kcHp1"></b></i></div></div>
     <div class="kc-skip" id="kcSkip">クリックでスキップ</div><div class="kc-pip" id="kcPip"><span>やられた側</span></div>`;
   document.body.appendChild(ui);
 
-  // ================= 小さい画面：やられた側の視点（右下・画面の約 1/8） =================
+  // ================= 小さい画面：やられた側の視点（左下・画面の約 1/8） =================
   // リプレイの間だけ、記録からもう1回描く（試合中は何も増えない）。銃は専用の小さな場面に作る（2丁持ち用の左の銃も）
   const pip = { cam: new THREE.PerspectiveCamera(60, 1, 0.1, 2000), vmCam: new THREE.PerspectiveCamera(58, 1, 0.004, 10), scene: new THREE.Scene(), root: new THREE.Group(), m: null as any, kick: 0, kickL: 0, leftShot: false, look: new V3(), bob: 0,
     leftMirror: new THREE.Group(), leftRoot: new THREE.Group(), left: null as any };
@@ -268,6 +268,11 @@ export const Replay = (() => {
     $('kcHp0').style.transform = `scaleX(${Math.max(0, pov.hp / povMax).toFixed(3)})`;
     $('kcHp1').style.transform = `scaleX(${Math.max(0, tgt.hp / tgtMax).toFixed(3)})`;
     $('kcFlash').style.opacity = Math.min(1, pov.bl || 0).toFixed(2);   // フラッシュ・フレアの目くらみ
+    // 視点の駒のスキル：透明化・葉隠れ（画面の縁が青く）・身体強化（金色）・透視（相手が壁越しに見える）
+    $('kcCloak').style.opacity = !me.dead && (act(me, 'cloak') || Sword.hidden(me)) ? '1' : '0';
+    $('kcBuff').style.opacity = !me.dead && act(me, 'buff') ? '1' : '0';
+    const vicA = P.win ? botActor : playerActor, vic = P.win ? P.fb : P.fp;
+    vicA.xray.visible = !!act(me, 'xray') && !vic.dead;
 
     Tracers.update(dt); Particles.update(dt); DmgNums.update(dt);
     if (P.time >= P.endT) finish();
@@ -301,14 +306,13 @@ export const Replay = (() => {
     pip.kickL = Math.max(0, pip.kickL - dt * 9);
     if (du) { pip.leftRoot.position.set(base.x, base.y, base.z + pip.kickL * 0.07); pip.leftRoot.rotation.set(pip.kickL * 0.22, 0, 0); }
   }
-  // 大きい画面を描いたあとに呼ぶ（main.ts）：右下の四角にだけ描く。体力バーはそのすぐ上
+  // 大きい画面を描いたあとに呼ぶ（main.ts）：左下の四角にだけ描く（体力バーは右下）
   function renderPip() {
     const P = play;
     if (!P || !pip.m) return;
     const box = $('kcPip'), W = innerWidth, H = innerHeight, w = Math.round(W * 0.35), h = Math.round(H * 0.35);
-    const x = W - w - 16, y = 16;
-    Object.assign(box.style, { display: 'block', right: '16px', bottom: y + 'px', width: w + 'px', height: h + 'px' });
-    (ui.querySelector('.kc-bars') as HTMLElement).style.bottom = (y + h + 8) + 'px';
+    const x = 16, y = 16;
+    Object.assign(box.style, { display: 'block', left: x + 'px', bottom: y + 'px', width: w + 'px', height: h + 'px' });
     box.classList.toggle('dead', !!(P.win ? frames[P.i].b.dead : frames[P.i].p.dead));
     const vicA = P.win ? botActor : playerActor, shA = P.win ? playerActor : botActor;
     vicA.root.visible = false; shA.root.visible = true;
@@ -336,7 +340,8 @@ export const Replay = (() => {
     botActor.root.visible = true;
     botActor.dead = bot.dead ? { a: Math.PI / 2, v: 0 } : null;
     botActor.body.rotation.set(bot.dead ? -Math.PI / 2 : 0, 0, 0);
-    ui.style.display = 'none'; $('kcPip').style.display = 'none'; $('kcFlash').style.opacity = '0';
+    ui.style.display = 'none'; $('kcPip').style.display = 'none'; $('kcFlash').style.opacity = '0'; $('kcCloak').style.opacity = '0'; $('kcBuff').style.opacity = '0';
+    playerActor.xray.visible = false;
     Sword.kcBlink = false;
     play = null;
     gs.state = 'end'; gs.mouseDown = false; gs.rightDown = false;
