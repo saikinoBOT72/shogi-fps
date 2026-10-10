@@ -116,7 +116,7 @@ export const WEAPONS = {
   // 手裏剣（忍）：押した瞬間に1枚投げる（弾数・リロードなし）。少し落ちながら回って飛ぶ（arrows.ts の kind 'shuriken'）
   //   speed：飛ぶ速さ / gravity：落ち方
   shuriken: {
-    name: '手裏剣', model: 'shuriken', kind: 'ninja', dmg: 22, head: 1.5, speed: 55, gravity: 5, drag: 0, rate: 0.6, spread: 0.006, bloomShot: 0, bloomMax: 0, bloomRecover: 1,
+    name: '手裏剣', model: 'shuriken', kind: 'ninja', dmg: 22, head: 1.5, speed: 55, gravity: 5, drag: 0, rate: 0.3, spread: 0.006, bloomShot: 0, bloomMax: 0, bloomRecover: 1,
     move: 0.01, air: 0.02, ads: 1, mag: 1, reload: 0.1, auto: false, recoil: 0, falloff: [999, 1000, 1], pref: 12,
   },
   // 連射で押し切る。近〜中距離
