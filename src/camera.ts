@@ -93,7 +93,7 @@ export function updateCamera(dt, rdt) {
   SFX.listener(cam);
 
   // 透視中は相手が壁越しに見える
-  botActor.xray.visible = !!act(p, 'xray') && !bot.dead;
+  botActor.xray.visible = (!!act(p, 'xray') || bot.markT > 0) && !bot.dead;   // 透視・忍の手裏剣の印
   poseViewModel(p, rdt, swayX, swayY, bobX, bobY);
 }
 

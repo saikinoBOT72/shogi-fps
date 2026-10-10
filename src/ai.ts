@@ -237,7 +237,7 @@ export function updateBot(dt) {
     if (los) { b.seen += dt; b.lostT = 0; b.lastKnown.copy(T.pos); b.flankSide = 0; }
     else { b.seen = Math.max(0, b.seen - dt * 2); b.lostT += dt; }
     // 透視中は、見えていなくても居場所が分かる
-    if (!los && act(b, 'xray')) { b.lastKnown.copy(player.pos); b.lostT = Math.min(b.lostT, 0.5); }
+    if (!los && (act(b, 'xray') || player.markT > 0)) { b.lastKnown.copy(player.pos); b.lostT = Math.min(b.lostT, 0.5); }   // 透視中・忍の手裏剣の印が付いている間
     // 鬼畜の勘：見失って2秒たつと、だいたいの居場所（数mずれる）が分かる
     if (D.oni && !los && b.lostT > 2) {
       b.senseT = (b.senseT || 0) - dt;
@@ -384,7 +384,7 @@ export function updateBot(dt) {
         b.fireDelay = Math.max(rand(D.gap[0], D.gap[1]), b.w.dmg / D.dps - b.w.reload);
       }
     } else if (b.w.kind === 'ninja') {
-      // 苦無（忍）：ときどき長押しで並べ（0.8〜1.4 秒）、離して一気に飛ばす。見失ったら少し待ってから離す
+      // 苦無（忍）：ときどき長押しで並べ（1.8〜3.4 秒）、離して一気に飛ばす。見失ったら少し待ってから離す
       if (b.njHoldT > 0) {
         b.njHoldT -= dt;
         if (!los) b.njLostT = (b.njLostT || 0) + dt; else b.njLostT = 0;
@@ -392,7 +392,7 @@ export function updateBot(dt) {
         Ninja.aiHold(b, !go);
         if (go) b.njHoldT = 0;
       } else if (los && b.seen > D.react && !holdFire() && !b.coverPt && !busy && dist > 5 && dist < 35 && !Ninja.busy(b) && Math.random() < dt * 0.5) {   // 見えている間、平均 2 秒に 1 回くらい
-        b.njHoldT = rand(0.8, 1.4); b.njLostT = 0; Ninja.aiHold(b, true);
+        b.njHoldT = rand(1.8, 3.4); b.njLostT = 0; Ninja.aiHold(b, true);
       }
       // 手裏剣（忍）：相手の動きと落ちを見越して投げる（残像疾風の残りが長いうちは投げない：投げると終わるため）
       const dashing = act(b, 'shippu') && act(b, 'shippu').t > 0.4;
@@ -469,7 +469,7 @@ export const SKILL_AI = {
   kawarimi(b, c, i, s) {
     if (ready(s) && c.los && b.seen > 0.3 && (b.hurtT > 0 || Math.random() < c.dt * 0.6 * b.persona.eager)) useSkill(b, i, c.toP);
   },
-  // 残像疾風（忍）：撃たれて体力が減ったら逃げる・遠い相手へ一気に詰める・狙われたらときどき（その間は無敵、投げると終わる）
+  // 残像疾風（忍）：撃たれて体力が減ったら逃げる・遠い相手へ一気に詰める・狙われたらときどき（投げると終わる）
   shippu(b, c, i, s) {
     if (ready(s) && c.los && ((b.hurtT > 0.6 && b.hp < b.def.hp * 0.55) || b.retreating || c.dist > c.pref + 8 || (c.aimedAt && Math.random() < c.dt * 0.8 * b.persona.eager))) useSkill(b, i, c.toP);
   },

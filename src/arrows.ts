@@ -1,6 +1,7 @@
 // 矢（弓の弾）：重力で落ちる飛び道具。刺さった矢はしばらく残る。追尾の矢は相手を追いかける
 //   kind：'arrow' 矢（ふつう）/ 'shuriken' 忍の手裏剣（回りながら飛ぶ。光の輪と白い尾。壁には刃の1本を斜めに立てて刺さる）
 //         'kunai' 忍の苦無（まっすぐ飛び、朱の尾を引く。刺さると房が下へ垂れる）
+//   手裏剣は壁で 2 回まで跳ね返る。相手に当たると 5 秒間、相手の位置が壁越しに見える（markT）
 import { Net } from './net';
 import { Gadgets } from './gadgets';
 import { P } from './palette';
@@ -10,7 +11,7 @@ import { SFX } from './audio';
 import { mat, scene, toon } from './render';
 import { PHYS, blockers, physOf } from './physics';
 import { Particles } from './effects';
-import { act, botActor, damageBot, eyeOf, phased, player, ray, skillDamageMul } from './game';
+import { act, botActor, damageBot, eyeOf, hooks, phased, player, ray, skillDamageMul } from './game';
 import { damagePlayer } from './ai';
 import { applyPoison } from './promo';
 import { skinMaterials } from './guns/skins';
@@ -103,6 +104,10 @@ export const Arrows = (() => {
     if (mul < 1 && act(t, 'guard')) SFX.play('guard', point);
     SFX.play('arrowHit', point);
     if (a.poison && !t.dead) applyPoison(t, a.poison, a.owner);   // 毒矢
+    if (a.kind === 'shuriken' || a.kind === 'kunai') {
+      if (a.kind === 'shuriken') { if (t.isBot && !(t.markT > 0)) SFX.play('skXray'); t.markT = 5; }   // 手裏剣：5 秒間、居場所が壁越しに見える
+      if (hooks.ninjaHit) hooks.ninjaHit(point, a.kind);
+    }
     if (t.isBot) {
       damageBot({ dmg, head, point, po: a.poison ? 1 : 0 });
       SFX.play('ding');   // 当たった「ピン」
@@ -115,6 +120,21 @@ export const Arrows = (() => {
       if (!Net.on) damagePlayer(dmg, a.owner.pos);
       scene.remove(a.mesh);
     }
+  }
+  // 手裏剣：壁で跳ね返る（2 回まで。少し遅くなる）。跳ね返ったら true
+  function bounce(a, wall, dir) {
+    if (a.kind !== 'shuriken' || !((a.bounces ?? 2) > 0) || Gadgets.turretOfHit(wall.object)) return false;
+    const n = wall.face ? wall.face.normal.clone().transformDirection(wall.object.matrixWorld).normalize() : dir.clone().negate();
+    if (n.dot(dir) > 0) n.negate();
+    a.bounces = (a.bounces ?? 2) - 1;
+    a.vel.reflect(n).multiplyScalar(0.85);
+    a.pos.copy(wall.point).addScaledVector(n, 0.06);
+    const ph = physOf(wall); if (ph) PHYS.hit(ph, wall.point, dir, a.dmg * 0.06);
+    Particles.impact(wall.point, n);
+    for (let k = 0; k < 5; k++) Particles.glow(wall.point, P.kin[2]);
+    SFX.play('ricochet', wall.point);
+    orient(a);
+    return true;
   }
   // 壁や小物に刺さる
   function stick(a, wall, dir) {
@@ -172,7 +192,7 @@ export const Arrows = (() => {
       }
       ray.far = Infinity;
       if (hit && (!wall || hit.dist < wall.distance)) { hitTarget(a, hit.point, dir); live.splice(i, 1); continue; }
-      if (wall) { stick(a, wall, dir); live.splice(i, 1); continue; }
+      if (wall) { if (bounce(a, wall, dir)) continue; stick(a, wall, dir); live.splice(i, 1); continue; }
       a.pos.add(step);
       orient(a);
       // 相手の矢が顔の近くをかすめたら風切り音

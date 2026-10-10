@@ -29,7 +29,7 @@ const ROLL = -0.35, TILT = 0.75;   // 右手で横に投げるので少し右下
 const BUFFER = 0.12;  // 投げられるようになる少し前に押しても、間に合ったら投げる
 // 苦無：START 押し続けてから出始める / EVERY 1本ずつ出る間隔 / MAX 最大の本数 / GAP 飛ばす間隔 / SPEED 速さ / DMG・HEAD 威力 / AFTER 撃ち終わってから次に投げられるまで
 // TURN：弱い追尾（1 秒あたりに曲がれる角度）
-const K = { START: 0.25, EVERY: 0.12, MAX: 8, GAP: 0.06, SPEED: 70, DMG: 13, HEAD: 1.5, AFTER: 0.35, TURN: 1.6 };
+const K = { START: 0.75, EVERY: 0.36, MAX: 8, GAP: 0.18, SPEED: 70, DMG: 13, HEAD: 1.5, AFTER: 0.35, TURN: 1.0 };
 // 扇の並び（真上からの角度、右が +）。この順に出る（内側から外側へ左右交互）
 const FAN = [-12, 12, -34, 34, -56, 56, -78, 78].map(d => d * Math.PI / 180);
 const UP = new V3(0, 1, 0), DOWN = new V3(0, -1, 0);
@@ -393,10 +393,20 @@ function kawarimiHit(e, from: THREE.Vector3, kw) {
   SFX.play('doron', e === player ? null : e.pos);
   SFX.play('kon', log.position.clone().setY(e.pos.y + e.height * 0.6));   // 攻撃した側にも丸太に当たった音
   Particles.wood(e.pos.clone().setY(e.pos.y + e.height * 0.6), e.pos.clone().sub(from).setY(0).normalize(), 10);
-  Sword.quickSlow(0.15);
+  Sword.quickSlow(0.45);
   const local = e === player || (e === bot && !Net.on);
   if (local) dodge(e, kw.sk);
   else if (Net.on && e === bot) Net.send({ t: 'kw', f: vec(from) });   // 相手の画面でよけてもらう
+}
+
+// ---------- 手裏剣・苦無が当たった：短い白黒スローと墨の飛び散り ----------
+//   苦無は続けて当たるので、スローは 0.5 秒に 1 回まで
+let kunaiSlowAt = -9;
+function ninjaHit(point: THREE.Vector3, kind: string) {
+  if (kind === 'shuriken') Sword.quickSlow(0.1);
+  else if (clock - kunaiSlowAt > 0.5) { Sword.quickSlow(0.06); kunaiSlowAt = clock; }
+  ink(point, kind === 'shuriken' ? 0.55 : 0.4);
+  for (let i = 0; i < 5; i++) Particles.glow(point, P.shiro[2]);
 }
 
 // ---------- 試合の始まり：九字を切って、煙の中から現れる（E4） ----------
@@ -421,11 +431,11 @@ function introStart(e) {
   const I: Intro = { e, t: 0, sprites: [], el: null, popped: false };
   if (e === player) {
     const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:4';
+    el.style.cssText = 'position:fixed;left:66%;top:70%;width:0;height:0;pointer-events:none;z-index:4';   // 右手のあたり（まん中のカウントダウンに重ならないように）
     KUJI.forEach((ch, i) => {
       const a = -Math.PI / 2 + i / KUJI.length * Math.PI * 2, s = document.createElement('span');
       s.textContent = ch;
-      s.style.cssText = `position:absolute;left:${(Math.cos(a) * 24).toFixed(2)}vmin;top:${(Math.sin(a) * 24).toFixed(2)}vmin;transform:translate(-50%,-50%);font:900 8vmin var(--font-koma);color:#f6f3ee;opacity:0;text-shadow:0 0 1.2vmin rgba(20,16,14,.9),0 0 3vmin rgba(150,175,255,.6)`;
+      s.style.cssText = `position:absolute;left:${(Math.cos(a) * 11).toFixed(2)}vmin;top:${(Math.sin(a) * 11).toFixed(2)}vmin;transform:translate(-50%,-50%);font:900 4.6vmin var(--font-koma);color:#f6f3ee;opacity:0;text-shadow:0 0 1.2vmin rgba(20,16,14,.9),0 0 3vmin rgba(150,175,255,.6)`;
       s.animate([{ opacity: 0, transform: 'translate(-50%,-50%) scale(1.8)', filter: 'blur(6px)' }, { opacity: 1, transform: 'translate(-50%,-50%) scale(1)', filter: 'blur(0)' }],
         { duration: 160, delay: i * INTRO.EACH * 1000, fill: 'forwards', easing: 'ease-out' });
       el.appendChild(s);
@@ -549,7 +559,8 @@ export const Ninja = {
   },
   // 毎フレーム：苦無を出す・飛ばす・置き直す。駒が持つ手裏剣（ほかの人から見える）
   update(dt: number) {
-    hooks.kawarimi = kawarimiHit;   // 変わり身（読み込みの順番に左右されないよう、ここで入れる）
+    hooks.kawarimi = kawarimiHit; hooks.ninjaHit = ninjaHit;   // 変わり身・手裏剣と苦無が当たった（読み込みの順番に左右されないよう、ここで入れる）
+    for (const e of [player, bot]) if (e) e.markT = Math.max(0, (e.markT || 0) - dt);   // 手裏剣の印
     inkTick(dt);
     clock += dt;
     for (const e of [player, bot]) if (e) {

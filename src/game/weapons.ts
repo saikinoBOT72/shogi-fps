@@ -69,11 +69,11 @@ export function facingOf(e) {
   if (e.isBot) { const y = botActor.root.rotation.y; return new V3(Math.sin(y), 0, Math.cos(y)); }
   return new V3(-Math.sin(view.yaw), 0, -Math.cos(view.yaw));
 }
-// 忍の残像疾風・変わり身の直後：何も当たらない（弾・矢はすり抜けて後ろへ抜ける）
-export const phased = t => !!t && (!!act(t, 'shippu') || (t.nInv || 0) > 0);
+// 忍の変わり身の直後：何も当たらない（弾・矢はすり抜けて後ろへ抜ける）
+export const phased = t => !!t && (t.nInv || 0) > 0;
 // スキルによる被ダメージ倍率（守りの構えは前からの弾だけ減らす）
 // 変わり身（忍）：当たったときに呼ぶ（ninja.ts が入れる。import がぐるぐる回らないように、ここでは入れ物だけ）
-export const hooks: any = { kawarimi: null };
+export const hooks: any = { kawarimi: null, ninjaHit: null };   // ninjaHit：手裏剣・苦無が当たった（短いスローと演出）
 export function skillDamageMul(target, from) {
   if ((target.nInv || 0) > 0) return 0;   // 変わり身でよけた直後は何も当たらない
   // 変わり身を構えている：この攻撃は丸太が受ける（ダメージなし）
