@@ -18,17 +18,30 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HAS_SFX: ${{ secrets.SFX_DEPLOY_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
+      # 他人の効果音は非公開リポジトリから読み取り専用の鍵で取ってくる（鍵がなければ合成音のまま）
+      - uses: actions/checkout@v4
+        if: env.HAS_SFX == 'true'
+        with:
+          repository: saikinoBOT72/shogi-fps-sfx
+          path: sfx-src
+          ssh-key: ${{ secrets.SFX_DEPLOY_KEY }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          SFX_DIR: sfx-src
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+          retention-days: 1   # 公開リポジトリの成果物は誰でも落とせるので、音入りの組み立て結果はすぐ消す
   deploy:
     needs: build
     runs-on: ubuntu-latest

@@ -134,6 +134,7 @@ export function skillTick(e, dt) {
     if (s.t > 0 && !['dash', 'step', 'leap', 'grapple', 'blink', 'roll'].includes(sk.type)) {
       const was = s.t;
       s.t -= dt;
+      if (sk.type === 'cloak' && s.t <= 0 && was > 0 && !e.isBot) SFX.play('cloakOut');   // 透明化の時間切れ
       // 救急キット：最後まで歩くだけでいられたら回復（体力を決めるのは自分の画面）
       if (sk.type === 'medkit' && s.t <= 0 && was > 0 && !e.dead && (e === player || !Net.on)) {
         e.hp = Math.min(e.def.hp, e.hp + sk.amount);
@@ -230,7 +231,7 @@ export function useSkill(e, i, dir, force = false) {
   } else if (t === 'clone') {
     Clones.spawn(e);
   } else if (t === 'step') {
-    SFX.play('skStep', e.isBot ? e.pos : null);
+    SFX.play('suriashi', e.isBot ? e.pos : null);
     Particles.dust(e.pos, 5, 0.9);
     if (!e.isBot) { view.shake = Math.max(view.shake, 0.15); view.stepRoll = s.dir.dot(new V3(Math.cos(view.yaw), 0, -Math.sin(view.yaw))) > 0 ? -1 : 1; }
   } else if (t === 'buff') {
@@ -247,7 +248,7 @@ export function useSkill(e, i, dir, force = false) {
   } else if (t === 'smoke') {
     Smoke.spawn(e.pos.clone().add(new V3(0, 1.2, 0)), sk.radius, sk.life);
   } else if (t === 'xray' || t === 'cloak') {
-    if (!e.isBot) SFX.play(t === 'xray' ? 'skXray' : 'skCloak');
+    if (!e.isBot) SFX.play(t === 'xray' ? 'skXray' : 'cloakIn');
     if (t === 'cloak') for (let k = 0; k < 12; k++) Particles.glow(e.pos.clone().add(new V3(rand(-0.5, 0.5), rand(0.2, e.height), rand(-0.5, 0.5))), P.shiro[2]);
   } else if (t === 'boxes') {
     // 目の前に三角に積む（下2個・上1個）
@@ -290,7 +291,7 @@ export function useSkill(e, i, dir, force = false) {
 // 構えを解く（撃ったとき）
 export function endGuard(e) { const g = act(e, 'guard'); if (g) g.t = 0; }
 // 攻撃したら透明化が解ける
-export function onAttack(e) { const c = act(e, 'cloak'); if (c) c.t = 0; const sp = act(e, 'shippu'); if (sp) sp.t = 0; cancelMedkit(e); }   // 攻撃すると透明化・残像疾風が終わる
+export function onAttack(e) { const c = act(e, 'cloak'); if (c) { if (c.t > 0 && !e.isBot) SFX.play('cloakOut'); c.t = 0; } const sp = act(e, 'shippu'); if (sp) sp.t = 0; cancelMedkit(e); }   // 攻撃すると透明化・残像疾風が終わる
 // 救急キットを中断（回復しない）。keep：使ったばかりのその枠は除く
 export function cancelMedkit(e, keep?) {
   for (const s of e.slots || []) if (s !== keep && s.t > 0 && s.sk.type === 'medkit') {

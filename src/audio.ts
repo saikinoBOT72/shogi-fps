@@ -35,6 +35,24 @@ export const SFX = (() => {
     const warm = ctx.createGain(); warm.gain.value = 0; warm.connect(master);
     const p = ctx.createPanner(); p.panningModel = 'HRTF'; p.connect(warm);
     const o = ctx.createOscillator(); o.connect(p); o.start(); o.stop(ctx.currentTime + 0.05);
+    loadSamples();
+  }
+  // 録音した音（public/sfx/。非公開リポジトリから来る）。glock_shot_1.ogg 〜 glock_shot_9.ogg → smp.glock_shot に9個。無ければ合成音のまま
+  const smp: Record<string, AudioBuffer[]> = {};
+  function loadSamples() {
+    fetch('sfx/list.json').then(r => (r.ok ? r.json() : [])).then((list: string[]) => list.forEach(f => {
+      const key = f.replace(/\.[^.]+$/, '').replace(/_\d+$/, '');
+      fetch('sfx/' + f).then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)).then(buf => (smp[key] ||= []).push(buf)).catch(() => {});
+    })).catch(() => {});
+  }
+  // 録音した音を1つ（何個かあればランダムに）鳴らす。鳴らせたら true
+  function sample(key, d, g = 1, rate = 1, at = 0) {
+    const bs = smp[key];
+    if (!bs || !bs.length) return false;
+    const s = ctx.createBufferSource(); s.buffer = bs[Math.floor(Math.random() * bs.length)]; s.playbackRate.value = rate;
+    const gg = ctx.createGain(); gg.gain.value = g;
+    s.connect(gg).connect(d); s.start(ctx.currentTime + at);
+    return true;
   }
   // 出口：pos があれば立体音響。wet は残響の量、far は遠くの音（その周波数より高い音を削る）、to は出し先
   function out(pos?, wet = 0, far = 0, to = master) {
@@ -185,7 +203,15 @@ export const SFX = (() => {
   const sounds = {
     // 撃つ（model：武器の見た目の名前）
     shot(pos, model) {
-      model = ({ glock: 'burst', awm: 'mk2', famas: 'ak', m4: 'ak', vector: 'mp5' } as any)[model] || model;   // 成駒の武器は今ある音の流用（仮）
+      // 録音した音（Sonniss GDC。どの録音かは shogi-fps-sfx の CREDITS.md）
+      if (model === 'glock' && sample('glock_shot', out(pos, 0.15), 0.7, rand(0.97, 1.03))) return;
+      if (model === 'pistol' && sample('deagle_shot', out(pos, 0.15), 0.7, rand(0.97, 1.03))) return;
+      if (model === 'mk2' || model === 'awm') {
+        const d = out(pos, 0.3);
+        if (sample('sniper_shot', d, 0.8)) { click(d, 0.5, 1500, 0.5); click(d, 0.56, 1100, 0.35); click(d, 0.7, 2300, 0.55); return; }   // レバーを引いて戻す
+      }
+      if (model === 'm870') { const d = out(pos, 0.3); if (sample('shotgun_shot', d, 0.8)) { sample('shotgun_pump', d, 0.6, 1, 0.45); return; } }
+      model =({ glock: 'burst', awm: 'mk2', famas: 'ak', m4: 'ak', vector: 'mp5' } as any)[model] || model;   // 成駒の武器は今ある音の流用（仮）
       const r = rand(0.95, 1.05);
       if (model === 'mk2') {
         const d = out(pos, 0.6);
@@ -216,11 +242,12 @@ export const SFX = (() => {
       N(d, { dur: 0.12, type: 'bandpass', f0: 320, q: 3, g: 0.5 }); click(d, 0.02, 2000, 0.2);
     },
     // 刀：振る風切り（自分は小さく）・飛ぶ斬撃・斬撃が当たる・刀で斬った（鋭い音＋低いズーン）。仮の音（あとで試聴で選ぶ）
-    swing(pos, mine) { const d = out(pos, 0.08); swish(d, 0, 0.17, 700, 2800, mine ? 0.22 : 0.45); },
+    swing(pos, mine) { const d = out(pos, 0.08); if (sample('sword_swing', d, mine ? 0.35 : 0.6, rand(0.95, 1.05))) return; swish(d, 0, 0.17, 700, 2800, mine ? 0.22 : 0.45); },
     wave(pos) { const d = out(pos, 0.15); swish(d, 0, 0.3, 1200, 3400, 0.3); T(d, { f0: 900, f1: 1600, dur: 0.25, g: 0.04 }); },
     waveHit(pos) { N(out(pos, 0.1), { dur: 0.14, type: 'bandpass', f0: 2400, f1: 700, q: 1.5, g: 0.35 }); },
     slash() {
       const d = out(null, 0.5);
+      if (sample('sword_slash', d, 0.8)) return;
       N(d, { dur: 0.05, type: 'highpass', f0: 3500, g: 0.5 });
       N(d, { dur: 0.22, type: 'bandpass', f0: 2200, f1: 600, q: 1.3, g: 0.45 });
       metal(d, 0.005, 1900, 0.5, 0.05);
@@ -231,7 +258,7 @@ export const SFX = (() => {
     blink(pos, k = 1) { const d = out(pos, 0.25); N(d, { dur: 0.22 + 0.2 * k, type: 'bandpass', f0: 300, f1: 4200, q: 1.1, g: 0.55, atk: 0.04 }); T(d, { f0: 140, f1: 60, dur: 0.25, g: 0.35 }); N(d, { at: 0.05, dur: 0.3 + 0.2 * k, type: 'bandpass', f0: 3800, f1: 900, q: 1.5, g: 0.2, atk: 0.02 }); },
     blinkCancel() { const d = out(null, 0.05); T(d, { f0: 1600, f1: 500, dur: 0.18, g: 0.08 }); },
     // 葉隠れ：葉がざわっと舞う
-    leaves(pos) { const d = out(pos, 0.2); for (let i = 0; i < 6; i++) N(d, { at: i * 0.04, dur: 0.12, type: 'bandpass', f0: rand(2500, 5000), q: 2, g: 0.08 }); },
+    leaves(pos) { const d = out(pos, 0.2); if (sample('hagakure', d, 0.6)) return; for (let i = 0; i < 6; i++) N(d, { at: i * 0.04, dur: 0.12, type: 'bandpass', f0: rand(2500, 5000), q: 2, g: 0.08 }); },
     // 影分身：出る（ボフッ＋シャラン）・消える（ボフッ）
     cloneSpawn(pos) { const d = out(pos, 0.3); N(d, { dur: 0.35, f0: 900, f1: 200, g: 0.4 }); for (let i = 0; i < 5; i++) T(d, { at: i * 0.04, f0: 1800 + i * 300, dur: 0.2, g: 0.04 }); },
     clonePop(pos) { N(out(pos, 0.15), { dur: 0.25, f0: 1200, f1: 180, g: 0.4 }); },
@@ -249,7 +276,7 @@ export const SFX = (() => {
     // 忍の変わり身（仮の音）：入れ替わる「ドロン」・丸太に当たった「コン」
     doron(pos) { const d = out(pos, 0.25); N(d, { dur: 0.5, f0: 1800, f1: 260, g: 0.5, atk: 0.01 }); T(d, { f0: 240, f1: 80, dur: 0.22, g: 0.25 }); N(d, { at: 0.04, dur: 0.3, type: 'bandpass', f0: 3000, f1: 1200, q: 1.5, g: 0.08 }); },
     kon(pos) { const d = out(pos, 0.2); wood(d, 0, 520, 0.6, 0.12); wood(d, 0.012, 820, 0.3, 0.08); },
-    chin() { const d = out(null, 0.6); scrape(d, 0, 0.22, 2600, 0.08); tick(d, 0.24, 3400, 0.6, 0.1); metal(d, 0.24, 2700, 1.4, 0.07); },
+    chin() { const d = out(null, 0.6); if (sample('sword_chin', d, 0.7)) return; scrape(d, 0, 0.22, 2600, 0.08); tick(d, 0.24, 3400, 0.6, 0.1); metal(d, 0.24, 2700, 1.4, 0.07); },
     // ナイフを振る
     knife(pos) { N(out(pos, 0.05), { dur: 0.22, type: 'bandpass', f0: 500, f1: 3200, q: 2.2, g: 0.6, atk: 0.06 }); },
     // 弓：放つ・矢をつがえて引き絞る・引き切った
@@ -267,6 +294,8 @@ export const SFX = (() => {
     bowReady() { const d = out(null, 0.05); click(d, 0, 900, 0.35, 0.05); T(d, { f0: 1175, dur: 0.18, g: 0.08, at: 0.01 }); },
     // リロード（model の種類に合わせ、time 秒に合わせて伸び縮み）
     reload(model, time) {
+      const key = ({ glock: 'glock_reload', pistol: 'deagle_reload' } as any)[model];
+      if (key && sample(key, out(null, 0.12), 0.6)) return;
       const R = RELOAD[RELOAD_OF[model]];
       if (!R) return;
       R.play(out(null, 0.12), Math.max(0.6, Math.min(1.6, (time || R.len) * 0.9 / R.len)));
@@ -363,6 +392,7 @@ export const SFX = (() => {
     // 爆発・大玉の爆発
     boom(pos) {
       const d = out(pos, 0.25);
+      if (sample('boom', d, 0.9)) return;
       T(d, { f0: 90, f1: 35, dur: 0.5, g: 1 }); N(d, { dur: 0.6, f0: 4000, f1: 150, g: 0.9 }); N(d, { dur: 0.04, type: 'highpass', f0: 2000, g: 0.5 });
     },
     bigboom(pos) {
@@ -398,7 +428,7 @@ export const SFX = (() => {
     gCrack() { const d = out(null, 0.3); N(d, { dur: 0.05, type: 'highpass', f0: 1800, g: 0.5 }); wood(d, 0, 160, 0.7, 0.2); N(d, { at: 0.03, dur: 0.9, f0: 200, f1: 50, g: 0.35, atk: 0.05 }); },   // 盤が割れる：ばきっ・ごごご
     gShatter() { const d = out(null, 0.1); wood(d, 0, 420, 0.45, 0.08); for (let i = 0; i < 5; i++) wood(d, 0.02 + i * 0.03, rand(600, 1200), 0.15, 0.04); },   // 駒が割れる
     gThud() { const d = out(null, 0.1); N(d, { dur: 0.12, f0: 260, f1: 90, g: 0.55 }); wood(d, 0, 180, 0.35, 0.1); },   // どん
-    gCoins() { const d = out(null, 0.2); for (let i = 0; i < 18; i++) coin(d, i * 0.06 + rand(0, 0.05), 0.05); },   // 小判がちゃりちゃり
+    gCoins() { const d = out(null, 0.2); if (sample('gacha_coins', d, 0.6)) return; for (let i = 0; i < 18; i++) coin(d, i * 0.06 + rand(0, 0.05), 0.05); },   // 小判がちゃりちゃり
     fwLaunch() { const d = out(null, 0.2); T(d, { f0: 900, f1: 2400, dur: 0.6, g: 0.03, atk: 0.1 }); N(d, { dur: 0.6, type: 'bandpass', f0: 2000, q: 2, g: 0.04, atk: 0.1 }); },   // 花火のひゅー
     fwPop() { const d = out(null, 0.6); N(d, { dur: 0.25, f0: 500, f1: 80, g: 0.45 }); for (let i = 0; i < 10; i++) N(d, { at: 0.08 + i * 0.05 + rand(0, 0.04), dur: 0.02, type: 'highpass', f0: 3000, g: 0.05 }); },   // どーん・ぱちぱち
     // 素焼きの壺が割れる：高いぱりんと、砂がさらさら
@@ -415,6 +445,10 @@ export const SFX = (() => {
     ram(pos) { const d = out(pos, 0.1); wood(d, 0, 200, 0.7, 0.15); N(d, { dur: 0.1, f0: 900, g: 0.5 }); },
     guardUp(pos) { const d = out(pos, 0.1); swish(d, 0, 0.12, 400, 900, 0.15); wood(d, 0.1, 200, 0.5, 0.14); N(d, { at: 0.1, dur: 0.05, f0: 700, g: 0.3 }); },
     smoke(pos) { const d = out(pos, 0.2); N(d, { dur: 0.4, f0: 1200, f1: 200, g: 0.6, atk: 0.02 }); N(d, { dur: 1.2, type: 'bandpass', f0: 600, q: 0.6, g: 0.15, atk: 0.2 }); },
+    // 歩：すり足・透明化（消える／見えるようになる）。録音が無ければ合成音
+    suriashi(pos) { if (!sample('suriashi', out(pos), 0.5)) sounds.skStep(pos); },
+    cloakIn() { if (!sample('cloak_in', out(null, 0.2), 0.6)) sounds.skCloak(); },
+    cloakOut() { sample('cloak_out', out(null, 0.2), 0.5); },
     skCloak() {
       const d = out(null, 0.2);
       for (let i = 0; i < 6; i++) N(d, { at: i * 0.05, dur: 0.12, type: 'bandpass', f0: 3000 - i * 400, q: 4, g: 0.12 * (1 - i / 7) });

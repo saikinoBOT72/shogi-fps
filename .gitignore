@@ -10,3 +10,15 @@ tools/build-skin-viewer.mjs
 # PC の中だけ：作りかけの銃（見本ページで見る）・タイトル画面のデザインの試作
 src/guns/wip/
 design-title/
+# 他人の素材（音）は公開リポジトリに絶対に入れない。音は非公開リポジトリ shogi-fps-sfx に置く
+downloaded/
+public/sfx/
+*.wav
+*.mp3
+*.ogg
+*.m4a
+*.flac
+*.aac
+*.opus
+# 他人の音の試聴ページ（手元の開発サーバーだけで使う。公開しない）
+audition/
